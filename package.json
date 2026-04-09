@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:ws\"",
+    "dev:web": "next dev --turbopack",
+    "dev:ws": "node server/websocket.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "websocket": "^1.0.35",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "next": "15.3.3"
@@ -22,6 +26,7 @@
     "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
-    "@eslint/eslintrc": "^3"
+    "@eslint/eslintrc": "^3",
+    "concurrently": "^9.1.2"
   }
 }

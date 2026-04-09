@@ -1,47 +1,52 @@
-import React from 'react';
+import type { SidebarItem as SidebarItemType } from "@/types/navigation";
 
-// 单条菜单项组件
-const SidebarItem = ({ icon, menuName, progress }) => {
-    const clampedProgress = Math.min(100, Math.max(0, progress));
-
-    return (
-        <div className="flex items-center h-16 bg-gray-100 p-2 rounded w-full mb-2">
-            {/* 左侧 Icon */}
-            <div className="w-12 h-12 flex items-center justify-center bg-white rounded shadow">
-                {icon}
-            </div>
-
-            {/* 右侧进度条和文字 */}
-            <div className="flex flex-col flex-grow ml-4">
-                <div className="flex justify-between mb-1 text-sm font-medium text-gray-700">
-                    <span>{menuName}</span>
-                    <span>{clampedProgress}%</span>
-                </div>
-                <div className="w-full h-4 bg-gray-300 rounded overflow-hidden">
-                    <div
-                        className="h-full bg-blue-600 transition-all duration-300"
-                        style={{ width: `${clampedProgress}%` }}
-                    />
-                </div>
-            </div>
-        </div>
-    );
+type SidebarProps = {
+  items: SidebarItemType[];
 };
 
-// Sidebar 组件
-const Sidebar = ({ items }) => {
-    return (
-        <div className="w-64 p-4 bg-gray-50">
-            {items.map((item, idx) => (
-                <SidebarItem
-                    key={idx}
-                    icon={item.icon}
-                    menuName={item.menuName}
-                    progress={item.progress}
-                />
-            ))}
-        </div>
-    );
-};
+function SidebarItem({ icon, menuName, progress }: SidebarItemType) {
+  const clampedProgress = Math.min(100, Math.max(0, progress));
 
-export default Sidebar;
+  return (
+    <div className="mb-3 flex w-full items-center rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-50">
+        {icon}
+      </div>
+      <div className="ml-4 flex grow flex-col">
+        <div className="mb-1 flex justify-between text-sm font-medium text-slate-700">
+          <span>{menuName}</span>
+          <span>{clampedProgress}%</span>
+        </div>
+        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full rounded-full bg-blue-600 transition-all duration-300"
+            style={{ width: `${clampedProgress}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Sidebar({ items }: SidebarProps) {
+  return (
+    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50 p-5">
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          Road To Top
+        </p>
+        <h2 className="mt-2 text-xl font-semibold text-slate-900">Learning Progress</h2>
+      </div>
+      <div className="overflow-y-auto">
+        {items.map((item) => (
+          <SidebarItem
+            key={item.menuName}
+            icon={item.icon}
+            menuName={item.menuName}
+            progress={item.progress}
+          />
+        ))}
+      </div>
+    </aside>
+  );
+}
