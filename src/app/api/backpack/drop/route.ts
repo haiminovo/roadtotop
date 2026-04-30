@@ -1,4 +1,4 @@
-import { dropBackpackItem } from "@/lib/server/day0-service";
+import { dropBackpackItem } from "@/lib/server/game-session-service";
 import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";

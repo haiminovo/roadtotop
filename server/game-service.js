@@ -32,7 +32,7 @@ const raceConfigs = [
   {
     key: "human",
     label: "人类",
-    summary: "四维均衡，最适合 Day0 的万能开荒模版。",
+    summary: "四维均衡，最适合当前版本的万能开荒模版。",
     stats: { strength: 5, agility: 5, intelligence: 5, vitality: 5 },
   },
   {
@@ -67,7 +67,7 @@ const classConfigs = [
   {
     key: "farmer",
     label: "农民",
-    summary: "务实稳定，适合 Day0 的挂机与资源周转。",
+    summary: "务实稳定，适合当前版本的挂机与资源周转。",
     starterItemId: "field-hoe",
     stats: { strength: 2, agility: 2, intelligence: 1, vitality: 4 },
   },

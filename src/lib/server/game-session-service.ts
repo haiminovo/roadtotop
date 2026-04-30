@@ -132,7 +132,7 @@ type DashboardData = {
   backpack: BackpackRow[];
 };
 
-export type Day0SessionSnapshot = {
+export type GameSessionSnapshot = {
   serverTime: number;
   account: {
     guestToken: string;
@@ -860,7 +860,7 @@ async function deleteBackpackEntry(client: PoolClient, roleId: string, backpackI
   return (result.rowCount ?? 0) > 0;
 }
 
-function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardModal?: boolean }): Day0SessionSnapshot {
+function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardModal?: boolean }): GameSessionSnapshot {
   const progress = getCurrentLevelProgress(data.role.exp);
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
 

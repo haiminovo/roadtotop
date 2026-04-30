@@ -1,4 +1,4 @@
-import { loginGuest } from "@/lib/server/day0-service";
+import { loginGuest } from "@/lib/server/game-session-service";
 import { jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";

@@ -11,7 +11,7 @@ const displayFont = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "伊洛纳网页挂机 MMO · Day0",
+  title: "伊洛纳网页挂机 MMO · Road To Top",
   description: "游客登录、角色创建、挂机与离线收益结算的最小可运行骨架。",
 };
 

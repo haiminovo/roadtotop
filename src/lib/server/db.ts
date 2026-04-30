@@ -8,7 +8,7 @@ types.setTypeParser(20, (value) => Number.parseInt(value, 10));
 const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required before using the Day0 API.");
+  throw new Error("DATABASE_URL is required before using the game API.");
 }
 
 const pool = new Pool({
@@ -27,11 +27,11 @@ function loadInitSql() {
 export async function ensureDatabaseInitialized() {
   if (!global.__roadToTopDbInitPromise) {
     global.__roadToTopDbInitPromise = (async () => {
-      logger.info("Initializing Day0 database schema.");
+      logger.info("Initializing game database schema.");
       await pool.query(loadInitSql());
     })().catch((error) => {
       global.__roadToTopDbInitPromise = undefined;
-      logger.error("Failed to initialize Day0 database schema.", error);
+      logger.error("Failed to initialize game database schema.", error);
       throw error;
     });
   }

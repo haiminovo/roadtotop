@@ -36,7 +36,7 @@ export function jsonError(error: unknown) {
   const status = error instanceof ApiError ? error.status : 500;
 
   if (status >= 500) {
-    logger.error("Day0 API failed.", {
+    logger.error("Game API failed.", {
       message,
       stack: error instanceof Error ? error.stack : undefined,
     });

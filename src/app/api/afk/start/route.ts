@@ -1,4 +1,4 @@
-import { isValidMapKey, startAfk } from "@/lib/server/day0-service";
+import { isValidMapKey, startAfk } from "@/lib/server/game-session-service";
 import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";

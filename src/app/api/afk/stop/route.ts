@@ -1,4 +1,4 @@
-import { stopAfk } from "@/lib/server/day0-service";
+import { stopAfk } from "@/lib/server/game-session-service";
 import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";

@@ -1,4 +1,4 @@
-import { getGuestBootstrap } from "@/lib/server/day0-service";
+import { getGuestBootstrap } from "@/lib/server/game-session-service";
 import { ApiError, getTokenFromRequest, jsonError, jsonOk, optionsResponse } from "@/lib/server/http";
 
 export const runtime = "nodejs";
