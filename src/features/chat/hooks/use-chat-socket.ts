@@ -3,12 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type ChatChannelKey, type ChatChannel } from "@/features/chat/types";
 import { useGameSession } from "@/features/game/context/game-session-provider";
-
-const chatChannels: ChatChannel[] = [
-  { key: "world", label: "世界", summary: "公共频道" },
-  { key: "trade", label: "交易", summary: "买卖喊话" },
-  { key: "tavern", label: "酒馆", summary: "招募情报" },
-];
+import { useI18n } from "@/lib/i18n/provider";
 
 const CHAT_SEND_COOLDOWN_MS = 3000;
 
@@ -21,6 +16,7 @@ function createEmptyUnreadCounts(): Record<ChatChannelKey, number> {
 }
 
 export function useChatSocket() {
+  const { messages: i18n } = useI18n();
   const { chatMessages, sendChatMessage, snapshot, status } = useGameSession();
   const [activeChannel, setActiveChannel] = useState<ChatChannelKey>("world");
   const [input, setInput] = useState("");
@@ -108,6 +104,23 @@ export function useChatSocket() {
     () => chatMessages.filter((message) => message.channelKey === activeChannel),
     [activeChannel, chatMessages],
   );
+  const channels = useMemo<ChatChannel[]>(() => [
+    {
+      key: "world",
+      label: i18n.chat.channels.world.label,
+      summary: i18n.chat.channels.world.summary,
+    },
+    {
+      key: "trade",
+      label: i18n.chat.channels.trade.label,
+      summary: i18n.chat.channels.trade.summary,
+    },
+    {
+      key: "tavern",
+      label: i18n.chat.channels.tavern.label,
+      summary: i18n.chat.channels.tavern.summary,
+    },
+  ], [i18n]);
 
   const currentUserId = snapshot?.account.userId ?? null;
   const remainingCooldownMs = lastSentAt === null
@@ -117,7 +130,7 @@ export function useChatSocket() {
 
   return {
     activeChannel,
-    channels: chatChannels,
+    channels,
     currentUserId,
     input,
     messages,

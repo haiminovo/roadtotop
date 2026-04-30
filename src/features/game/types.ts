@@ -1,5 +1,7 @@
 import type {
   AfkEncounterReward,
+  BodySlotCapacities,
+  BodySlotType,
   ClassConfig,
   MapConfig,
   EncounterTier,
@@ -25,9 +27,12 @@ export type BackpackEntry = {
   itemId: string;
   quantity: number;
   equipped: boolean;
+  equippedCount: number;
+  equippedSlotGroups: string[][];
   name: string;
   rarity: string;
-  slot: string;
+  slot: BodySlotType;
+  slotUsage: number;
   description: string;
   sellPrice: number;
   stats: Record<string, number>;
@@ -68,6 +73,18 @@ export type SessionSnapshot = {
       intelligence: number;
       vitality: number;
     };
+    bodySlotCapacities: BodySlotCapacities;
+    bodySlots: Array<{
+      key: string;
+      label: string;
+      slotType: BodySlotType;
+      item: null | {
+        backpackId: string;
+        itemId: string;
+        name: string;
+        rarity: string;
+      };
+    }>;
   };
   backpack: BackpackEntry[];
   afk: {
@@ -122,6 +139,7 @@ export type GameSessionContextValue = {
   error: string | null;
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
+  equipBackpackItem: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
   registerAccount: (draft: AccountRegistrationDraft) => Promise<void>;
@@ -133,4 +151,5 @@ export type GameSessionContextValue = {
   startAfk: () => Promise<void>;
   status: ConnectionStatus;
   stopAfk: () => Promise<void>;
+  unequipBackpackItem: (backpackId: string) => Promise<void>;
 };

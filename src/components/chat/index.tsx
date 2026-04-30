@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChatSocket } from "@/features/chat/hooks/use-chat-socket";
+import { useI18n } from "@/lib/i18n/provider";
 
 function shouldShowGuestId(senderName: string) {
   const normalizedName = senderName.trim();
@@ -9,6 +10,8 @@ function shouldShowGuestId(senderName: string) {
 }
 
 export default function Chat() {
+  const { messages: i18n } = useI18n();
+  const copy = i18n.chat;
   const {
     activeChannel,
     channels,
@@ -53,15 +56,15 @@ export default function Chat() {
     <section className="flex h-full min-h-0 flex-col rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.96),rgba(11,16,30,0.98))] p-4 text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)]">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-white">频道聊天</h3>
+          <h3 className="text-sm font-semibold text-white">{copy.channel}</h3>
           <p className="text-[11px] text-slate-500">
-            {activeChannelMeta?.summary ?? "社交频道已并入主操作区底栏"}
+            {activeChannelMeta?.summary ?? copy.mergedSummary}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {totalUnreadCount > 0 ? (
             <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium text-amber-100">
-              未读 {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
+              {copy.unread} {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
             </span>
           ) : null}
           <div className="relative" ref={channelMenuRef}>
@@ -77,7 +80,7 @@ export default function Chat() {
               onClick={() => setIsChannelMenuOpen((current) => !current)}
               type="button"
             >
-              <span>{activeChannelMeta?.label ?? "频道"}</span>
+              <span>{activeChannelMeta?.label ?? copy.channel}</span>
               {unreadCounts[activeChannel] > 0 ? (
                 <span className="rounded-full bg-cyan-100/12 px-1.5 py-0.5 text-[10px] leading-none text-cyan-100">
                   {unreadCounts[activeChannel] > 99 ? "99+" : unreadCounts[activeChannel]}
@@ -119,7 +122,7 @@ export default function Chat() {
                           {unreadCount > 99 ? "99+" : unreadCount}
                         </span>
                       ) : activeChannel === channel.key ? (
-                        <span className="text-[10px] text-cyan-200">当前</span>
+                        <span className="text-[10px] text-cyan-200">{copy.currentTag}</span>
                       ) : null}
                     </button>
                   );
@@ -132,7 +135,7 @@ export default function Chat() {
 
       <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-[1.05rem] border border-white/8 bg-slate-900/70 px-3">
         {messages.length === 0 ? (
-          <p className="py-3 text-sm text-slate-500">这个频道还很安静。发一句试试看。</p>
+          <p className="py-3 text-sm text-slate-500">{copy.quiet}</p>
         ) : (
           messages.map((message) => (
             <div
@@ -176,7 +179,7 @@ export default function Chat() {
             }
           }}
           className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
-          placeholder={`发送到${channels.find((channel) => channel.key === activeChannel)?.label ?? "当前频道"}...`}
+          placeholder={`${copy.sendTo}${channels.find((channel) => channel.key === activeChannel)?.label ?? copy.currentChannel}...`}
         />
         <button
           onClick={() => {
@@ -186,7 +189,7 @@ export default function Chat() {
           disabled={input.trim().length === 0 || remainingCooldownMs > 0}
           type="button"
         >
-          {remainingCooldownMs > 0 ? `${sendCooldownSeconds}s` : "发送"}
+          {remainingCooldownMs > 0 ? `${sendCooldownSeconds}s` : copy.send}
         </button>
       </div>
     </section>

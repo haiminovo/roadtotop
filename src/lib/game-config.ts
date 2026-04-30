@@ -4,6 +4,8 @@ export type MapKey = "palmia-wilds";
 export type PanelKey = "role" | "backpack" | "afk";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
+export type BodySlotType = "head" | "hand" | "torso" | "legs" | "feet" | "neck" | "accessory";
+export type BodySlotCapacities = Record<BodySlotType, number>;
 
 export type Stats = {
   strength: number;
@@ -17,6 +19,7 @@ export type RaceConfig = {
   label: string;
   summary: string;
   stats: Stats;
+  bodySlotAdjustments?: Partial<BodySlotCapacities>;
 };
 
 export type ClassConfig = {
@@ -64,6 +67,15 @@ export const EXP_PER_LEVEL = 100;
 export const BASE_HEALTH = 50;
 export const HEALTH_PER_VITALITY = 12;
 export const HEALTH_PER_LEVEL = 2;
+export const DEFAULT_BODY_SLOT_CAPACITIES: BodySlotCapacities = {
+  head: 1,
+  hand: 2,
+  torso: 1,
+  legs: 1,
+  feet: 1,
+  neck: 1,
+  accessory: 2,
+};
 
 export const raceConfigs: RaceConfig[] = [
   {
@@ -77,12 +89,14 @@ export const raceConfigs: RaceConfig[] = [
     label: "精灵",
     summary: "速度和法感更高，挂机效率偏灵巧与法术。",
     stats: { strength: 3, agility: 7, intelligence: 7, vitality: 3 },
+    bodySlotAdjustments: { accessory: 1 },
   },
   {
     key: "dwarf",
     label: "矮人",
     summary: "更硬更稳，适合站桩和长期刷图。",
     stats: { strength: 7, agility: 3, intelligence: 3, vitality: 7 },
+    bodySlotAdjustments: { accessory: -1 },
   },
 ];
 
@@ -208,6 +222,33 @@ export function getClassConfig(classKey: ClassKey) {
 
 export function getMapConfig(mapKey: MapKey) {
   return mapConfigs.find((item) => item.key === mapKey) ?? null;
+}
+
+export function getBodySlotCapacities(raceKey: RaceKey) {
+  const race = getRaceConfig(raceKey);
+  const adjustments = race?.bodySlotAdjustments ?? {};
+
+  return {
+    head: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.head + (adjustments.head ?? 0)),
+    hand: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.hand + (adjustments.hand ?? 0)),
+    torso: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.torso + (adjustments.torso ?? 0)),
+    legs: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.legs + (adjustments.legs ?? 0)),
+    feet: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.feet + (adjustments.feet ?? 0)),
+    neck: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.neck + (adjustments.neck ?? 0)),
+    accessory: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.accessory + (adjustments.accessory ?? 0)),
+  } satisfies BodySlotCapacities;
+}
+
+export function getBodySlotTypeLabel(slotType: BodySlotType) {
+  return {
+    head: "头部",
+    hand: "手部",
+    torso: "上身",
+    legs: "下身",
+    feet: "脚部",
+    neck: "脖颈",
+    accessory: "饰品",
+  }[slotType];
 }
 
 export function getLevelBaseExp(level: number) {

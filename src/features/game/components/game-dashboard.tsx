@@ -2,32 +2,51 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Chat from "@/components/chat";
-import { getMaxHealth, type AfkEncounterReward, type ClassKey, type EncounterTier, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
+import { getMaxHealth, type AfkEncounterReward, type BodySlotType, type ClassKey, type EncounterTier, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
+import {
+  formatMessage,
+  getClassCopy,
+  getEncounterCopy,
+  getItemCopy,
+  getMapCopy,
+  getMessages,
+  getRaceCopy,
+  type SupportedLocale,
+} from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/provider";
 
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("zh-CN").format(Math.max(0, Math.floor(value)));
+type I18nMessages = ReturnType<typeof getMessages>;
+const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
+const DEFAULT_MESSAGES = getMessages(DEFAULT_LOCALE);
+
+function formatNumber(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return new Intl.NumberFormat(locale).format(Math.max(0, Math.floor(value)));
 }
 
-function formatDecimal(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+function formatDecimal(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+  }).format(value);
 }
 
-function formatDuration(seconds: number) {
+function formatDuration(seconds: number, locale: SupportedLocale = DEFAULT_LOCALE) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const remainingSeconds = totalSeconds % 60;
+  const isEnglish = locale === "en-US";
 
   if (hours > 0) {
-    return `${hours}小时 ${minutes}分`;
+    return isEnglish ? `${hours}h ${minutes}m` : `${hours}小时 ${minutes}分`;
   }
 
   if (minutes > 0) {
-    return `${minutes}分 ${remainingSeconds}秒`;
+    return isEnglish ? `${minutes}m ${remainingSeconds}s` : `${minutes}分 ${remainingSeconds}秒`;
   }
 
-  return `${remainingSeconds}秒`;
+  return isEnglish ? `${remainingSeconds}s` : `${remainingSeconds}秒`;
 }
 
 function formatClock(seconds: number) {
@@ -37,9 +56,9 @@ function formatClock(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
-function formatPercent(current: number, total: number) {
+function formatPercent(current: number, total: number, messages: I18nMessages = DEFAULT_MESSAGES) {
   if (total <= 0) {
-    return "MAX";
+    return messages.common.max;
   }
 
   return `${Math.min(100, Math.floor((current / total) * 100))}%`;
@@ -49,36 +68,70 @@ function formatEncounterRate(rate: number) {
   return `${(Math.max(0, rate) * 100).toFixed(3).replace(/\.?0+$/, "")}%`;
 }
 
-function formatEncounterReward(reward: AfkEncounterReward) {
+function localizeRaceLabel(raceKey: string, fallback: string, locale: SupportedLocale) {
+  return getRaceCopy(locale, raceKey)?.label ?? fallback;
+}
+
+function localizeRaceSummary(raceKey: string, fallback: string, locale: SupportedLocale) {
+  return getRaceCopy(locale, raceKey)?.summary ?? fallback;
+}
+
+function localizeClassLabel(classKey: string, fallback: string, locale: SupportedLocale) {
+  return getClassCopy(locale, classKey)?.label ?? fallback;
+}
+
+function localizeClassSummary(classKey: string, fallback: string, locale: SupportedLocale) {
+  return getClassCopy(locale, classKey)?.summary ?? fallback;
+}
+
+function localizeMapLabel(mapKey: string, fallback: string, locale: SupportedLocale) {
+  return getMapCopy(locale, mapKey)?.label ?? fallback;
+}
+
+function localizeMapSummary(mapKey: string, fallback: string, locale: SupportedLocale) {
+  return getMapCopy(locale, mapKey)?.summary ?? fallback;
+}
+
+function localizeItemName(itemId: string, fallback: string, locale: SupportedLocale) {
+  return getItemCopy(locale, itemId)?.name ?? fallback;
+}
+
+function localizeItemDescription(itemId: string, fallback: string, locale: SupportedLocale) {
+  return getItemCopy(locale, itemId)?.description ?? fallback;
+}
+
+function localizeEncounterTitle(encounterKey: string, fallback: string, locale: SupportedLocale) {
+  return getEncounterCopy(locale, encounterKey)?.title ?? fallback;
+}
+
+function localizeEncounterDescription(encounterKey: string, fallback: string, locale: SupportedLocale) {
+  return getEncounterCopy(locale, encounterKey)?.description ?? fallback;
+}
+
+function formatEncounterReward(
+  reward: AfkEncounterReward,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+  messages: I18nMessages = DEFAULT_MESSAGES,
+) {
   const segments = [
-    reward.gold > 0 ? `金 ${formatNumber(reward.gold)}` : null,
-    reward.exp > 0 ? `经 ${formatNumber(reward.exp)}` : null,
-    reward.aetherCrystal > 0 ? `以太 ${formatNumber(reward.aetherCrystal)}` : null,
+    reward.gold > 0 ? `${messages.game.dashboard.gold} ${formatNumber(reward.gold, locale)}` : null,
+    reward.exp > 0 ? `${messages.game.dashboard.exp} ${formatNumber(reward.exp, locale)}` : null,
+    reward.aetherCrystal > 0 ? `${messages.game.dashboard.aetherCrystal} ${formatNumber(reward.aetherCrystal, locale)}` : null,
     reward.healthDelta
-      ? `生命 ${reward.healthDelta > 0 ? "+" : "-"}${formatNumber(Math.abs(reward.healthDelta))}`
+      ? `${messages.game.dashboard.currentHealth} ${reward.healthDelta > 0 ? "+" : "-"}${formatNumber(Math.abs(reward.healthDelta), locale)}`
       : null,
-    ...(reward.items ?? []).map((item) => `${item.name ?? item.itemId} x${formatNumber(item.quantity)}`),
+    ...(reward.items ?? []).map((item) => `${localizeItemName(item.itemId, item.name ?? item.itemId, locale)} x${formatNumber(item.quantity, locale)}`),
   ].filter(Boolean);
 
-  return segments.length > 0 ? segments.join(" / ") : "无额外奖励";
+  return segments.length > 0 ? segments.join(" / ") : messages.common.empty;
 }
 
-function rarityLabel(rarity: string) {
-  return {
-    white: "白装",
-    green: "绿装",
-    blue: "蓝装",
-    purple: "紫装",
-    orange: "橙装",
-  }[rarity] ?? rarity;
+function rarityLabel(rarity: string, messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.rarity[rarity as keyof I18nMessages["rarity"]] ?? rarity;
 }
 
-function encounterTierLabel(tier: EncounterTier) {
-  return {
-    common: "普通奇遇",
-    rare: "稀有奇遇",
-    legendary: "传说奇遇",
-  }[tier];
+function encounterTierLabel(tier: EncounterTier, messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.encounterTier[tier];
 }
 
 function encounterTierAccent(tier: EncounterTier) {
@@ -89,8 +142,8 @@ function encounterTierAccent(tier: EncounterTier) {
   }[tier];
 }
 
-function formatEncounterTriggeredAt(timestamp: number) {
-  return new Date(timestamp).toLocaleString("zh-CN", {
+function formatEncounterTriggeredAt(timestamp: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return new Date(timestamp).toLocaleString(locale, {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
@@ -98,24 +151,66 @@ function formatEncounterTriggeredAt(timestamp: number) {
   });
 }
 
-function formatStatsSummary(stats: Record<string, number>) {
+function formatStatsSummary(
+  stats: Record<string, number>,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+  messages: I18nMessages = DEFAULT_MESSAGES,
+) {
   const entries = Object.entries(stats).filter(([, value]) => Number(value) > 0);
 
   if (entries.length === 0) {
-    return "无额外属性";
+    return messages.common.empty;
   }
 
   return entries
-    .map(([key, value]) => `${key} +${formatNumber(value)}`)
+    .map(([key, value]) => `${statLabel(key, messages)} +${formatNumber(value, locale)}`)
     .join(" · ");
 }
 
-function slotLabel(slot: string) {
-  return {
-    accessory: "饰品",
-    armor: "护甲",
-    weapon: "武器",
-  }[slot] ?? slot;
+function slotLabel(slot: string, messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.slots[slot as keyof I18nMessages["slots"]] ?? slot;
+}
+
+function statLabel(statKey: string, messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.stats[statKey as keyof I18nMessages["stats"]] ?? statKey;
+}
+
+function bodySlotKeyLabel(
+  slotKey: string,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+  messages: I18nMessages = DEFAULT_MESSAGES,
+) {
+  const [slotType, indexText] = slotKey.split("-");
+  const index = Number(indexText);
+  const baseLabel = slotLabel(slotType, messages);
+
+  if (!Number.isFinite(index)) {
+    return baseLabel;
+  }
+
+  return locale === "en-US" ? `${baseLabel} ${index}` : `${baseLabel}${index}`;
+}
+
+function formatEquippedGroupSummary(
+  groups: string[][] | null | undefined,
+  locale: SupportedLocale = DEFAULT_LOCALE,
+  messages: I18nMessages = DEFAULT_MESSAGES,
+) {
+  const safeGroups = Array.isArray(groups) ? groups : [];
+
+  if (safeGroups.length === 0) {
+    return messages.common.noneEquipped;
+  }
+
+  return safeGroups
+    .map((group) => group.map((slotKey) => bodySlotKeyLabel(slotKey, locale, messages)).join(" + "))
+    .join(" / ");
+}
+
+function getSafeBodySlots(
+  role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"],
+) {
+  return Array.isArray(role?.bodySlots) ? role.bodySlots : [];
 }
 
 function panelAccent(panel: PanelKey) {
@@ -135,16 +230,19 @@ const EMPTY_BACKPACK: Array<{
   itemId: string;
   quantity: number;
   equipped: boolean;
+  equippedCount: number;
+  equippedSlotGroups: string[][];
   name: string;
   rarity: string;
-  slot: string;
+  slot: BodySlotType;
+  slotUsage: number;
   description: string;
   sellPrice: number;
   stats: Record<string, number>;
 }> = [];
 
 type BackpackItem = typeof EMPTY_BACKPACK[number];
-type ItemActionKey = "drop";
+type ItemActionKey = "drop" | "equip" | "unequip";
 type PendingItemAction = {
   actionKey: ItemActionKey;
   backpackId: string;
@@ -160,21 +258,33 @@ function itemAccent(rarity: string) {
   }[rarity] ?? "border-slate-300/20 bg-slate-200/8 text-slate-100";
 }
 
-function getItemActionDefinition(actionKey: ItemActionKey) {
+function getItemActionDefinition(actionKey: ItemActionKey, messages: I18nMessages = DEFAULT_MESSAGES) {
+  const copy = messages.game.itemActions[actionKey];
   return {
-    drop: {
-      actionKey: "drop" as const,
-      confirmCopy: "这个操作会直接删除背包记录，不能恢复。",
-      confirmTitle: "确认丢弃物品",
-      label: "丢弃物品",
-      summary: "永久删除当前这组物品。",
-      tone: "danger" as const,
-    },
-  }[actionKey];
+    actionKey,
+    confirmCopy: copy.confirmCopy,
+    confirmTitle: copy.confirmTitle,
+    confirmVerb: copy.confirmVerb,
+    label: copy.label,
+    summary: copy.summary,
+    tone: actionKey === "drop" ? "danger" as const : "primary" as const,
+  };
 }
 
-function getAvailableItemActions() {
-  return [getItemActionDefinition("drop")];
+function getAvailableItemActions(item: BackpackItem, messages: I18nMessages = DEFAULT_MESSAGES) {
+  const actions = [];
+  const equippedCount = item.equippedCount ?? 0;
+
+  if (item.quantity > equippedCount) {
+    actions.push(getItemActionDefinition("equip", messages));
+  }
+
+  if (equippedCount > 0) {
+    actions.push(getItemActionDefinition("unequip", messages));
+  }
+
+  actions.push(getItemActionDefinition("drop", messages));
+  return actions;
 }
 
 function SectionCard({
@@ -296,6 +406,7 @@ function RailButton({
 
 function ItemTile({
   active,
+  equippedCount,
   glyph,
   itemName,
   onClick,
@@ -303,12 +414,15 @@ function ItemTile({
   rarity,
 }: {
   active: boolean;
+  equippedCount: number;
   glyph: string;
   itemName: string;
   onClick: () => void;
   quantity: number;
   rarity: string;
 }) {
+  const { messages } = useI18n();
+
   return (
     <button
       className={[
@@ -320,6 +434,11 @@ function ItemTile({
       title={itemName}
       type="button"
     >
+      {equippedCount > 0 ? (
+        <span className="absolute left-2 top-2 rounded-full border border-emerald-300/30 bg-emerald-300/18 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+          {messages.game.dashboard.equippedBadge}
+        </span>
+      ) : null}
       <span className="text-lg font-semibold">{glyph}</span>
       <span className="self-end rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-semibold text-white/90">
         {quantity}
@@ -332,6 +451,8 @@ function ItemTile({
 }
 
 function LandingView() {
+  const { locale, messages, setLocale } = useI18n();
+  const copy = messages.game;
   const { accountLogin, guestLogin, status } = useGameSession();
   const [loginMode, setLoginMode] = useState<"guest" | "account">("guest");
   const [username, setUsername] = useState("");
@@ -341,12 +462,12 @@ function LandingView() {
     <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <SectionCard className="overflow-hidden px-6 py-7 md:px-8">
-          <SectionEyebrow>Idle MMO</SectionEyebrow>
+          <SectionEyebrow>{copy.landing.eyebrow}</SectionEyebrow>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {[
-              ["服务端执行", "开始、停止和结算都在服务端处理。"],
-              ["离线收益", "离线后按完整轮次结算，未满一轮不计入。"],
-              ["背包查看", "已拥有物品可以在背包里查看详情。"],
+              [copy.landing.cards.server.title, copy.landing.cards.server.summary],
+              [copy.landing.cards.offline.title, copy.landing.cards.offline.summary],
+              [copy.landing.cards.backpack.title, copy.landing.cards.backpack.summary],
             ].map(([title, summary]) => (
               <div key={title} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-sky-100/55">{title}</p>
@@ -357,10 +478,28 @@ function LandingView() {
         </SectionCard>
 
         <SectionCard className="px-6 py-7">
-          <SectionEyebrow>Access</SectionEyebrow>
-          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">进入游戏</h2>
+          <SectionEyebrow>{copy.landing.access}</SectionEyebrow>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
+            <div className="mt-4 flex gap-2">
+              <button
+                className={`rounded-full border px-3 py-1 text-xs ${locale === "zh-CN" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
+                onClick={() => setLocale("zh-CN")}
+                type="button"
+              >
+                {messages.locale.zhCN}
+              </button>
+              <button
+                className={`rounded-full border px-3 py-1 text-xs ${locale === "en-US" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
+                onClick={() => setLocale("en-US")}
+                type="button"
+              >
+                {messages.locale.enUS}
+              </button>
+            </div>
+          </div>
           <p className="mt-4 text-sm leading-7 text-slate-300">
-            可以直接游客登录，也可以输入账号密码进入已绑定角色。
+            {copy.landing.summary}
           </p>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
@@ -374,7 +513,7 @@ function LandingView() {
               onClick={() => setLoginMode("guest")}
               type="button"
             >
-              游客登录
+              {copy.landing.guestLogin}
             </button>
             <button
               className={[
@@ -386,7 +525,7 @@ function LandingView() {
               onClick={() => setLoginMode("account")}
               type="button"
             >
-              账号登录
+              {copy.landing.accountLogin}
             </button>
           </div>
 
@@ -399,26 +538,26 @@ function LandingView() {
               }}
               type="button"
             >
-              {status === "booting" ? "正在建立游客会话..." : "以游客身份进入"}
+              {status === "booting" ? copy.landing.guestLoading : copy.landing.guestEnter}
             </button>
           ) : (
             <>
               <label className="mt-8 block">
-                <span className="text-sm font-medium text-emerald-100">账号</span>
+                <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
                 <input
                   className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
                   onChange={(event) => setUsername(event.target.value)}
-                  placeholder="输入账号"
+                  placeholder={copy.landing.usernamePlaceholder}
                   value={username}
                 />
               </label>
 
               <label className="mt-4 block">
-                <span className="text-sm font-medium text-emerald-100">密码</span>
+                <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
                 <input
                   className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="输入密码"
+                  placeholder={copy.landing.passwordPlaceholder}
                   type="password"
                   value={password}
                 />
@@ -435,7 +574,7 @@ function LandingView() {
                 }}
                 type="button"
               >
-                {status === "booting" ? "正在校验账号..." : "登录账号"}
+                {status === "booting" ? copy.landing.accountChecking : copy.landing.accountEnter}
               </button>
             </>
           )}
@@ -446,8 +585,10 @@ function LandingView() {
 }
 
 function CreateRoleView() {
+  const { locale, messages } = useI18n();
+  const copy = messages.game;
   const { createRole, snapshot, status } = useGameSession();
-  const [name, setName] = useState("边境旅人");
+  const [name, setName] = useState<string>(copy.createRole.unnamed);
   const [raceKey, setRaceKey] = useState<RaceKey>("human");
   const [classKey, setClassKey] = useState<ClassKey>("warrior");
 
@@ -467,23 +608,23 @@ function CreateRoleView() {
     <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <SectionCard className="px-6 py-7 md:px-8">
-          <SectionEyebrow>Character Setup</SectionEyebrow>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">创建角色</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">名字、种族和职业确认后就能直接开始挂机。</p>
+          <SectionEyebrow>{copy.createRole.setup}</SectionEyebrow>
+          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">{copy.createRole.title}</h1>
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">{copy.createRole.summary}</p>
 
           <label className="mt-8 block">
-            <span className="text-sm font-medium text-sky-100">角色名</span>
+            <span className="text-sm font-medium text-sky-100">{copy.createRole.roleName}</span>
             <input
               className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-sky-300"
               maxLength={12}
               onChange={(event) => setName(event.target.value)}
-              placeholder="输入 2~12 个字符"
+              placeholder={copy.createRole.roleNamePlaceholder}
               value={name}
             />
           </label>
 
           <div className="mt-8">
-            <SectionEyebrow>Race</SectionEyebrow>
+            <SectionEyebrow>{copy.createRole.race}</SectionEyebrow>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               {races.map((race) => (
                 <button
@@ -498,14 +639,14 @@ function CreateRoleView() {
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-white">{race.label}</p>
+                    <p className="text-lg font-semibold text-white">{localizeRaceLabel(race.key, race.label, locale)}</p>
                     <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-300">
                       {race.key}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{race.summary}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeRaceSummary(race.key, race.summary, locale)}</p>
                   <p className="mt-3 text-xs text-sky-100/70">
-                    力 {race.stats.strength} · 敏 {race.stats.agility} · 智 {race.stats.intelligence} · 体{" "}
+                    {statLabel("strength", messages)} {race.stats.strength} · {statLabel("agility", messages)} {race.stats.agility} · {statLabel("intelligence", messages)} {race.stats.intelligence} · {statLabel("vitality", messages)}{" "}
                     {race.stats.vitality}
                   </p>
                 </button>
@@ -514,7 +655,7 @@ function CreateRoleView() {
           </div>
 
           <div className="mt-8">
-            <SectionEyebrow>Class</SectionEyebrow>
+            <SectionEyebrow>{copy.createRole.class}</SectionEyebrow>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               {classes.map((roleClass) => (
                 <button
@@ -529,15 +670,15 @@ function CreateRoleView() {
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-white">{roleClass.label}</p>
+                    <p className="text-lg font-semibold text-white">{localizeClassLabel(roleClass.key, roleClass.label, locale)}</p>
                     <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-slate-300">
                       {roleClass.key}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{roleClass.summary}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeClassSummary(roleClass.key, roleClass.summary, locale)}</p>
                   <p className="mt-3 text-xs text-emerald-100/70">
-                    力 {roleClass.stats.strength} · 敏 {roleClass.stats.agility} · 智{" "}
-                    {roleClass.stats.intelligence} · 体 {roleClass.stats.vitality}
+                    {statLabel("strength", messages)} {roleClass.stats.strength} · {statLabel("agility", messages)} {roleClass.stats.agility} · {statLabel("intelligence", messages)}{" "}
+                    {roleClass.stats.intelligence} · {statLabel("vitality", messages)} {roleClass.stats.vitality}
                   </p>
                 </button>
               ))}
@@ -546,21 +687,21 @@ function CreateRoleView() {
         </SectionCard>
 
         <SectionCard className="px-6 py-7">
-          <SectionEyebrow>Preview</SectionEyebrow>
+          <SectionEyebrow>{copy.createRole.preview}</SectionEyebrow>
           <div className="mt-4 rounded-[1rem] border border-white/8 bg-white/[0.035] p-5">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-sky-100/55">当前编成</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">{name || "未命名旅人"}</h2>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-sky-100/55">{copy.createRole.currentBuild}</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">{name || copy.createRole.unnamed}</h2>
             <p className="mt-2 text-sm text-slate-300">
-              {selectedRace?.label ?? "未选种族"} / {selectedClass?.label ?? "未选职业"}
+              {(selectedRace ? localizeRaceLabel(selectedRace.key, selectedRace.label, locale) : copy.createRole.noRace)} / {(selectedClass ? localizeClassLabel(selectedClass.key, selectedClass.label, locale) : copy.createRole.noClass)}
             </p>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <DataPill label="力量" value={fusedStats.strength} />
-            <DataPill label="敏捷" value={fusedStats.agility} />
-            <DataPill label="智力" value={fusedStats.intelligence} />
-            <DataPill label="体质" value={fusedStats.vitality} />
-            <DataPill label="生命" value={formatNumber(previewHealth)} />
+            <DataPill label={statLabel("strength", messages)} value={fusedStats.strength} />
+            <DataPill label={statLabel("agility", messages)} value={fusedStats.agility} />
+            <DataPill label={statLabel("intelligence", messages)} value={fusedStats.intelligence} />
+            <DataPill label={statLabel("vitality", messages)} value={fusedStats.vitality} />
+            <DataPill label={copy.dashboard.currentHealth} value={formatNumber(previewHealth, locale)} />
           </div>
 
           <button
@@ -571,7 +712,7 @@ function CreateRoleView() {
             }}
             type="button"
           >
-            {status === "saving" ? "正在创建角色..." : "创建角色并进入世界"}
+            {status === "saving" ? copy.createRole.createLoading : copy.createRole.createSubmit}
           </button>
         </SectionCard>
       </div>
@@ -584,6 +725,7 @@ function BackpackOverview({
 }: {
   backpack: BackpackItem[];
 }) {
+  const { locale, messages } = useI18n();
   const groupedBySlot = backpack.reduce<Record<string, number>>((accumulator, item) => {
     const nextValue = accumulator[item.slot] ?? 0;
     accumulator[item.slot] = nextValue + item.quantity;
@@ -594,8 +736,53 @@ function BackpackOverview({
     <div className="grid gap-3 sm:grid-cols-2">
       {Object.entries(groupedBySlot).map(([slot, quantity]) => (
         <div key={slot} className="rounded-[0.95rem] border border-white/8 bg-white/[0.03] px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{slotLabel(slot)}</p>
-          <p className="mt-1 text-lg font-semibold text-white">{formatNumber(quantity)}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{slotLabel(slot, messages)}</p>
+          <p className="mt-1 text-lg font-semibold text-white">{formatNumber(quantity, locale)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BackpackSectionList({
+  backpack,
+  onSelectItem,
+  selectedBackpackId,
+}: {
+  backpack: BackpackItem[];
+  onSelectItem: (backpackId: string) => void;
+  selectedBackpackId: string | null;
+}) {
+  const { locale, messages } = useI18n();
+  const groupedItems = backpack.reduce<Record<string, BackpackItem[]>>((accumulator, item) => {
+    const current = accumulator[item.slot] ?? [];
+    current.push(item);
+    accumulator[item.slot] = current;
+    return accumulator;
+  }, {});
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(groupedItems).map(([slot, items]) => (
+        <div key={slot}>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{slotLabel(slot, messages)}</p>
+            <span className="text-[11px] text-slate-500">{formatNumber(items.length, locale)} {messages.common.speciesUnit}</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+            {items.map((item) => (
+              <ItemTile
+                key={item.backpackId}
+                active={selectedBackpackId === item.backpackId}
+                equippedCount={item.equippedCount ?? 0}
+                glyph={itemGlyph(localizeItemName(item.itemId, item.name, locale))}
+                itemName={localizeItemName(item.itemId, item.name, locale)}
+                onClick={() => onSelectItem(item.backpackId)}
+                quantity={item.quantity}
+                rarity={item.rarity}
+              />
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -607,12 +794,14 @@ function CenterPanel({
   backpack,
   currentTaskReward,
   maps,
+  onUnequipItem,
   onSelectItem,
   role,
   selectedBackpackId,
   selectedMapKey,
   selectMap,
   snapshot,
+  status,
   taskDuration,
   taskProgress,
   taskProgressPercent,
@@ -625,16 +814,20 @@ function CenterPanel({
     gold: number;
   };
   maps: MapConfig[];
+  onUnequipItem: (backpackId: string) => void;
   onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
   selectedBackpackId: string | null;
   selectedMapKey: MapKey;
   selectMap: (mapKey: MapKey) => void;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
+  status: ReturnType<typeof useGameSession>["status"];
   taskDuration: number;
   taskProgress: number;
   taskProgressPercent: number;
 }) {
+  const { locale, messages } = useI18n();
+  const copy = messages.game;
   if (!role) {
     return null;
   }
@@ -643,36 +836,28 @@ function CenterPanel({
     return (
       <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b border-white/8 px-4 py-3">
-          <SectionEyebrow>Inventory</SectionEyebrow>
+          <SectionEyebrow>{copy.dashboard.inventory}</SectionEyebrow>
           <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">背包</h2>
-              <p className="mt-1 text-sm text-slate-300">只展示当前真实拥有的物品。</p>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.backpackTitle}</h2>
+              <p className="mt-1 text-sm text-slate-300">{copy.dashboard.backpackSummary}</p>
             </div>
             <div className="flex gap-2">
-              <DataPill label="物品数" value={formatNumber(backpack.length)} />
+              <DataPill label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
               <DataPill
-                label="已装备"
-                value={formatNumber(backpack.filter((item) => item.equipped).length)}
+                label={copy.dashboard.equippedCount}
+                value={formatNumber(backpack.reduce((total, item) => total + (item.equippedCount ?? 0), 0), locale)}
               />
             </div>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-            {backpack.map((item) => (
-              <ItemTile
-                key={item.backpackId}
-                active={selectedBackpackId === item.backpackId}
-                glyph={itemGlyph(item.name)}
-                itemName={item.name}
-                onClick={() => onSelectItem(item.backpackId)}
-                quantity={item.quantity}
-                rarity={item.rarity}
-              />
-            ))}
-          </div>
+          <BackpackSectionList
+            backpack={backpack}
+            onSelectItem={onSelectItem}
+            selectedBackpackId={selectedBackpackId}
+          />
         </div>
       </SectionCard>
     );
@@ -681,43 +866,72 @@ function CenterPanel({
   if (activePanel === "role") {
     const race = snapshot.config.races.find((item) => item.key === role.raceKey);
     const roleClass = snapshot.config.classes.find((item) => item.key === role.classKey);
+    const bodySlots = getSafeBodySlots(role);
 
     return (
       <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="border-b border-white/8 px-4 py-3">
-          <SectionEyebrow>Character Sheet</SectionEyebrow>
-          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">角色档案</h2>
+          <SectionEyebrow>{copy.dashboard.characterSheet}</SectionEyebrow>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.roleTitle}</h2>
         </div>
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
             <p className="text-2xl font-semibold text-white">{role.name}</p>
             <p className="mt-2 text-sm text-slate-300">
-              {race?.label} / {roleClass?.label}
+              {race ? localizeRaceLabel(race.key, race.label, locale) : copy.createRole.noRace} / {roleClass ? localizeClassLabel(roleClass.key, roleClass.label, locale) : copy.createRole.noClass}
             </p>
-            <p className="mt-3 text-sm leading-6 text-slate-300">{race?.summary}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">{roleClass?.summary}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{race ? localizeRaceSummary(race.key, race.summary, locale) : ""}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{roleClass ? localizeClassSummary(roleClass.key, roleClass.summary, locale) : ""}</p>
           </div>
 
           <div className="rounded-[1rem] border border-rose-300/20 bg-[linear-gradient(180deg,rgba(244,63,94,0.12),rgba(15,23,42,0.18))] p-4">
             <TopStatusBar
-              label="生命状态"
+              label={copy.dashboard.healthStatus}
               tone="from-rose-500 via-orange-400 to-emerald-300"
               value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
             />
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <DataPill label="当前生命" value={`${formatNumber(role.currentHealth)} / ${formatNumber(role.maxHealth)}`} />
-              <DataPill label="死亡惩罚" value="生命归零时掉 1 级" />
+              <DataPill label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
+              <DataPill label={copy.dashboard.deathPenalty} value={copy.dashboard.deathPenaltyValue} />
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <DataPill label="等级" value={formatNumber(role.level)} />
-            <DataPill label="经验" value={formatNumber(role.exp)} />
-            <DataPill label="最大生命" value={formatNumber(role.maxHealth)} />
-            <DataPill label="力量" value={formatNumber(role.stats.strength)} />
-            <DataPill label="敏捷" value={formatNumber(role.stats.agility)} />
-            <DataPill label="智力" value={formatNumber(role.stats.intelligence)} />
-            <DataPill label="体质" value={formatNumber(role.stats.vitality)} />
+            <DataPill label={copy.dashboard.level} value={formatNumber(role.level, locale)} />
+            <DataPill label={copy.dashboard.exp} value={formatNumber(role.exp, locale)} />
+            <DataPill label={copy.dashboard.maxHealth} value={formatNumber(role.maxHealth, locale)} />
+            <DataPill label={statLabel("strength", messages)} value={formatNumber(role.stats.strength, locale)} />
+            <DataPill label={statLabel("agility", messages)} value={formatNumber(role.stats.agility, locale)} />
+            <DataPill label={statLabel("intelligence", messages)} value={formatNumber(role.stats.intelligence, locale)} />
+            <DataPill label={statLabel("vitality", messages)} value={formatNumber(role.stats.vitality, locale)} />
+          </div>
+
+          <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 xl:col-span-2">
+            <SectionEyebrow>{copy.dashboard.bodySlots}</SectionEyebrow>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {bodySlots.map((slot) => (
+                <div key={slot.key} className="rounded-[0.95rem] border border-white/8 bg-slate-950/35 p-4">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{bodySlotKeyLabel(slot.key, locale, messages)}</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{slot.item ? localizeItemName(slot.item.itemId, slot.item.name, locale) : copy.dashboard.emptySlot}</p>
+                  <p className="mt-1 text-xs text-slate-400">{slot.item ? rarityLabel(slot.item.rarity, messages) : slotLabel(slot.slotType, messages)}</p>
+                  {slot.item ? (
+                    <button
+                      className="mt-3 rounded-[0.75rem] border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-100 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={status === "saving"}
+                      onClick={() => onUnequipItem(slot.item!.backpackId)}
+                      type="button"
+                    >
+                      {copy.dashboard.unequip}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {bodySlots.length === 0 ? (
+                <div className="rounded-[0.95rem] border border-dashed border-white/10 bg-slate-950/25 p-4 text-sm text-slate-400 sm:col-span-2 lg:col-span-3">
+                  {copy.dashboard.bodySlotsSyncing}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </SectionCard>
@@ -727,15 +941,15 @@ function CenterPanel({
   return (
     <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-white/8 px-4 py-3">
-        <SectionEyebrow>AFK Control</SectionEyebrow>
+        <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
         <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">挂机控制</h2>
-            <p className="mt-1 text-sm text-slate-300">当前版本只保留一张已实现地图，收益与结算都以服务端状态为准。</p>
+            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.afkTitle}</h2>
+            <p className="mt-1 text-sm text-slate-300">{copy.dashboard.afkSummaryText}</p>
           </div>
           <div className="flex gap-2">
-            <DataPill label="周期" value={formatClock(taskDuration)} />
-            <DataPill label="本轮" value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
+            <DataPill label={copy.dashboard.cycle} value={formatClock(taskDuration)} />
+            <DataPill label={copy.dashboard.currentRound} value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
           </div>
         </div>
       </div>
@@ -748,21 +962,21 @@ function CenterPanel({
               <div key={map.key}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xl font-semibold text-white">{map.label}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">{map.summary}</p>
+                    <p className="text-xl font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">{localizeMapSummary(map.key, map.summary, locale)}</p>
                   </div>
                   <button
                     className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300"
                     onClick={() => selectMap(map.key)}
                     type="button"
                   >
-                    当前地图
+                    {copy.dashboard.currentMapButton}
                   </button>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  <DataPill label="金币/分" value={formatDecimal(map.goldPerMinute)} />
-                  <DataPill label="以太/分" value={formatDecimal(map.aetherPerMinute)} />
-                  <DataPill label="经验/分" value={formatDecimal(map.expPerMinute)} />
+                  <DataPill label={copy.dashboard.goldPerMinute} value={formatDecimal(map.goldPerMinute, locale)} />
+                  <DataPill label={copy.dashboard.aetherPerMinute} value={formatDecimal(map.aetherPerMinute, locale)} />
+                  <DataPill label={copy.dashboard.expPerMinute} value={formatDecimal(map.expPerMinute, locale)} />
                 </div>
               </div>
             ))}
@@ -770,35 +984,35 @@ function CenterPanel({
 
         <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
           <TopStatusBar
-            label="执行进度"
+            label={copy.dashboard.executionProgress}
             tone="from-sky-400 via-cyan-300 to-emerald-300"
             value={taskProgressPercent}
           />
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <DataPill label="状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
-            <DataPill label="剩余" value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
-            <DataPill label="已执行" value={formatDuration(taskProgress)} />
+            <DataPill label={copy.dashboard.status} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+            <DataPill label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress), locale)} />
+            <DataPill label={copy.dashboard.executed} value={formatDuration(taskProgress, locale)} />
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <DataPill label="单轮金币" value={formatNumber(currentTaskReward.gold)} />
-            <DataPill label="单轮以太" value={formatNumber(currentTaskReward.aetherCrystal)} />
-            <DataPill label="单轮经验" value={formatNumber(currentTaskReward.exp)} />
+            <DataPill label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
+            <DataPill label={copy.dashboard.roundAether} value={formatNumber(currentTaskReward.aetherCrystal, locale)} />
+            <DataPill label={copy.dashboard.roundExp} value={formatNumber(currentTaskReward.exp, locale)} />
           </div>
         </div>
 
         <div className="rounded-[1rem] border border-amber-300/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.1),rgba(15,23,42,0.18))] p-4 xl:col-span-2">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <SectionEyebrow>Encounter Log</SectionEyebrow>
-              <h3 className="mt-2 text-xl font-semibold text-white">自己触发的奇遇</h3>
+              <SectionEyebrow>{copy.dashboard.encounterLogEyebrow}</SectionEyebrow>
+              <h3 className="mt-2 text-xl font-semibold text-white">{copy.dashboard.encounterLogTitle}</h3>
               <p className="mt-1 text-sm leading-6 text-slate-300">
-                每次完整执行动作后都会在服务端做一次奇遇判定，部分奇遇会直接掉血或回血，血量归零会立刻掉 1 级。
+                {copy.dashboard.encounterLogSummary}
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
-              <DataPill label="普通" value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
-              <DataPill label="稀有" value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
-              <DataPill label="传说" value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
+              <DataPill label={messages.encounterTier.common} value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
+              <DataPill label={messages.encounterTier.rare} value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
+              <DataPill label={messages.encounterTier.legendary} value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
             </div>
           </div>
 
@@ -810,19 +1024,19 @@ function CenterPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-base font-semibold text-white">{encounter.title}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt)}</p>
+                    <p className="text-base font-semibold text-white">{localizeEncounterTitle(encounter.key, encounter.title, locale)}</p>
+                    <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt, locale)}</p>
                   </div>
                   <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
-                    {encounterTierLabel(encounter.tier)}
+                    {encounterTierLabel(encounter.tier, messages)}
                   </span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{encounter.description}</p>
-                <p className="mt-3 text-xs leading-6 text-amber-100/90">{formatEncounterReward(encounter.reward)}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{localizeEncounterDescription(encounter.key, encounter.description, locale)}</p>
+                <p className="mt-3 text-xs leading-6 text-amber-100/90">{formatEncounterReward(encounter.reward, locale, messages)}</p>
               </div>
             )) : (
               <div className="rounded-[1rem] border border-dashed border-white/10 bg-slate-950/20 p-4 text-sm leading-6 text-slate-400 lg:col-span-2">
-                这里会显示你最近触发的奇遇。当前还没有记录，继续挂机跑完整轮次就有机会刷出来。
+                {copy.dashboard.encounterEmpty}
               </div>
             )}
           </div>
@@ -850,6 +1064,8 @@ function RightRail({
   selectedItem: BackpackItem | undefined;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
 }) {
+  const { locale, messages } = useI18n();
+  const copy = messages.game;
   const equippedItems = backpack.filter((item) => item.equipped);
 
   return (
@@ -860,33 +1076,43 @@ function RightRail({
         {activePanel === "backpack" ? (
           <>
             <div>
-              <SectionEyebrow>Selected Item</SectionEyebrow>
+              <SectionEyebrow>{copy.dashboard.selectedItem}</SectionEyebrow>
               {selectedItem ? (
                 <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-lg font-semibold text-white">{selectedItem.name}</p>
+                      <p className="text-lg font-semibold text-white">{localizeItemName(selectedItem.itemId, selectedItem.name, locale)}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                        {slotLabel(selectedItem.slot)} · {rarityLabel(selectedItem.rarity)}
+                        {formatMessage(copy.dashboard.itemMeta, {
+                          rarity: rarityLabel(selectedItem.rarity, messages),
+                          slot: slotLabel(selectedItem.slot, messages),
+                          slotUsage: selectedItem.slotUsage,
+                        })}
                       </p>
                     </div>
                     <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-200">
                       x{selectedItem.quantity}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{selectedItem.description}</p>
-                  <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(selectedItem.stats)}</p>
-                  <p className="mt-3 text-xs text-slate-400">出售价格 {formatNumber(selectedItem.sellPrice)}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeItemDescription(selectedItem.itemId, selectedItem.description, locale)}</p>
+                  <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(selectedItem.stats, locale, messages)}</p>
+                  <p className="mt-3 text-xs text-slate-400">
+                    {formatMessage(copy.dashboard.equippedSummary, {
+                      count: formatNumber(selectedItem.equippedCount ?? 0, locale),
+                      slots: formatEquippedGroupSummary(selectedItem.equippedSlotGroups, locale, messages),
+                    })}
+                  </p>
+                  <p className="mt-3 text-xs text-slate-400">{messages.common.sellPrice} {formatNumber(selectedItem.sellPrice, locale)}</p>
                 </div>
               ) : (
                 <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
-                  点击中间仓库中的任意物品查看详情。
+                  {copy.dashboard.selectedItemEmpty}
                 </div>
               )}
             </div>
 
             <div>
-              <SectionEyebrow>Overview</SectionEyebrow>
+              <SectionEyebrow>{copy.dashboard.overview}</SectionEyebrow>
               <div className="mt-3">
                 <BackpackOverview backpack={backpack} />
               </div>
@@ -894,65 +1120,69 @@ function RightRail({
           </>
         ) : activePanel === "role" ? (
           <div>
-            <SectionEyebrow>Equipped Items</SectionEyebrow>
+            <SectionEyebrow>{copy.dashboard.equippedItems}</SectionEyebrow>
             <div className="mt-3 space-y-3">
               {equippedItems.length > 0 ? equippedItems.map((item) => (
                 <div key={item.backpackId} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
-                  <p className="text-sm font-semibold text-white">{item.name}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{slotLabel(item.slot)}</p>
-                  <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(item.stats)}</p>
+                  <p className="text-sm font-semibold text-white">{localizeItemName(item.itemId, item.name, locale)}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{slotLabel(item.slot, messages)}</p>
+                  <p className="mt-2 text-xs leading-6 text-slate-400">{formatEquippedGroupSummary(item.equippedSlotGroups, locale, messages)}</p>
+                  <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(item.stats, locale, messages)}</p>
                 </div>
               )) : (
                 <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
-                  当前没有已装备物品。
+                  {copy.dashboard.equippedNone}
                 </div>
               )}
             </div>
           </div>
         ) : (
           <div>
-            <SectionEyebrow>Settlement Summary</SectionEyebrow>
+            <SectionEyebrow>{copy.dashboard.settlementSummary}</SectionEyebrow>
             <div className="mt-3 grid gap-2">
-              <DataPill label="待领取金币" value={formatNumber(pendingReward.gold)} />
-              <DataPill label="待领取经验" value={formatNumber(pendingReward.exp)} />
-              <DataPill label="待领取以太" value={formatNumber(pendingReward.aetherCrystal)} />
-              <DataPill label="累计时长" value={formatDuration(pendingReward.seconds)} />
+              <DataPill label={copy.dashboard.pendingGold} value={formatNumber(pendingReward.gold, locale)} />
+              <DataPill label={copy.dashboard.pendingExp} value={formatNumber(pendingReward.exp, locale)} />
+              <DataPill label={copy.dashboard.pendingAether} value={formatNumber(pendingReward.aetherCrystal, locale)} />
+              <DataPill label={copy.dashboard.totalDuration} value={formatDuration(pendingReward.seconds, locale)} />
               <DataPill
-                label="预计小时收益"
-                value={`金 ${formatNumber(snapshot.afk.estimatedHourlyReward.gold)} / 经 ${formatNumber(snapshot.afk.estimatedHourlyReward.exp)}`}
+                label={copy.dashboard.estimatedHourlyReward}
+                value={formatMessage(copy.dashboard.rewardGoldExp, {
+                  exp: formatNumber(snapshot.afk.estimatedHourlyReward.exp, locale),
+                  gold: formatNumber(snapshot.afk.estimatedHourlyReward.gold, locale),
+                })}
               />
             </div>
 
             <SectionEyebrow>
-              <span className="mt-6 block">Encounter Rates</span>
+              <span className="mt-6 block">{copy.dashboard.encounterRates}</span>
             </SectionEyebrow>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <DataPill label="普通" value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
-              <DataPill label="稀有" value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
-              <DataPill label="传说" value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
+              <DataPill label={messages.encounterTier.common} value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
+              <DataPill label={messages.encounterTier.rare} value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
+              <DataPill label={messages.encounterTier.legendary} value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
             </div>
 
             <SectionEyebrow>
-              <span className="mt-6 block">Recent Encounters</span>
+              <span className="mt-6 block">{copy.dashboard.recentEncounters}</span>
             </SectionEyebrow>
             <div className="mt-3 space-y-3">
               {snapshot.afk.recentEncounters.length > 0 ? snapshot.afk.recentEncounters.slice(0, 5).map((encounter) => (
                 <div key={encounter.id} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-white">{encounter.title}</p>
-                      <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt)}</p>
+                      <p className="text-sm font-semibold text-white">{localizeEncounterTitle(encounter.key, encounter.title, locale)}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt, locale)}</p>
                     </div>
                     <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
-                      {encounterTierLabel(encounter.tier)}
+                      {encounterTierLabel(encounter.tier, messages)}
                     </span>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{encounter.description}</p>
-                  <p className="mt-3 text-xs leading-6 text-sky-100/80">{formatEncounterReward(encounter.reward)}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeEncounterDescription(encounter.key, encounter.description, locale)}</p>
+                  <p className="mt-3 text-xs leading-6 text-sky-100/80">{formatEncounterReward(encounter.reward, locale, messages)}</p>
                 </div>
               )) : (
                 <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-slate-400">
-                  完成每一次完整动作执行后，服务端都会分别以普通 10%、稀有 1%、传说 0.1% 的概率判定奇遇。
+                  {copy.dashboard.encounterRatesHint}
                 </div>
               )}
             </div>
@@ -964,12 +1194,15 @@ function RightRail({
 }
 
 function MainDashboard() {
+  const { locale, messages, setLocale } = useI18n();
+  const copy = messages.game;
   const {
     activePanel,
     claimOfflineReward,
     dropBackpackItem,
     deleteAccountRole,
     dismissError,
+    equipBackpackItem,
     error,
     registerAccount,
     selectedMapKey,
@@ -979,6 +1212,7 @@ function MainDashboard() {
     startAfk,
     status,
     stopAfk,
+    unequipBackpackItem,
   } = useGameSession();
   const [dismissedRewardKey, setDismissedRewardKey] = useState<string | null>(null);
   const [displayNow, setDisplayNow] = useState(() => Date.now());
@@ -1081,11 +1315,11 @@ function MainDashboard() {
     ? backpack.find((item) => item.backpackId === pendingItemAction.backpackId)
     : undefined;
   const pendingActionDefinition = pendingItemAction
-    ? getItemActionDefinition(pendingItemAction.actionKey)
+    ? getItemActionDefinition(pendingItemAction.actionKey, messages)
     : null;
   const isAccountUser = snapshot?.account.mode === "account";
   const isGuestUser = snapshot?.account.mode === "guest";
-  const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp) : "0%";
+  const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
   const taskProgress = snapshot?.afk.status === "active"
     ? Math.min(
@@ -1107,9 +1341,9 @@ function MainDashboard() {
   }
 
   const menuItems: Array<{ key: PanelKey; label: string; summary: string; count?: string }> = [
-    { key: "afk", label: "挂机", summary: "当前地图、进度和收益。", count: snapshot.afk.status === "active" ? "运行中" : "待机" },
-    { key: "backpack", label: "背包", summary: "查看已有物品。", count: String(backpack.length) },
-    { key: "role", label: "角色", summary: "等级、属性与成长。", count: `Lv.${role.level}` },
+    { key: "afk", label: copy.dashboard.menu.afk.label, summary: copy.dashboard.menu.afk.summary, count: snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
+    { key: "backpack", label: copy.dashboard.menu.backpack.label, summary: copy.dashboard.menu.backpack.summary, count: String(backpack.length) },
+    { key: "role", label: copy.dashboard.menu.role.label, summary: copy.dashboard.menu.role.summary, count: `${messages.common.levelShort}${role.level}` },
   ];
 
   const handleSelectBackpackItem = (backpackId: string) => {
@@ -1132,7 +1366,7 @@ function MainDashboard() {
         <div className="mx-auto mb-3 flex max-w-[1600px] items-center justify-between gap-4 rounded-[1rem] border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           <span>{error}</span>
           <button className="rounded-lg bg-black/20 px-3 py-2" onClick={dismissError} type="button">
-            关闭
+            {messages.common.close}
           </button>
         </div>
       ) : null}
@@ -1140,16 +1374,16 @@ function MainDashboard() {
       {shouldShowRewardModal ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/72 px-4">
           <div className="w-full max-w-2xl rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-7 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
-            <SectionEyebrow>AFK Summary</SectionEyebrow>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">挂机总结</h2>
+            <SectionEyebrow>{copy.dashboard.afkSummary}</SectionEyebrow>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.offlineModalTitle}</h2>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              离开页面期间，角色会自动进入挂机状态。服务端已经按挂机地图与完整执行轮次完成结算，未跑满的那一轮不会被计入奖励。
+              {copy.dashboard.offlineModalSummary}
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <DataPill label="金币" value={formatNumber(pendingReward?.gold ?? 0)} />
-              <DataPill label="以太结晶" value={formatNumber(pendingReward?.aetherCrystal ?? 0)} />
-              <DataPill label="经验" value={formatNumber(pendingReward?.exp ?? 0)} />
+              <DataPill label={copy.dashboard.gold} value={formatNumber(pendingReward?.gold ?? 0, locale)} />
+              <DataPill label={copy.dashboard.aetherCrystal} value={formatNumber(pendingReward?.aetherCrystal ?? 0, locale)} />
+              <DataPill label={copy.dashboard.exp} value={formatNumber(pendingReward?.exp ?? 0, locale)} />
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -1160,14 +1394,14 @@ function MainDashboard() {
                 }}
                 type="button"
               >
-                立即领取
+                {copy.dashboard.receiveNow}
               </button>
               <button
                 className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
                 onClick={() => setDismissedRewardKey(JSON.stringify(pendingReward))}
                 type="button"
               >
-                稍后处理
+                {copy.dashboard.later}
               </button>
             </div>
           </div>
@@ -1176,39 +1410,39 @@ function MainDashboard() {
 
       {showRegisterAccountModal && snapshot ? (
         <OverlayModal>
-          <SectionEyebrow>Bind Account</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">注册账号</h2>
+          <SectionEyebrow>{copy.dashboard.bindAccount}</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.registerTitle}</h2>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            当前游客角色会直接绑定到新账号 <span className="font-semibold text-white">{role.name}</span> 上，之后可以通过账号密码登录。
+            {formatMessage(copy.dashboard.registerSummary, { roleName: role.name })}
           </p>
 
           <label className="mt-6 block">
-            <span className="text-sm font-medium text-emerald-100">账号</span>
+            <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
             <input
               className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
               onChange={(event) => setRegisterUsername(event.target.value)}
-              placeholder="4~20 位字母、数字或下划线"
+              placeholder={copy.dashboard.registerUsernamePlaceholder}
               value={registerUsername}
             />
           </label>
 
           <label className="mt-4 block">
-            <span className="text-sm font-medium text-emerald-100">密码</span>
+            <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
             <input
               className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
               onChange={(event) => setRegisterPassword(event.target.value)}
-              placeholder="至少 6 位"
+              placeholder={copy.dashboard.registerPasswordPlaceholder}
               type="password"
               value={registerPassword}
             />
           </label>
 
           <label className="mt-4 block">
-            <span className="text-sm font-medium text-emerald-100">重复密码</span>
+            <span className="text-sm font-medium text-emerald-100">{copy.dashboard.registerConfirmPassword}</span>
             <input
               className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
               onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-              placeholder="再次输入密码"
+              placeholder={copy.dashboard.registerConfirmPasswordPlaceholder}
               type="password"
               value={registerConfirmPassword}
             />
@@ -1237,7 +1471,7 @@ function MainDashboard() {
               }}
               type="button"
             >
-              {status === "saving" ? "提交中..." : "确认注册账号"}
+              {status === "saving" ? messages.common.submit : copy.dashboard.registerSubmit}
             </button>
             <button
               className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
@@ -1247,7 +1481,7 @@ function MainDashboard() {
               }}
               type="button"
             >
-              取消
+              {messages.common.cancel}
             </button>
           </div>
         </OverlayModal>
@@ -1255,11 +1489,13 @@ function MainDashboard() {
 
       {showDeleteRoleConfirm && snapshot ? (
         <OverlayModal>
-          <SectionEyebrow>Delete Role</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">确认删除角色</h2>
+          <SectionEyebrow>{copy.dashboard.deleteRole}</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.deleteRoleTitle}</h2>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            这个操作会永久删除账号 <span className="font-semibold text-white">{snapshot.account.username}</span> 绑定的角色
-            <span className="font-semibold text-white"> {role.name}</span>，背包、挂机和收益记录都会一起移除。
+            {formatMessage(copy.dashboard.deleteRoleSummary, {
+              roleName: role.name,
+              username: snapshot.account.username ?? messages.common.boundAccount,
+            })}
           </p>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -1273,7 +1509,7 @@ function MainDashboard() {
               }}
               type="button"
             >
-              {status === "saving" ? "删除中..." : "确认删除角色"}
+              {status === "saving" ? copy.dashboard.deleteRoleLoading : copy.dashboard.deleteRoleSubmit}
             </button>
             <button
               className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
@@ -1281,7 +1517,7 @@ function MainDashboard() {
               onClick={() => setShowDeleteRoleConfirm(false)}
               type="button"
             >
-              我再想想
+              {copy.dashboard.deleteRoleCancel}
             </button>
           </div>
         </OverlayModal>
@@ -1289,23 +1525,29 @@ function MainDashboard() {
 
       {actionItem ? (
         <OverlayModal>
-          <SectionEyebrow>Item Actions</SectionEyebrow>
+          <SectionEyebrow>{copy.dashboard.itemActions}</SectionEyebrow>
           <div className="mt-4 flex items-start gap-4">
             <div className={`flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold ${itemAccent(actionItem.rarity)}`}>
-              {itemGlyph(actionItem.name)}
+              {itemGlyph(localizeItemName(actionItem.itemId, actionItem.name, locale))}
             </div>
             <div className="min-w-0">
-              <h2 className="text-2xl font-semibold text-white">{actionItem.name}</h2>
+              <h2 className="text-2xl font-semibold text-white">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>
               <p className="mt-2 text-sm text-slate-300">
-                {slotLabel(actionItem.slot)} · {rarityLabel(actionItem.rarity)} · 数量 x{actionItem.quantity}
+                {formatMessage(copy.dashboard.actionItemMeta, {
+                  equippedCount: actionItem.equippedCount ?? 0,
+                  quantity: actionItem.quantity,
+                  rarity: rarityLabel(actionItem.rarity, messages),
+                  slot: slotLabel(actionItem.slot, messages),
+                })}
               </p>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{actionItem.description}</p>
-              <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats)}</p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
+              <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
+              <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, locale, messages) })}</p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3">
-            {getAvailableItemActions().map((action) => (
+            {getAvailableItemActions(actionItem, messages).map((action) => (
               <button
                 key={action.actionKey}
                 className={[
@@ -1315,7 +1557,21 @@ function MainDashboard() {
                     : "border-white/10 bg-white/[0.04] text-white hover:border-sky-200/25",
                 ].join(" ")}
                 disabled={status === "saving"}
-                onClick={() => {
+              onClick={() => {
+                  if (action.actionKey === "equip") {
+                    void equipBackpackItem(actionItem.backpackId).then(() => {
+                      setItemActionBackpackId(null);
+                    });
+                    return;
+                  }
+
+                  if (action.actionKey === "unequip") {
+                    void unequipBackpackItem(actionItem.backpackId).then(() => {
+                      setItemActionBackpackId(null);
+                    });
+                    return;
+                  }
+
                   setItemActionBackpackId(null);
                   setPendingItemAction({
                     actionKey: action.actionKey,
@@ -1333,27 +1589,30 @@ function MainDashboard() {
               onClick={() => setItemActionBackpackId(null)}
               type="button"
             >
-              关闭菜单
+              {copy.dashboard.actionClose}
             </button>
           </div>
         </OverlayModal>
       ) : null}
 
-      {pendingActionItem && pendingActionDefinition ? (
+      {pendingActionItem && pendingActionDefinition && pendingItemAction?.actionKey === "drop" ? (
         <OverlayModal>
-          <SectionEyebrow>Confirm Action</SectionEyebrow>
+          <SectionEyebrow>{copy.dashboard.confirmAction}</SectionEyebrow>
           <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">
             {pendingActionDefinition.confirmTitle}
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            即将处理 <span className="font-semibold text-white">{pendingActionItem.name}</span> x{pendingActionItem.quantity}。
-            {pendingActionDefinition.confirmCopy}
+            {formatMessage(copy.dashboard.pendingActionSummary, {
+              extra: pendingActionDefinition.confirmCopy,
+              itemName: localizeItemName(pendingActionItem.itemId, pendingActionItem.name, locale),
+              quantity: pendingActionItem.quantity,
+            })}
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <DataPill label="类型" value={slotLabel(pendingActionItem.slot)} />
-            <DataPill label="品质" value={rarityLabel(pendingActionItem.rarity)} />
-            <DataPill label="出售价格" value={formatNumber(pendingActionItem.sellPrice)} />
+            <DataPill label={messages.common.type} value={slotLabel(pendingActionItem.slot, messages)} />
+            <DataPill label={messages.common.rarity} value={rarityLabel(pendingActionItem.rarity, messages)} />
+            <DataPill label={messages.common.sellPrice} value={formatNumber(pendingActionItem.sellPrice, locale)} />
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -1372,10 +1631,24 @@ function MainDashboard() {
                     setItemActionBackpackId(null);
                   });
                 }
+
+                if (pendingItemAction?.actionKey === "equip") {
+                  void equipBackpackItem(pendingActionItem.backpackId).then(() => {
+                    setPendingItemAction(null);
+                    setItemActionBackpackId(null);
+                  });
+                }
+
+                if (pendingItemAction?.actionKey === "unequip") {
+                  void unequipBackpackItem(pendingActionItem.backpackId).then(() => {
+                    setPendingItemAction(null);
+                    setItemActionBackpackId(null);
+                  });
+                }
               }}
               type="button"
             >
-              {status === "saving" ? "处理中..." : `确认${pendingActionDefinition.label.replace("物品", "")}`}
+              {status === "saving" ? messages.common.processing : pendingActionDefinition.confirmVerb}
             </button>
             <button
               className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
@@ -1386,7 +1659,7 @@ function MainDashboard() {
               }}
               type="button"
             >
-              返回菜单
+              {copy.dashboard.pendingActionBack}
             </button>
           </div>
         </OverlayModal>
@@ -1401,37 +1674,57 @@ function MainDashboard() {
                   {role.avatarSeed}
                 </div>
                 <div>
-                  <SectionEyebrow>Overview</SectionEyebrow>
+                  <SectionEyebrow>{copy.dashboard.overview}</SectionEyebrow>
                   <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white">{role.name}</h1>
                   <p className="mt-1 text-sm text-slate-200/80">
-                    Lv.{role.level} · {snapshot.config.races.find((item) => item.key === role.raceKey)?.label} · {snapshot.config.classes.find((item) => item.key === role.classKey)?.label}
+                    {formatMessage(copy.dashboard.roleMeta, {
+                      className: localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale),
+                      level: role.level,
+                      race: localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale),
+                    })}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <DataPill label="当前金币" value={formatNumber(role.gold)} />
-                <DataPill label="以太结晶" value={formatNumber(role.aetherCrystal)} />
-                <DataPill label="当前生命" value={`${formatNumber(role.currentHealth)} / ${formatNumber(role.maxHealth)}`} />
-                <DataPill label="待领取" value={formatNumber(snapshot.afk.pendingReward.gold)} />
-                <DataPill label="执行状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
-                <DataPill label="升级进度" value={progressCopy} />
-                <DataPill label="账号状态" value={isAccountUser ? (snapshot.account.username ?? "账号已绑定") : "游客"} />
+                <DataPill label={copy.dashboard.gold} value={formatNumber(role.gold, locale)} />
+                <DataPill label={copy.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
+                <DataPill label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
+                <DataPill label={copy.dashboard.pendingRewardShort} value={formatNumber(snapshot.afk.pendingReward.gold, locale)} />
+                <DataPill label={copy.dashboard.executionStatus} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+                <DataPill label={copy.dashboard.levelProgress} value={progressCopy} />
+                <DataPill label={copy.dashboard.accountStatus} value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest} />
               </div>
             </div>
 
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
               <TopStatusBar
-                label="等级进度"
+                label={copy.dashboard.levelBar}
                 tone="from-teal-300 via-cyan-300 to-sky-400"
                 value={role.nextLevelExp > 0 ? (role.currentLevelExp / role.nextLevelExp) * 100 : 100}
               />
               <TopStatusBar
-                label="生命状态"
+                label={copy.dashboard.lifeBar}
                 tone="from-rose-500 via-orange-400 to-emerald-300"
                 value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
               />
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                <div className="flex gap-2">
+                  <button
+                    className={`rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition ${locale === "zh-CN" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
+                    onClick={() => setLocale("zh-CN")}
+                    type="button"
+                  >
+                    {messages.locale.zhCN}
+                  </button>
+                  <button
+                    className={`rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition ${locale === "en-US" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
+                    onClick={() => setLocale("en-US")}
+                    type="button"
+                  >
+                    {messages.locale.enUS}
+                  </button>
+                </div>
                 {isGuestUser ? (
                   <button
                     className="rounded-[0.95rem] border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1439,7 +1732,7 @@ function MainDashboard() {
                     onClick={() => setShowRegisterAccountModal(true)}
                     type="button"
                   >
-                    注册账号
+                    {copy.dashboard.registerAccount}
                   </button>
                 ) : null}
                 {isAccountUser ? (
@@ -1449,7 +1742,7 @@ function MainDashboard() {
                     onClick={() => setShowDeleteRoleConfirm(true)}
                     type="button"
                   >
-                    删除角色
+                    {copy.dashboard.deleteRole}
                   </button>
                 ) : null}
                 <button
@@ -1460,7 +1753,7 @@ function MainDashboard() {
                   }}
                   type="button"
                 >
-                  {status === "saving" && snapshot.afk.status === "idle" ? "提交中..." : "开始挂机"}
+                  {status === "saving" && snapshot.afk.status === "idle" ? messages.common.submit : copy.dashboard.startAfk}
                 </button>
                 <button
                   className="rounded-[0.95rem] bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1470,7 +1763,7 @@ function MainDashboard() {
                   }}
                   type="button"
                 >
-                  {status === "saving" && snapshot.afk.status === "active" ? "提交中..." : "停止挂机"}
+                  {status === "saving" && snapshot.afk.status === "active" ? messages.common.submit : copy.dashboard.stopAfk}
                 </button>
                 <button
                   className="rounded-[0.95rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white transition hover:border-sky-200/25"
@@ -1479,7 +1772,7 @@ function MainDashboard() {
                   }}
                   type="button"
                 >
-                  领取收益
+                  {copy.dashboard.claimReward}
                 </button>
               </div>
             </div>
@@ -1508,12 +1801,16 @@ function MainDashboard() {
               backpack={backpack}
               currentTaskReward={currentTaskReward}
               maps={maps}
+              onUnequipItem={(backpackId) => {
+                void unequipBackpackItem(backpackId);
+              }}
               onSelectItem={handleSelectBackpackItem}
               role={role}
               selectedBackpackId={selectedBackpackId}
               selectedMapKey={selectedMapKey}
               selectMap={selectMap}
               snapshot={snapshot}
+              status={status}
               taskDuration={taskDuration}
               taskProgress={taskProgress}
               taskProgressPercent={taskProgressPercent}

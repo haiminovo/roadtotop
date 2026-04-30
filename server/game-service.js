@@ -7,27 +7,36 @@ const EXP_PER_LEVEL = 100;
 const BASE_HEALTH = 50;
 const HEALTH_PER_VITALITY = 12;
 const HEALTH_PER_LEVEL = 2;
+const DEFAULT_BODY_SLOT_CAPACITIES = {
+  head: 1,
+  hand: 2,
+  torso: 1,
+  legs: 1,
+  feet: 1,
+  neck: 1,
+  accessory: 2,
+};
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
 const itemSeeds = [
-  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "weapon", description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
-  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "weapon", description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
-  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", slot: "weapon", description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", slot: "armor", description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
-  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", slot: "accessory", description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
-  { itemId: "training-bow", name: "练习短弓", rarity: "white", slot: "weapon", description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
-  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", slot: "armor", description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
-  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", slot: "accessory", description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
-  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", slot: "weapon", description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
-  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", slot: "weapon", description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
-  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", slot: "armor", description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
-  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", slot: "accessory", description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
-  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", slot: "weapon", description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
-  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", slot: "armor", description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
-  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", slot: "accessory", description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
-  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", slot: "weapon", description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
-  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", slot: "armor", description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
-  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", slot: "accessory", description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
+  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
+  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
+  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
+  { itemId: "training-bow", name: "练习短弓", rarity: "white", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
+  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
+  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
+  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
+  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
+  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
+  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
+  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
+  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
+  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
+  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
+  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
+  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
 ];
 const itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
 
@@ -37,18 +46,21 @@ const raceConfigs = [
     label: "人类",
     summary: "四维均衡，最适合当前版本的万能开荒模版。",
     stats: { strength: 5, agility: 5, intelligence: 5, vitality: 5 },
+    bodySlotAdjustments: {},
   },
   {
     key: "elf",
     label: "精灵",
     summary: "速度和法感更高，挂机效率偏灵巧与法术。",
     stats: { strength: 3, agility: 7, intelligence: 7, vitality: 3 },
+    bodySlotAdjustments: { accessory: 1 },
   },
   {
     key: "dwarf",
     label: "矮人",
     summary: "更硬更稳，适合站桩和长期刷图。",
     stats: { strength: 7, agility: 3, intelligence: 3, vitality: 7 },
+    bodySlotAdjustments: { accessory: -1 },
   },
 ];
 
@@ -199,8 +211,11 @@ function getRarityRank(rarity) {
 
 function sortBackpackRows(backpack) {
   backpack.sort((left, right) => {
-    if (left.equipped !== right.equipped) {
-      return left.equipped ? -1 : 1;
+    const leftEquippedCount = (left.equipped_slot_groups || []).length;
+    const rightEquippedCount = (right.equipped_slot_groups || []).length;
+
+    if (leftEquippedCount !== rightEquippedCount) {
+      return rightEquippedCount - leftEquippedCount;
     }
 
     const rarityDelta = getRarityRank(right.rarity) - getRarityRank(left.rarity);
@@ -210,6 +225,149 @@ function sortBackpackRows(backpack) {
     }
 
     return left.name.localeCompare(right.name, "zh-CN");
+  });
+}
+
+function getBodySlotCapacities(raceKey) {
+  const race = raceConfigs.find((item) => item.key === raceKey) || null;
+  const adjustments = race?.bodySlotAdjustments || {};
+
+  return {
+    head: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.head + (adjustments.head || 0)),
+    hand: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.hand + (adjustments.hand || 0)),
+    torso: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.torso + (adjustments.torso || 0)),
+    legs: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.legs + (adjustments.legs || 0)),
+    feet: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.feet + (adjustments.feet || 0)),
+    neck: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.neck + (adjustments.neck || 0)),
+    accessory: Math.max(0, DEFAULT_BODY_SLOT_CAPACITIES.accessory + (adjustments.accessory || 0)),
+  };
+}
+
+function getBodySlotTypeLabel(slotType) {
+  return {
+    head: "头部",
+    hand: "手部",
+    torso: "上身",
+    legs: "下身",
+    feet: "脚部",
+    neck: "脖颈",
+    accessory: "饰品",
+  }[slotType] || slotType;
+}
+
+function getBackpackEquippedCount(backpackRow) {
+  return (backpackRow.equipped_slot_groups || []).length;
+}
+
+function normalizeEquippedSlotGroups(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((group) => {
+      if (!Array.isArray(group)) {
+        return null;
+      }
+
+      const normalizedGroup = group
+        .filter((slotKey) => typeof slotKey === "string" && slotKey.trim().length > 0)
+        .map((slotKey) => slotKey.trim());
+
+      return normalizedGroup.length > 0 ? normalizedGroup : null;
+    })
+    .filter(Boolean);
+}
+
+function buildBodySlotKeys(capacities) {
+  return [
+    ["head", capacities.head],
+    ["hand", capacities.hand],
+    ["torso", capacities.torso],
+    ["legs", capacities.legs],
+    ["feet", capacities.feet],
+    ["neck", capacities.neck],
+    ["accessory", capacities.accessory],
+  ].flatMap(([slotType, count]) =>
+    Array.from({ length: Math.max(0, count) }, (_, index) => `${slotType}-${index + 1}`),
+  );
+}
+
+function buildAvailableBodySlotKeys(capacities, slotType) {
+  const count = Math.max(0, capacities[slotType] || 0);
+  return Array.from({ length: count }, (_, index) => `${slotType}-${index + 1}`);
+}
+
+function allocateEquipmentSlots(role, backpack, item) {
+  if (item.quantity <= getBackpackEquippedCount(item)) {
+    throw new Error("这件物品已经没有可装备的数量了。");
+  }
+
+  const capacities = getBodySlotCapacities(role.race_key);
+  const candidateSlotKeys = buildAvailableBodySlotKeys(capacities, item.slot);
+
+  if (candidateSlotKeys.length < item.slot_usage) {
+    throw new Error("当前种族没有足够的对应肢体槽位。");
+  }
+
+  const occupiedSlots = new Set(
+    backpack.flatMap((entry) => (entry.equipped_slot_groups || []).flatMap((group) => group)),
+  );
+  const freeSlots = candidateSlotKeys.filter((slotKey) => !occupiedSlots.has(slotKey));
+
+  if (freeSlots.length < item.slot_usage) {
+    throw new Error("对应肢体部位已经被占满，无法继续装备。");
+  }
+
+  const allocatedSlots = freeSlots.slice(0, item.slot_usage);
+  item.equipped_slot_groups.push(allocatedSlots);
+  item.equipped = item.equipped_slot_groups.length > 0;
+}
+
+function removeOneEquippedGroup(backpackItem) {
+  if (!backpackItem.equipped_slot_groups || backpackItem.equipped_slot_groups.length === 0) {
+    throw new Error("这件物品当前没有处于装备状态。");
+  }
+
+  backpackItem.equipped_slot_groups.shift();
+  backpackItem.equipped = backpackItem.equipped_slot_groups.length > 0;
+}
+
+function buildRoleBodySlots(role, backpack) {
+  const capacities = getBodySlotCapacities(role.race_key);
+  const bodySlotKeys = buildBodySlotKeys(capacities);
+  const equippedBySlotKey = new Map();
+
+  for (const item of backpack) {
+    for (const group of item.equipped_slot_groups || []) {
+      for (const slotKey of group) {
+        equippedBySlotKey.set(slotKey, item);
+      }
+    }
+  }
+
+  return bodySlotKeys.map((slotKey) => {
+    const [slotType, indexText] = slotKey.split("-");
+    const equippedItem = equippedBySlotKey.get(slotKey) || null;
+    const capacity = capacities[slotType];
+    const index = Number(indexText);
+    const label = capacity > 1 && Number.isFinite(index)
+      ? `${getBodySlotTypeLabel(slotType)} ${index}`
+      : getBodySlotTypeLabel(slotType);
+
+    return {
+      key: slotKey,
+      label,
+      slotType,
+      item: equippedItem
+        ? {
+            backpackId: equippedItem.backpack_id,
+            itemId: equippedItem.item_id,
+            name: equippedItem.name,
+            rarity: equippedItem.rarity,
+          }
+        : null,
+    };
   });
 }
 
@@ -229,6 +387,7 @@ function resolveEncounterRewardItems(reward) {
         name: itemSeed.name,
         rarity: itemSeed.rarity,
         slot: itemSeed.slot,
+        slotUsage: itemSeed.slotUsage,
         description: itemSeed.description,
         sellPrice: itemSeed.sellPrice,
         stats: itemSeed.stats,
@@ -258,9 +417,11 @@ function applyEncounterItemsToBackpack(backpack, itemDrops) {
       item_id: itemDrop.itemId,
       quantity: itemDrop.quantity,
       equipped: false,
+      equipped_slot_groups: [],
       name: itemDrop.name,
       rarity: itemDrop.rarity,
       slot: itemDrop.slot,
+      slot_usage: itemDrop.slotUsage,
       description: itemDrop.description,
       sell_price: itemDrop.sellPrice,
       stat_json: itemDrop.stats,
@@ -748,14 +909,34 @@ async function persistBackpackItemRewards(client, roleId, itemDrops) {
   for (const [itemId, quantity] of itemDropsById.entries()) {
     await client.query(
       `
-        INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+        INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, equipped_slot_groups, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, FALSE, '[]'::jsonb, NOW(), NOW())
         ON CONFLICT (role_id, item_id)
         DO UPDATE SET
           quantity = backpack.quantity + EXCLUDED.quantity,
           updated_at = NOW()
       `,
       [`bag-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, roleId, itemId, quantity],
+    );
+  }
+}
+
+async function persistBackpackEquipState(client, backpack) {
+  for (const item of backpack) {
+    await client.query(
+      `
+        UPDATE backpack
+        SET
+          equipped = $2,
+          equipped_slot_groups = $3::jsonb,
+          updated_at = NOW()
+        WHERE backpack_id = $1
+      `,
+      [
+        item.backpack_id,
+        (item.equipped_slot_groups || []).length > 0,
+        JSON.stringify(item.equipped_slot_groups || []),
+      ],
     );
   }
 }
@@ -859,9 +1040,11 @@ async function requireDashboardData(guestToken) {
           backpack.item_id,
           backpack.quantity,
           backpack.equipped,
+          backpack.equipped_slot_groups,
           item.name,
           item.rarity,
           item.slot,
+          item.slot_usage,
           item.description,
           item.sell_price,
           item.stat_json
@@ -881,6 +1064,16 @@ async function requireDashboardData(guestToken) {
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
+  backpackResult.rows.forEach((item) => {
+    const itemSeed = itemSeedById.get(item.item_id);
+    if (itemSeed) {
+      item.slot = itemSeed.slot;
+      item.slot_usage = itemSeed.slotUsage;
+    }
+    item.equipped_slot_groups = normalizeEquippedSlotGroups(item.equipped_slot_groups);
+    item.equipped = item.equipped_slot_groups.length > 0;
+  });
+  sortBackpackRows(backpackResult.rows);
 
   return {
     afk,
@@ -893,6 +1086,8 @@ async function requireDashboardData(guestToken) {
 function buildSnapshot(data, options = {}) {
   const progress = getCurrentLevelProgress(data.role.exp);
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
+  const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
+  const bodySlots = buildRoleBodySlots(data.role, data.backpack);
 
   return {
     serverTime: Date.now(),
@@ -929,15 +1124,20 @@ function buildSnapshot(data, options = {}) {
         intelligence: data.role.intelligence,
         vitality: data.role.vitality,
       },
+      bodySlotCapacities,
+      bodySlots,
     },
     backpack: data.backpack.map((item) => ({
       backpackId: item.backpack_id,
       itemId: item.item_id,
       quantity: item.quantity,
       equipped: item.equipped,
+      equippedCount: getBackpackEquippedCount(item),
+      equippedSlotGroups: item.equipped_slot_groups || [],
       name: item.name,
       rarity: item.rarity,
       slot: item.slot,
+      slotUsage: item.slot_usage,
       description: item.description,
       sellPrice: item.sell_price,
       stats: item.stat_json || {},
@@ -1208,6 +1408,54 @@ async function dropBackpackItemForGuest(guestToken, backpackId) {
   return getSessionSnapshot(guestToken);
 }
 
+async function equipBackpackItemForGuest(guestToken, backpackId) {
+  const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要装备的物品不存在。");
+  }
+
+  allocateEquipmentSlots(data.role, data.backpack, matchedItem);
+  sortBackpackRows(data.backpack);
+
+  await withTransaction(async (client) => {
+    await persistBackpackEquipState(client, data.backpack);
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
+async function unequipBackpackItemForGuest(guestToken, backpackId) {
+  const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要脱下的物品不存在。");
+  }
+
+  removeOneEquippedGroup(matchedItem);
+  sortBackpackRows(data.backpack);
+
+  await withTransaction(async (client) => {
+    await persistBackpackEquipState(client, data.backpack);
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
 module.exports = {
   AFK_TASK_SECONDS,
   getSessionSnapshot,
@@ -1215,4 +1463,6 @@ module.exports = {
   stopAfkForGuest,
   claimAfkRewardForGuest,
   dropBackpackItemForGuest,
+  equipBackpackItemForGuest,
+  unequipBackpackItemForGuest,
 };

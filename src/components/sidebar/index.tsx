@@ -1,4 +1,7 @@
+'use client';
+
 import type { SidebarItem as SidebarItemType } from "@/types/navigation";
+import { useI18n } from "@/lib/i18n/provider";
 
 type SidebarProps = {
   items: SidebarItemType[];
@@ -29,15 +32,18 @@ function SidebarItem({ icon, menuName, progress }: SidebarItemType) {
 }
 
 export default function Sidebar({ items }: SidebarProps) {
+  const { messages } = useI18n();
+  const copy = messages.sidebar;
+
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-cyan-400/10 bg-slate-950 p-5 text-white">
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/65">
-          Borderland Chronicle
+          {copy.eyebrow}
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-white">旅人养成面板</h2>
+        <h2 className="mt-2 text-xl font-semibold text-white">{copy.title}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          先把采摘、钓鱼、锻造和冒险四条成长线收进同一套异世界语义里。
+          {copy.summary}
         </p>
       </div>
       <div className="overflow-y-auto">

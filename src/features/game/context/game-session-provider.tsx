@@ -11,6 +11,8 @@ import {
 } from "react";
 import { type MapKey, type PanelKey } from "@/lib/game-config";
 import type { ChatChannelKey, ChatMessage } from "@/features/chat/types";
+import { localizeErrorMessage } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n/provider";
 import type {
   AccountLoginDraft,
   AccountRegistrationDraft,
@@ -174,6 +176,7 @@ async function getWebSocketUrl() {
 }
 
 export function GameSessionProvider({ children }: { children: React.ReactNode }) {
+  const { locale } = useI18n();
   const [activePanel, setActivePanel] = useState<PanelKey>("afk");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -201,11 +204,11 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     const socket = socketRef.current;
 
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      throw new Error("与挂机服务器的连接尚未建立。");
+      throw new Error(localizeErrorMessage(locale, "与挂机服务器的连接尚未建立。"));
     }
 
     socket.send(JSON.stringify({ payload, type }));
-  }, []);
+  }, [locale]);
 
   const connectSocket = useCallback(async (nextGuestToken: string) => {
     if (reconnectTimerRef.current) {
@@ -255,7 +258,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
 
       if (packet.type === "game:error") {
         setStatus("error");
-        setError(packet.payload?.content ?? "连接挂机服务器失败。");
+        setError(localizeErrorMessage(locale, packet.payload?.content ?? "连接挂机服务器失败。"));
         return;
       }
 
@@ -304,9 +307,9 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
 
     socket.addEventListener("error", () => {
       setStatus("error");
-      setError("挂机长连接建立失败。");
+      setError(localizeErrorMessage(locale, "挂机长连接建立失败。"));
     });
-  }, [handleIncomingSnapshot]);
+  }, [handleIncomingSnapshot, locale]);
 
   const loadSessionForToken = useCallback(async (nextGuestToken: string) => {
     setStoredGuestToken(nextGuestToken);
@@ -394,11 +397,11 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
           })
           .catch((resumeError) => {
             setStatus("error");
-            setError(resumeError instanceof Error ? resumeError.message : "恢复挂机会话失败。");
+            setError(localizeErrorMessage(locale, resumeError instanceof Error ? resumeError.message : "恢复挂机会话失败。"));
             void connectSocket(currentGuestToken);
           });
       });
-  }, [connectSocket, handleIncomingSnapshot]);
+  }, [connectSocket, handleIncomingSnapshot, locale]);
 
   const guestLogin = useCallback(async () => {
     setStatus("booting");
@@ -416,9 +419,9 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       await loadSessionForToken(payload.account.guestToken);
     } catch (loginError) {
       setStatus("error");
-      setError(loginError instanceof Error ? loginError.message : "游客登录失败。");
+      setError(localizeErrorMessage(locale, loginError instanceof Error ? loginError.message : "游客登录失败。"));
     }
-  }, [loadSessionForToken]);
+  }, [loadSessionForToken, locale]);
 
   const accountLogin = useCallback(async (draft: AccountLoginDraft) => {
     setStatus("booting");
@@ -436,10 +439,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       await loadSessionForToken(payload.account.guestToken);
     } catch (loginError) {
       setStatus("error");
-      setError(loginError instanceof Error ? loginError.message : "账号登录失败。");
+      setError(localizeErrorMessage(locale, loginError instanceof Error ? loginError.message : "账号登录失败。"));
       throw loginError;
     }
-  }, [loadSessionForToken]);
+  }, [loadSessionForToken, locale]);
 
   useEffect(() => {
     const storedToken = getStoredGuestToken();
@@ -529,7 +532,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       const currentGuestToken = guestToken ?? getStoredGuestToken();
 
       if (!currentGuestToken) {
-        throw new Error("游客会话不存在，请重新登录。");
+        throw new Error(localizeErrorMessage(locale, "游客会话不存在，请重新登录。"));
       }
 
       setStatus("saving");
@@ -551,18 +554,18 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         }
       } catch (mutationError) {
         setStatus("error");
-        setError(mutationError instanceof Error ? mutationError.message : "创建角色失败。");
+        setError(localizeErrorMessage(locale, mutationError instanceof Error ? mutationError.message : "创建角色失败。"));
         throw mutationError;
       }
     },
-    [connectSocket, guestToken, handleIncomingSnapshot, sendSocketMessage],
+    [connectSocket, guestToken, handleIncomingSnapshot, locale, sendSocketMessage],
   );
 
   const registerAccount = useCallback(async (draft: AccountRegistrationDraft) => {
     const currentGuestToken = guestToken ?? getStoredGuestToken();
 
     if (!currentGuestToken) {
-      throw new Error("游客会话不存在，请重新登录。");
+      throw new Error(localizeErrorMessage(locale, "游客会话不存在，请重新登录。"));
     }
 
     setStatus("saving");
@@ -582,16 +585,16 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       handleIncomingSnapshot(payload.snapshot);
     } catch (mutationError) {
       setStatus("error");
-      setError(mutationError instanceof Error ? mutationError.message : "注册账号失败。");
+      setError(localizeErrorMessage(locale, mutationError instanceof Error ? mutationError.message : "注册账号失败。"));
       throw mutationError;
     }
-  }, [guestToken, handleIncomingSnapshot]);
+  }, [guestToken, handleIncomingSnapshot, locale]);
 
   const deleteAccountRole = useCallback(async () => {
     const currentGuestToken = guestToken ?? getStoredGuestToken();
 
     if (!currentGuestToken) {
-      throw new Error("账号会话不存在，请重新登录。");
+      throw new Error(localizeErrorMessage(locale, "账号会话不存在，请重新登录。"));
     }
 
     setStatus("saving");
@@ -613,10 +616,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       }
     } catch (mutationError) {
       setStatus("error");
-      setError(mutationError instanceof Error ? mutationError.message : "删除角色失败。");
+      setError(localizeErrorMessage(locale, mutationError instanceof Error ? mutationError.message : "删除角色失败。"));
       throw mutationError;
     }
-  }, [connectSocket, guestToken, handleIncomingSnapshot, sendSocketMessage]);
+  }, [connectSocket, guestToken, handleIncomingSnapshot, locale, sendSocketMessage]);
 
   const startAfk = useCallback(async () => {
     try {
@@ -626,10 +629,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       setActivePanel("afk");
     } catch (sendError) {
       setStatus("error");
-      setError(sendError instanceof Error ? sendError.message : "开始挂机失败。");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "开始挂机失败。"));
       throw sendError;
     }
-  }, [selectedMapKey, sendSocketMessage]);
+  }, [locale, selectedMapKey, sendSocketMessage]);
 
   const stopAfk = useCallback(async () => {
     try {
@@ -638,10 +641,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       sendSocketMessage("game:afk:stop");
     } catch (sendError) {
       setStatus("error");
-      setError(sendError instanceof Error ? sendError.message : "停止挂机失败。");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "停止挂机失败。"));
       throw sendError;
     }
-  }, [sendSocketMessage]);
+  }, [locale, sendSocketMessage]);
 
   const claimOfflineReward = useCallback(async () => {
     try {
@@ -650,10 +653,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       sendSocketMessage("game:afk:claim");
     } catch (sendError) {
       setStatus("error");
-      setError(sendError instanceof Error ? sendError.message : "领取收益失败。");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "领取收益失败。"));
       throw sendError;
     }
-  }, [sendSocketMessage]);
+  }, [locale, sendSocketMessage]);
 
   const dropBackpackItem = useCallback(async (backpackId: string) => {
     try {
@@ -662,10 +665,34 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       sendSocketMessage("game:backpack:drop", { backpackId });
     } catch (sendError) {
       setStatus("error");
-      setError(sendError instanceof Error ? sendError.message : "丢弃物品失败。");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "丢弃物品失败。"));
       throw sendError;
     }
-  }, [sendSocketMessage]);
+  }, [locale, sendSocketMessage]);
+
+  const equipBackpackItem = useCallback(async (backpackId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:backpack:equip", { backpackId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "装备物品失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
+  const unequipBackpackItem = useCallback(async (backpackId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:backpack:unequip", { backpackId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "脱下物品失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
 
   const sendChatMessage = useCallback(async (channelKey: ChatChannelKey, content: string) => {
     try {
@@ -673,10 +700,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       sendSocketMessage("game:chat:send", { channelKey, content });
     } catch (sendError) {
       setStatus("error");
-      setError(sendError instanceof Error ? sendError.message : "发送聊天消息失败。");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "发送聊天消息失败。"));
       throw sendError;
     }
-  }, [sendSocketMessage]);
+  }, [locale, sendSocketMessage]);
 
   const dismissError = useCallback(() => {
     setError(null);
@@ -693,6 +720,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       deleteAccountRole,
       dismissError,
       dropBackpackItem,
+      equipBackpackItem,
       error,
       guestLogin,
       registerAccount,
@@ -704,6 +732,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       startAfk,
       status,
       stopAfk,
+      unequipBackpackItem,
     }),
     [
       activePanel,
@@ -714,6 +743,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       deleteAccountRole,
       dismissError,
       dropBackpackItem,
+      equipBackpackItem,
       error,
       guestLogin,
       registerAccount,
@@ -723,6 +753,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       startAfk,
       status,
       stopAfk,
+      unequipBackpackItem,
     ],
   );
 

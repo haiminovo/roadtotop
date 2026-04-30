@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { GameSessionProvider } from "@/features/game/context/game-session-provider";
+import { getMessages } from "@/lib/i18n";
+import { LocaleProvider } from "@/lib/i18n/provider";
 
 const displayFont = Space_Grotesk({
   display: "swap",
@@ -10,9 +12,11 @@ const displayFont = Space_Grotesk({
   weight: ["500", "600", "700"],
 });
 
+const copy = getMessages();
+
 export const metadata: Metadata = {
-  title: "伊洛纳网页挂机 MMO · Road To Top",
-  description: "游客登录、角色创建、挂机与离线收益结算的最小可运行骨架。",
+  title: copy.app.title,
+  description: copy.app.description,
 };
 
 export default function RootLayout({
@@ -23,9 +27,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={`${displayFont.variable} h-screen overflow-hidden antialiased`}>
-        <GameSessionProvider>
-          {children}
-        </GameSessionProvider>
+        <LocaleProvider>
+          <GameSessionProvider>
+            {children}
+          </GameSessionProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

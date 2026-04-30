@@ -12,9 +12,11 @@ const {
   AFK_TASK_SECONDS,
   claimAfkRewardForGuest,
   dropBackpackItemForGuest,
+  equipBackpackItemForGuest,
   getSessionSnapshot,
   startAfkForGuest,
   stopAfkForGuest,
+  unequipBackpackItemForGuest,
 } = require("./game-service");
 
 const DEFAULT_PORT = Number(process.env.WS_PORT || 8080);
@@ -210,6 +212,24 @@ async function handleBackpackDrop(connection, session, packet) {
   sendSnapshot(connection, snapshot, "drop");
 }
 
+async function handleBackpackEquip(connection, session, packet) {
+  const backpackId = typeof packet.payload?.backpackId === "string"
+    ? packet.payload.backpackId
+    : "";
+  const snapshot = await equipBackpackItemForGuest(session.guestToken, backpackId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "equip");
+}
+
+async function handleBackpackUnequip(connection, session, packet) {
+  const backpackId = typeof packet.payload?.backpackId === "string"
+    ? packet.payload.backpackId
+    : "";
+  const snapshot = await unequipBackpackItemForGuest(session.guestToken, backpackId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "unequip");
+}
+
 async function handleChatSend(session, packet) {
   const channelKey = typeof packet.payload?.channelKey === "string"
     ? packet.payload.channelKey
@@ -250,6 +270,16 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:backpack:drop") {
     await handleBackpackDrop(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:backpack:equip") {
+    await handleBackpackEquip(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:backpack:unequip") {
+    await handleBackpackUnequip(connection, session, packet);
     return;
   }
 

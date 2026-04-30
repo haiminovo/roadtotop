@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS item (
   name TEXT NOT NULL,
   rarity TEXT NOT NULL,
   slot TEXT NOT NULL,
+  slot_usage INTEGER NOT NULL DEFAULT 1,
   description TEXT NOT NULL,
   sell_price INTEGER NOT NULL DEFAULT 0,
   stat_json JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -64,16 +65,23 @@ CREATE TABLE IF NOT EXISTS item (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE item
+ADD COLUMN IF NOT EXISTS slot_usage INTEGER NOT NULL DEFAULT 1;
+
 CREATE TABLE IF NOT EXISTS backpack (
   backpack_id TEXT PRIMARY KEY,
   role_id TEXT NOT NULL REFERENCES "role"(role_id) ON DELETE CASCADE,
   item_id TEXT NOT NULL REFERENCES item(item_id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL DEFAULT 1,
   equipped BOOLEAN NOT NULL DEFAULT FALSE,
+  equipped_slot_groups JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (role_id, item_id)
 );
+
+ALTER TABLE backpack
+ADD COLUMN IF NOT EXISTS equipped_slot_groups JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS afk (
   afk_id TEXT PRIMARY KEY,
@@ -159,13 +167,14 @@ UPDATE afk
 SET map_key = 'palmia-wilds'
 WHERE map_key IS NOT NULL AND map_key <> 'palmia-wilds';
 
-INSERT INTO item (item_id, name, rarity, slot, description, sell_price, stat_json, updated_at)
+INSERT INTO item (item_id, name, rarity, slot, slot_usage, description, sell_price, stat_json, updated_at)
 VALUES
   (
     'rusty-blade',
     '生锈短剑',
     'white',
-    'weapon',
+    'hand',
+    1,
     '开荒时勉强能用的短剑。',
     12,
     '{"strength": 2}'::jsonb,
@@ -175,7 +184,8 @@ VALUES
     'oak-staff',
     '橡木法杖',
     'white',
-    'weapon',
+    'hand',
+    2,
     '粗糙的入门法杖，适合法师起步。',
     12,
     '{"intelligence": 2}'::jsonb,
@@ -185,7 +195,8 @@ VALUES
     'field-hoe',
     '旧铁锄',
     'white',
-    'weapon',
+    'hand',
+    2,
     '农活与近身防卫两不误的旧工具。',
     10,
     '{"vitality": 1, "agility": 1}'::jsonb,
@@ -195,7 +206,8 @@ VALUES
     'forest-cloak',
     '林地披风',
     'green',
-    'armor',
+    'neck',
+    1,
     '轻便耐磨，适合野外挂机。',
     30,
     '{"agility": 2, "vitality": 1}'::jsonb,
@@ -206,6 +218,7 @@ VALUES
     '旅者戒指',
     'green',
     'accessory',
+    1,
     '会在冒险者启程时发放的基础指环。',
     36,
     '{"strength": 1, "intelligence": 1, "vitality": 1}'::jsonb,
@@ -215,7 +228,8 @@ VALUES
     'training-bow',
     '练习短弓',
     'white',
-    'weapon',
+    'hand',
+    2,
     '拉力一般，但足够让新手学会瞄准与走位。',
     18,
     '{"agility": 2}'::jsonb,
@@ -225,7 +239,8 @@ VALUES
     'leather-cap',
     '皮质便帽',
     'white',
-    'armor',
+    'head',
+    1,
     '不起眼的小帽子，能挡一点风沙与碎石。',
     14,
     '{"vitality": 1, "agility": 1}'::jsonb,
@@ -236,6 +251,7 @@ VALUES
     '斥候护腕',
     'white',
     'accessory',
+    1,
     '轻量护腕，让抬手与闪避动作更利落。',
     16,
     '{"agility": 1, "intelligence": 1}'::jsonb,
@@ -245,7 +261,8 @@ VALUES
     'bronze-longsword',
     '青铜长剑',
     'green',
-    'weapon',
+    'hand',
+    1,
     '保养得当的军用品，劈砍手感远胜生锈短剑。',
     48,
     '{"strength": 3, "vitality": 1}'::jsonb,
@@ -255,7 +272,8 @@ VALUES
     'whisper-wand',
     '低语木杖',
     'green',
-    'weapon',
+    'hand',
+    1,
     '杖身会在夜里发出轻鸣，能稳定初阶法术。',
     46,
     '{"intelligence": 3, "agility": 1}'::jsonb,
@@ -265,7 +283,8 @@ VALUES
     'hunter-leathers',
     '猎人皮甲',
     'green',
-    'armor',
+    'torso',
+    1,
     '柔韧结实，适合长时间追踪与奔行。',
     54,
     '{"agility": 2, "vitality": 2}'::jsonb,
@@ -275,7 +294,8 @@ VALUES
     'amber-charm',
     '琥珀护符',
     'green',
-    'accessory',
+    'neck',
+    1,
     '封着温热树脂的护符，能让心神更稳定。',
     52,
     '{"intelligence": 2, "vitality": 1}'::jsonb,
@@ -285,7 +305,8 @@ VALUES
     'moonshadow-dagger',
     '月影短匕',
     'blue',
-    'weapon',
+    'hand',
+    1,
     '刀锋轻薄如月光，适合迅捷而精准的出手。',
     96,
     '{"agility": 4, "intelligence": 1}'::jsonb,
@@ -295,7 +316,8 @@ VALUES
     'runic-vest',
     '符纹战衣',
     'blue',
-    'armor',
+    'torso',
+    1,
     '内衬刻着细密符纹，兼顾防护与法感引导。',
     104,
     '{"intelligence": 3, "vitality": 2}'::jsonb,
@@ -306,6 +328,7 @@ VALUES
     '狼骨符坠',
     'blue',
     'accessory',
+    1,
     '粗犷却实用的护符，佩戴后胆气更足。',
     98,
     '{"strength": 2, "agility": 2}'::jsonb,
@@ -315,7 +338,8 @@ VALUES
     'stormglass-staff',
     '风暴晶杖',
     'purple',
-    'weapon',
+    'hand',
+    2,
     '杖芯封着风暴碎晶，能显著放大施法者感知。',
     188,
     '{"intelligence": 5, "agility": 2}'::jsonb,
@@ -325,7 +349,8 @@ VALUES
     'knightwatch-mail',
     '守夜骑士甲',
     'purple',
-    'armor',
+    'torso',
+    1,
     '历经修补的厚重甲胄，仍保留着可靠的守护感。',
     210,
     '{"strength": 3, "vitality": 5}'::jsonb,
@@ -335,7 +360,8 @@ VALUES
     'dawnfire-pendant',
     '晨焰坠饰',
     'orange',
-    'accessory',
+    'neck',
+    1,
     '内部像封着一缕朝阳，能同时提振体魄与精神。',
     320,
     '{"strength": 2, "intelligence": 3, "vitality": 3}'::jsonb,
@@ -345,7 +371,36 @@ ON CONFLICT (item_id) DO UPDATE SET
   name = EXCLUDED.name,
   rarity = EXCLUDED.rarity,
   slot = EXCLUDED.slot,
+  slot_usage = EXCLUDED.slot_usage,
   description = EXCLUDED.description,
   sell_price = EXCLUDED.sell_price,
   stat_json = EXCLUDED.stat_json,
   updated_at = NOW();
+
+UPDATE backpack
+SET equipped_slot_groups = CASE item_id
+  WHEN 'rusty-blade' THEN '[["hand-1"]]'::jsonb
+  WHEN 'oak-staff' THEN '[["hand-1","hand-2"]]'::jsonb
+  WHEN 'field-hoe' THEN '[["hand-1","hand-2"]]'::jsonb
+  WHEN 'training-bow' THEN '[["hand-1","hand-2"]]'::jsonb
+  WHEN 'bronze-longsword' THEN '[["hand-1"]]'::jsonb
+  WHEN 'whisper-wand' THEN '[["hand-1"]]'::jsonb
+  WHEN 'moonshadow-dagger' THEN '[["hand-1"]]'::jsonb
+  WHEN 'stormglass-staff' THEN '[["hand-1","hand-2"]]'::jsonb
+  WHEN 'forest-cloak' THEN '[["neck-1"]]'::jsonb
+  WHEN 'traveler-ring' THEN '[["accessory-1"]]'::jsonb
+  WHEN 'leather-cap' THEN '[["head-1"]]'::jsonb
+  WHEN 'hunter-leathers' THEN '[["torso-1"]]'::jsonb
+  WHEN 'amber-charm' THEN '[["neck-1"]]'::jsonb
+  WHEN 'runic-vest' THEN '[["torso-1"]]'::jsonb
+  WHEN 'wolfbone-talisman' THEN '[["accessory-1"]]'::jsonb
+  WHEN 'knightwatch-mail' THEN '[["torso-1"]]'::jsonb
+  WHEN 'dawnfire-pendant' THEN '[["neck-1"]]'::jsonb
+  WHEN 'scout-bracers' THEN '[["accessory-1"]]'::jsonb
+  ELSE COALESCE(equipped_slot_groups, '[]'::jsonb)
+END
+WHERE equipped = TRUE
+  AND COALESCE(equipped_slot_groups, '[]'::jsonb) = '[]'::jsonb;
+
+UPDATE backpack
+SET equipped = jsonb_array_length(COALESCE(equipped_slot_groups, '[]'::jsonb)) > 0;
