@@ -38,6 +38,12 @@ export const zhCN = {
     sendTo: "发送到",
     send: "发送",
     unread: "未读",
+    viewRole: "查看角色",
+    roleProfileTitle: "角色信息",
+    roleProfileSummary: "查看这位冒险者当前公开的角色面板与装备状态。",
+    roleMissing: "该角色当前无法查看，可能已不存在或资料尚未同步。",
+    equippedItems: "已装备物品",
+    equippedEmpty: "当前没有已装备物品。",
     channels: {
       world: {
         label: "世界",

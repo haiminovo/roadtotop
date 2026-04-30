@@ -9,18 +9,187 @@ const CHAT_CHANNELS = [
 const CHAT_MESSAGE_LIMIT = 80;
 const CHAT_MESSAGE_MAX_LENGTH = 160;
 const CHAT_SEND_COOLDOWN_MS = 3000;
+const BASE_HEALTH = 50;
+const HEALTH_PER_VITALITY = 12;
+const HEALTH_PER_LEVEL = 2;
 
 function isValidChatChannel(channelKey) {
   return CHAT_CHANNELS.some((channel) => channel.key === channelKey);
 }
 
-function normalizeChatMessage(row) {
+function normalizeNumber(value) {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
+}
+
+function getMaxHealth(vitality, level) {
+  return (
+    BASE_HEALTH
+    + Math.max(0, Math.floor(vitality)) * HEALTH_PER_VITALITY
+    + Math.max(1, Math.floor(level)) * HEALTH_PER_LEVEL
+  );
+}
+
+function getBackpackEquippedCount(backpackRow) {
+  return (backpackRow.equipped_slot_groups || []).length;
+}
+
+function getRoleEffectiveStats(role, backpack = []) {
+  const nextStats = {
+    strength: normalizeNumber(role.strength),
+    agility: normalizeNumber(role.agility),
+    intelligence: normalizeNumber(role.intelligence),
+    vitality: normalizeNumber(role.vitality),
+  };
+
+  backpack.forEach((item) => {
+    const equippedCount = getBackpackEquippedCount(item);
+
+    if (equippedCount <= 0 || !item.stat_json) {
+      return;
+    }
+
+    nextStats.strength += normalizeNumber(item.stat_json.strength) * equippedCount;
+    nextStats.agility += normalizeNumber(item.stat_json.agility) * equippedCount;
+    nextStats.intelligence += normalizeNumber(item.stat_json.intelligence) * equippedCount;
+    nextStats.vitality += normalizeNumber(item.stat_json.vitality) * equippedCount;
+  });
+
+  return nextStats;
+}
+
+function normalizeEquippedSlotGroups(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((group) => {
+      if (!Array.isArray(group)) {
+        return null;
+      }
+
+      const normalizedGroup = group
+        .filter((slotKey) => typeof slotKey === "string" && slotKey.trim().length > 0)
+        .map((slotKey) => slotKey.trim());
+
+      return normalizedGroup.length > 0 ? normalizedGroup : null;
+    })
+    .filter(Boolean);
+}
+
+function normalizeChatRoleProfile(role, backpack) {
+  const effectiveStats = getRoleEffectiveStats(role, backpack);
+  const maxHealth = getMaxHealth(effectiveStats.vitality, role.level);
+
+  return {
+    roleId: role.role_id,
+    name: role.name,
+    raceKey: role.race_key,
+    classKey: role.class_key,
+    level: normalizeNumber(role.level),
+    currentHealth: Math.min(maxHealth, normalizeNumber(role.current_health)),
+    maxHealth,
+    gold: normalizeNumber(role.gold),
+    aetherCrystal: normalizeNumber(role.aether_crystal),
+    avatarSeed: role.avatar_seed,
+    stats: effectiveStats,
+    equippedItems: backpack
+      .filter((item) => getBackpackEquippedCount(item) > 0)
+      .map((item) => ({
+        backpackId: item.backpack_id,
+        itemId: item.item_id,
+        name: item.name,
+        rarity: item.rarity,
+        slot: item.slot,
+        equippedCount: getBackpackEquippedCount(item),
+        equippedSlotGroups: item.equipped_slot_groups || [],
+      })),
+  };
+}
+
+async function getChatRoleProfiles(roleIds) {
+  const uniqueRoleIds = [...new Set(roleIds.filter((roleId) => typeof roleId === "string" && roleId.trim().length > 0))];
+
+  if (uniqueRoleIds.length === 0) {
+    return new Map();
+  }
+
+  const [rolesResult, backpackResult] = await Promise.all([
+    query(
+      `
+        SELECT
+          role_id,
+          name,
+          race_key,
+          class_key,
+          level,
+          gold,
+          aether_crystal,
+          strength,
+          agility,
+          intelligence,
+          vitality,
+          current_health,
+          avatar_seed
+        FROM "role"
+        WHERE role_id = ANY($1::text[])
+      `,
+      [uniqueRoleIds],
+    ),
+    query(
+      `
+        SELECT
+          backpack.role_id,
+          backpack.backpack_id,
+          backpack.item_id,
+          backpack.equipped_slot_groups,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.stat_json
+        FROM backpack
+        JOIN item ON item.item_id = backpack.item_id
+        WHERE backpack.role_id = ANY($1::text[])
+      `,
+      [uniqueRoleIds],
+    ),
+  ]);
+
+  const backpackByRoleId = new Map();
+
+  backpackResult.rows.forEach((item) => {
+    const normalizedItem = {
+      ...item,
+      equipped_slot_groups: normalizeEquippedSlotGroups(item.equipped_slot_groups),
+    };
+    const current = backpackByRoleId.get(item.role_id);
+
+    if (current) {
+      current.push(normalizedItem);
+      return;
+    }
+
+    backpackByRoleId.set(item.role_id, [normalizedItem]);
+  });
+
+  return new Map(
+    rolesResult.rows.map((role) => [
+      role.role_id,
+      normalizeChatRoleProfile(role, backpackByRoleId.get(role.role_id) || []),
+    ]),
+  );
+}
+
+function normalizeChatMessage(row, roleProfiles = new Map()) {
   return {
     channelKey: row.channel_key,
     content: row.content,
     createdAt: new Date(row.created_at).getTime(),
     id: row.chat_id,
     senderName: row.sender_name,
+    senderRole: row.role_id ? (roleProfiles.get(row.role_id) || null) : null,
+    senderRoleId: row.role_id || null,
     senderUserId: row.user_id,
   };
 }
@@ -84,7 +253,8 @@ async function getRecentChatMessages(limit = CHAT_MESSAGE_LIMIT) {
     [limit],
   );
 
-  return result.rows.map(normalizeChatMessage);
+  const roleProfiles = await getChatRoleProfiles(result.rows.map((row) => row.role_id));
+  return result.rows.map((row) => normalizeChatMessage(row, roleProfiles));
 }
 
 async function createChatMessageForGuest(guestToken, channelKey, content) {
@@ -163,7 +333,8 @@ async function createChatMessageForGuest(guestToken, channelKey, content) {
     );
   });
 
-  return normalizeChatMessage(result.rows[0]);
+  const roleProfiles = await getChatRoleProfiles([result.rows[0]?.role_id]);
+  return normalizeChatMessage(result.rows[0], roleProfiles);
 }
 
 module.exports = {
