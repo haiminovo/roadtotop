@@ -89,10 +89,34 @@ const EMPTY_BACKPACK: Array<{
   stats: Record<string, number>;
 }> = [];
 
+type BackpackItem = typeof EMPTY_BACKPACK[number];
+type ItemActionKey = "drop";
+type PendingItemAction = {
+  actionKey: ItemActionKey;
+  backpackId: string;
+} | null;
+
 function itemAccent(rarity: string) {
   return rarity === "green"
     ? "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
     : "border-slate-300/20 bg-slate-200/8 text-slate-100";
+}
+
+function getItemActionDefinition(actionKey: ItemActionKey) {
+  return {
+    drop: {
+      actionKey: "drop" as const,
+      confirmCopy: "这个操作会直接删除背包记录，不能恢复。",
+      confirmTitle: "确认丢弃物品",
+      label: "丢弃物品",
+      summary: "永久删除当前这组物品。",
+      tone: "danger" as const,
+    },
+  }[actionKey];
+}
+
+function getAvailableItemActions() {
+  return [getItemActionDefinition("drop")];
 }
 
 function SectionCard({
@@ -117,6 +141,20 @@ function SectionCard({
 
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return <p className="text-[11px] uppercase tracking-[0.32em] text-sky-100/55">{children}</p>;
+}
+
+function OverlayModal({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/72 px-4">
+      <div className="w-full max-w-lg rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function TopStatusBar({
@@ -413,18 +451,7 @@ function CreateRoleView() {
 function BackpackOverview({
   backpack,
 }: {
-  backpack: Array<{
-    backpackId: string;
-    itemId: string;
-    quantity: number;
-    equipped: boolean;
-    name: string;
-    rarity: string;
-    slot: string;
-    description: string;
-    sellPrice: number;
-    stats: Record<string, number>;
-  }>;
+  backpack: BackpackItem[];
 }) {
   const groupedBySlot = backpack.reduce<Record<string, number>>((accumulator, item) => {
     const nextValue = accumulator[item.slot] ?? 0;
@@ -449,40 +476,29 @@ function CenterPanel({
   backpack,
   currentTaskReward,
   maps,
+  onSelectItem,
   role,
   selectedBackpackId,
   selectedMapKey,
   selectMap,
-  setSelectedBackpackId,
   snapshot,
   taskDuration,
   taskProgress,
   taskProgressPercent,
 }: {
   activePanel: PanelKey;
-  backpack: Array<{
-    backpackId: string;
-    itemId: string;
-    quantity: number;
-    equipped: boolean;
-    name: string;
-    rarity: string;
-    slot: string;
-    description: string;
-    sellPrice: number;
-    stats: Record<string, number>;
-  }>;
+  backpack: BackpackItem[];
   currentTaskReward: {
     aetherCrystal: number;
     exp: number;
     gold: number;
   };
   maps: MapConfig[];
+  onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
   selectedBackpackId: string | null;
   selectedMapKey: MapKey;
   selectMap: (mapKey: MapKey) => void;
-  setSelectedBackpackId: (id: string) => void;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
   taskDuration: number;
   taskProgress: number;
@@ -520,7 +536,7 @@ function CenterPanel({
                 active={selectedBackpackId === item.backpackId}
                 glyph={itemGlyph(item.name)}
                 itemName={item.name}
-                onClick={() => setSelectedBackpackId(item.backpackId)}
+                onClick={() => onSelectItem(item.backpackId)}
                 quantity={item.quantity}
                 rarity={item.rarity}
               />
@@ -606,6 +622,39 @@ function CenterPanel({
             ))}
         </div>
       </SectionCard>
+
+      <SectionCard className="overflow-hidden">
+        <div className="border-b border-white/8 px-5 py-4">
+          <SectionEyebrow>Execution Loop</SectionEyebrow>
+          <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h3 className="text-2xl font-semibold text-white">在线执行进度</h3>
+              <p className="mt-2 text-sm leading-7 text-slate-300">
+                在线时进度会平滑展示，但每一轮是否完成、奖励是否结算，仍然只以服务端结果为准。
+              </p>
+            </div>
+            <DataPill label="本轮计时" value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
+          </div>
+        </div>
+
+        <div className="space-y-5 p-5">
+          <TopStatusBar
+            label="执行进度"
+            tone="from-sky-400 via-cyan-300 to-emerald-300"
+            value={taskProgressPercent}
+          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <DataPill label="挂机中" value={snapshot.afk.status === "active" ? "是" : "否"} />
+            <DataPill label="剩余时间" value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
+            <DataPill label="已跑时长" value={formatDuration(taskProgress)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <DataPill label="单轮金币" value={formatNumber(currentTaskReward.gold)} />
+            <DataPill label="单轮以太" value={formatNumber(currentTaskReward.aetherCrystal)} />
+            <DataPill label="单轮经验" value={formatNumber(currentTaskReward.exp)} />
+          </div>
+        </div>
+      </SectionCard>
     </div>
   );
 }
@@ -613,27 +662,13 @@ function CenterPanel({
 function RightRail({
   activePanel,
   backpack,
-  onDropItem,
   pendingReward,
   role,
   selectedItem,
-  status,
   snapshot,
 }: {
   activePanel: PanelKey;
-  backpack: Array<{
-    backpackId: string;
-    itemId: string;
-    quantity: number;
-    equipped: boolean;
-    name: string;
-    rarity: string;
-    slot: string;
-    description: string;
-    sellPrice: number;
-    stats: Record<string, number>;
-  }>;
-  onDropItem: (backpackId: string) => Promise<void>;
+  backpack: BackpackItem[];
   pendingReward: {
     aetherCrystal: number;
     exp: number;
@@ -641,21 +676,7 @@ function RightRail({
     seconds: number;
   };
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
-  selectedItem:
-  | {
-    backpackId: string;
-    itemId: string;
-    quantity: number;
-    equipped: boolean;
-    name: string;
-    rarity: string;
-    slot: string;
-    description: string;
-    sellPrice: number;
-    stats: Record<string, number>;
-  }
-  | undefined;
-  status: "booting" | "ready" | "saving" | "error";
+  selectedItem: BackpackItem | undefined;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
 }) {
   if (!role) {
@@ -710,20 +731,9 @@ function RightRail({
                   <p className="mt-3 text-sm leading-6 text-slate-300">{selectedItem.description}</p>
                   <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(selectedItem.stats)}</p>
                   <p className="mt-3 text-xs text-slate-400">出售价格 {formatNumber(selectedItem.sellPrice)}</p>
-                  <button
-                    className="mt-4 w-full rounded-[0.9rem] border border-rose-300/30 bg-rose-300/10 px-3 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={status === "saving"}
-                    onClick={() => {
-                      if (!window.confirm(`确定要丢弃「${selectedItem.name}」x${selectedItem.quantity} 吗？此操作不可恢复。`)) {
-                        return;
-                      }
-
-                      void onDropItem(selectedItem.backpackId);
-                    }}
-                    type="button"
-                  >
-                    {status === "saving" ? "处理中..." : "丢弃这组物品"}
-                  </button>
+                  <p className="mt-4 rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-3 text-xs leading-6 text-slate-400">
+                    第一次点击背包格子会选中物品，再次点击同一个格子才会弹出操作菜单。
+                  </p>
                 </div>
               ) : (
                 <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
@@ -796,6 +806,8 @@ function MainDashboard() {
   } = useGameSession();
   const [dismissedRewardKey, setDismissedRewardKey] = useState<string | null>(null);
   const [displayNow, setDisplayNow] = useState(() => Date.now());
+  const [itemActionBackpackId, setItemActionBackpackId] = useState<string | null>(null);
+  const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction>(null);
   const [selectedBackpackId, setSelectedBackpackId] = useState<string | null>(null);
 
   const pendingReward = snapshot?.afk.pendingReward;
@@ -838,6 +850,8 @@ function MainDashboard() {
   useEffect(() => {
     if (backpack.length === 0) {
       setSelectedBackpackId(null);
+      setItemActionBackpackId(null);
+      setPendingItemAction(null);
       return;
     }
 
@@ -847,6 +861,16 @@ function MainDashboard() {
 
     setSelectedBackpackId(equippedItems[0]?.backpackId ?? backpack[0]?.backpackId ?? null);
   }, [backpack, equippedItems, selectedBackpackId]);
+
+  useEffect(() => {
+    if (itemActionBackpackId && !backpack.some((item) => item.backpackId === itemActionBackpackId)) {
+      setItemActionBackpackId(null);
+    }
+
+    if (pendingItemAction && !backpack.some((item) => item.backpackId === pendingItemAction.backpackId)) {
+      setPendingItemAction(null);
+    }
+  }, [backpack, itemActionBackpackId, pendingItemAction]);
 
   useEffect(() => {
     if (!snapshot || snapshot.afk.status !== "active") {
@@ -871,6 +895,13 @@ function MainDashboard() {
   ]);
 
   const selectedItem = backpack.find((item) => item.backpackId === selectedBackpackId);
+  const actionItem = backpack.find((item) => item.backpackId === itemActionBackpackId);
+  const pendingActionItem = pendingItemAction
+    ? backpack.find((item) => item.backpackId === pendingItemAction.backpackId)
+    : undefined;
+  const pendingActionDefinition = pendingItemAction
+    ? getItemActionDefinition(pendingItemAction.actionKey)
+    : null;
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
   const taskProgress = snapshot?.afk.status === "active"
@@ -897,6 +928,20 @@ function MainDashboard() {
     { key: "backpack", label: "背包", summary: "查看已有物品。", count: String(backpack.length) },
     { key: "role", label: "角色", summary: "等级、属性与成长。", count: `Lv.${role.level}` },
   ];
+
+  const handleSelectBackpackItem = (backpackId: string) => {
+    const isSameItem = selectedBackpackId === backpackId;
+
+    if (isSameItem) {
+      setPendingItemAction(null);
+      setItemActionBackpackId(backpackId);
+      return;
+    }
+
+    setPendingItemAction(null);
+    setItemActionBackpackId(null);
+    setSelectedBackpackId(backpackId);
+  };
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#27326d_0%,#111630_34%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4">
@@ -944,6 +989,111 @@ function MainDashboard() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {actionItem ? (
+        <OverlayModal>
+          <SectionEyebrow>Item Actions</SectionEyebrow>
+          <div className="mt-4 flex items-start gap-4">
+            <div className={`flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold ${itemAccent(actionItem.rarity)}`}>
+              {itemGlyph(actionItem.name)}
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-2xl font-semibold text-white">{actionItem.name}</h2>
+              <p className="mt-2 text-sm text-slate-300">
+                {slotLabel(actionItem.slot)} · {actionItem.rarity === "green" ? "绿装" : "白装"} · 数量 x{actionItem.quantity}
+              </p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{actionItem.description}</p>
+              <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats)}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {getAvailableItemActions().map((action) => (
+              <button
+                key={action.actionKey}
+                className={[
+                  "w-full rounded-[1rem] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
+                  action.tone === "danger"
+                    ? "border-rose-300/30 bg-rose-300/10 text-rose-100 hover:bg-rose-300/18"
+                    : "border-white/10 bg-white/[0.04] text-white hover:border-sky-200/25",
+                ].join(" ")}
+                disabled={status === "saving"}
+                onClick={() => {
+                  setItemActionBackpackId(null);
+                  setPendingItemAction({
+                    actionKey: action.actionKey,
+                    backpackId: actionItem.backpackId,
+                  });
+                }}
+                type="button"
+              >
+                <p className="text-sm font-semibold">{action.label}</p>
+                <p className="mt-2 text-xs leading-6 text-current/75">{action.summary}</p>
+              </button>
+            ))}
+            <button
+              className="w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              onClick={() => setItemActionBackpackId(null)}
+              type="button"
+            >
+              关闭菜单
+            </button>
+          </div>
+        </OverlayModal>
+      ) : null}
+
+      {pendingActionItem && pendingActionDefinition ? (
+        <OverlayModal>
+          <SectionEyebrow>Confirm Action</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">
+            {pendingActionDefinition.confirmTitle}
+          </h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            即将处理 <span className="font-semibold text-white">{pendingActionItem.name}</span> x{pendingActionItem.quantity}。
+            {pendingActionDefinition.confirmCopy}
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <DataPill label="类型" value={slotLabel(pendingActionItem.slot)} />
+            <DataPill label="品质" value={pendingActionItem.rarity === "green" ? "绿装" : "白装"} />
+            <DataPill label="出售价格" value={formatNumber(pendingActionItem.sellPrice)} />
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              className={[
+                "flex-1 rounded-[1rem] px-4 py-4 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
+                pendingActionDefinition.tone === "danger"
+                  ? "bg-rose-500 hover:bg-rose-400"
+                  : "bg-sky-500 hover:bg-sky-400",
+              ].join(" ")}
+              disabled={status === "saving"}
+              onClick={() => {
+                if (pendingItemAction?.actionKey === "drop") {
+                  void dropBackpackItem(pendingActionItem.backpackId).then(() => {
+                    setPendingItemAction(null);
+                    setItemActionBackpackId(null);
+                  });
+                }
+              }}
+              type="button"
+            >
+              {status === "saving" ? "处理中..." : `确认${pendingActionDefinition.label.replace("物品", "")}`}
+            </button>
+            <button
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              disabled={status === "saving"}
+              onClick={() => {
+                setPendingItemAction(null);
+                setItemActionBackpackId(pendingActionItem.backpackId);
+              }}
+              type="button"
+            >
+              返回菜单
+            </button>
+          </div>
+        </OverlayModal>
       ) : null}
 
       <div className="mx-auto max-w-[1600px] space-y-3">
@@ -1038,11 +1188,11 @@ function MainDashboard() {
             backpack={backpack}
             currentTaskReward={currentTaskReward}
             maps={maps}
+            onSelectItem={handleSelectBackpackItem}
             role={role}
             selectedBackpackId={selectedBackpackId}
             selectedMapKey={selectedMapKey}
             selectMap={selectMap}
-            setSelectedBackpackId={setSelectedBackpackId}
             snapshot={snapshot}
             taskDuration={taskDuration}
             taskProgress={taskProgress}
@@ -1052,11 +1202,9 @@ function MainDashboard() {
           <RightRail
             activePanel={activePanel}
             backpack={backpack}
-            onDropItem={dropBackpackItem}
             pendingReward={snapshot.afk.pendingReward}
             role={role}
             selectedItem={selectedItem}
-            status={status}
             snapshot={snapshot}
           />
         </div>
