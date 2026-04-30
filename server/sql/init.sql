@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS "role" (
   level INTEGER NOT NULL DEFAULT 1,
   exp INTEGER NOT NULL DEFAULT 0,
   gold BIGINT NOT NULL DEFAULT 0,
-  bound_gold BIGINT NOT NULL DEFAULT 0,
   aether_crystal BIGINT NOT NULL DEFAULT 0,
   strength INTEGER NOT NULL,
   agility INTEGER NOT NULL,
@@ -58,7 +57,6 @@ CREATE TABLE IF NOT EXISTS afk (
   started_at TIMESTAMPTZ,
   last_settled_at TIMESTAMPTZ,
   pending_gold BIGINT NOT NULL DEFAULT 0,
-  pending_bound_gold BIGINT NOT NULL DEFAULT 0,
   pending_aether_crystal BIGINT NOT NULL DEFAULT 0,
   pending_exp BIGINT NOT NULL DEFAULT 0,
   accrued_seconds BIGINT NOT NULL DEFAULT 0,
@@ -86,6 +84,35 @@ CREATE INDEX IF NOT EXISTS idx_role_user_id ON "role" (user_id);
 CREATE INDEX IF NOT EXISTS idx_backpack_role_id ON backpack (role_id);
 CREATE INDEX IF NOT EXISTS idx_afk_role_id ON afk (role_id);
 CREATE INDEX IF NOT EXISTS idx_task_role_id ON task (role_id);
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'role'
+      AND column_name = 'bound_gold'
+  ) THEN
+    EXECUTE 'UPDATE "role" SET gold = gold + COALESCE(bound_gold, 0)';
+    EXECUTE 'ALTER TABLE "role" DROP COLUMN bound_gold';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'afk'
+      AND column_name = 'pending_bound_gold'
+  ) THEN
+    EXECUTE 'UPDATE afk SET pending_gold = pending_gold + COALESCE(pending_bound_gold, 0)';
+    EXECUTE 'ALTER TABLE afk DROP COLUMN pending_bound_gold';
+  END IF;
+END $$;
+
+UPDATE afk
+SET map_key = 'palmia-wilds'
+WHERE map_key IS NOT NULL AND map_key <> 'palmia-wilds';
 
 INSERT INTO item (item_id, name, rarity, slot, description, sell_price, stat_json, updated_at)
 VALUES

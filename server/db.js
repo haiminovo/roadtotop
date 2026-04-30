@@ -1,9 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
 
 dotenv.config();
+
+types.setTypeParser(20, (value) => Number.parseInt(value, 10));
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -14,6 +16,7 @@ if (!databaseUrl) {
 const pool = new Pool({
   connectionString: databaseUrl,
 });
+let closePromise = null;
 
 async function query(text, params) {
   return pool.query(text, params);
@@ -42,7 +45,11 @@ async function initDatabase() {
 }
 
 async function closeDatabase() {
-  await pool.end();
+  if (!closePromise) {
+    closePromise = pool.end();
+  }
+
+  await closePromise;
 }
 
 module.exports = {

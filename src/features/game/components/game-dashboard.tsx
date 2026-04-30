@@ -25,6 +25,13 @@ function formatDuration(seconds: number) {
   return `${remainingSeconds}秒`;
 }
 
+function formatClock(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 function formatPercent(current: number, total: number) {
   if (total <= 0) {
     return "MAX";
@@ -64,7 +71,7 @@ function LandingView() {
               {[
                 ["登录", "游客一键进入，不接短信。"],
                 ["创角", "3 种族 + 3 职业固定可选。"],
-                ["挂机", "两张地图、8 小时封顶离线收益。"],
+                ["挂机", "单张地图、8 小时封顶离线收益。"],
               ].map(([title, summary]) => (
                 <article
                   key={title}
@@ -205,8 +212,7 @@ function CreateRoleView() {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {[
-                ["初始金币", "180"],
-                ["绑定金币", "60"],
+                ["初始金币", "240"],
                 ["以太结晶", "12"],
                 ["初始装备", "白装 + 绿装"],
               ].map(([label, value]) => (
@@ -417,8 +423,8 @@ function ActivePanelContent({
       </article>
       <article className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-7 text-stone-300">
         <p>地图：{snapshot.afk.currentMap?.label ?? "未选择"}</p>
-        <p>累计离线时长：{formatDuration(snapshot.afk.pendingReward.seconds)}</p>
-        <p>预计收益：金币 {formatNumber(snapshot.afk.pendingReward.gold)} / 经验 {formatNumber(snapshot.afk.pendingReward.exp)}</p>
+        <p>当前任务进度：{formatDuration(snapshot.afk.accruedSeconds)} / {formatDuration(snapshot.afk.taskDurationSeconds)}</p>
+        <p>待领取收益：金币 {formatNumber(snapshot.afk.pendingReward.gold)} / 经验 {formatNumber(snapshot.afk.pendingReward.exp)}</p>
       </article>
     </div>
   );
@@ -444,10 +450,7 @@ function MainDashboard() {
   const shouldShowRewardModal =
     Boolean(snapshot?.role) &&
     Boolean(pendingReward) &&
-    ((pendingReward?.gold ?? 0) > 0 ||
-      (pendingReward?.boundGold ?? 0) > 0 ||
-      (pendingReward?.aetherCrystal ?? 0) > 0 ||
-      (pendingReward?.exp ?? 0) > 0) &&
+    Boolean(snapshot?.afk.shouldShowOfflineRewardModal) &&
     dismissedRewardKey !== JSON.stringify(pendingReward);
 
   useEffect(() => {
@@ -460,7 +463,6 @@ function MainDashboard() {
 
     if (
       pendingReward.gold <= 0 &&
-      pendingReward.boundGold <= 0 &&
       pendingReward.aetherCrystal <= 0 &&
       pendingReward.exp <= 0
     ) {
@@ -488,6 +490,22 @@ function MainDashboard() {
     return formatPercent(role.currentLevelExp, role.nextLevelExp);
   }, [role]);
 
+  const currentTaskDurationSeconds = snapshot?.afk.taskDurationSeconds ?? 0;
+  const currentTaskProgressSeconds = snapshot?.afk.accruedSeconds ?? 0;
+  const currentTaskProgressPercent =
+    currentTaskDurationSeconds > 0 ? Math.min(100, (currentTaskProgressSeconds / currentTaskDurationSeconds) * 100) : 0;
+  const currentTaskReward = snapshot?.afk.currentMap
+    ? {
+        gold: Math.floor((snapshot.afk.currentMap.goldPerMinute * currentTaskDurationSeconds) / 60),
+        aetherCrystal: Math.floor((snapshot.afk.currentMap.aetherPerMinute * currentTaskDurationSeconds) / 60),
+        exp: Math.floor((snapshot.afk.currentMap.expPerMinute * currentTaskDurationSeconds) / 60),
+      }
+    : {
+        gold: 0,
+        aetherCrystal: 0,
+        exp: 0,
+      };
+
   if (!snapshot || !role) {
     return null;
   }
@@ -514,7 +532,6 @@ function MainDashboard() {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {[
                 ["金币", pendingReward?.gold ?? 0],
-                ["绑定金币", pendingReward?.boundGold ?? 0],
                 ["以太结晶", pendingReward?.aetherCrystal ?? 0],
                 ["经验", pendingReward?.exp ?? 0],
               ].map(([label, value]) => (
@@ -567,9 +584,8 @@ function MainDashboard() {
               {[
                 ["等级", role.level],
                 ["金币", role.gold],
-                ["绑定金币", role.boundGold],
                 ["以太结晶", role.aetherCrystal],
-                ["离线可领", pendingReward?.gold ?? 0],
+                ["可领取金币", pendingReward?.gold ?? 0],
               ].map(([label, value]) => (
                 <article key={label} className="rounded-2xl border border-white/10 bg-black/18 px-4 py-3">
                   <p className="text-xs uppercase tracking-[0.2em] text-stone-400">{label}</p>
@@ -606,7 +622,7 @@ function MainDashboard() {
                 <p className="text-xs uppercase tracking-[0.3em] text-stone-400">挂机场景</p>
                 <h2 className="mt-2 text-3xl font-semibold text-white">野外地图入口</h2>
                 <p className="mt-2 text-sm leading-7 text-stone-300">
-                  先选择地图，再开始挂机。所有时间计算均以服务器时间为准，离线收益最多累计 8 小时。
+                  当前版本只保留一张挂机地图。所有时间计算均以服务器时间为准，离线收益最多累计 8 小时。
                 </p>
               </div>
               <div className="rounded-2xl border border-amber-100/12 bg-amber-100/8 px-4 py-3 text-sm text-amber-50">
@@ -643,7 +659,6 @@ function MainDashboard() {
                     <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       {[
                         ["金币/分", map.goldPerMinute],
-                        ["绑金/分", map.boundGoldPerMinute],
                         ["以太/分", map.aetherPerMinute],
                         ["经验/分", map.expPerMinute],
                       ].map(([label, value]) => (
@@ -659,6 +674,50 @@ function MainDashboard() {
             </div>
 
             <div className="mt-6 rounded-[1.5rem] border border-white/10 bg-black/20 p-5">
+              <article className="rounded-[1.5rem] border border-amber-100/12 bg-amber-100/8 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.26em] text-amber-100/65">进行中的任务</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-white">挂机结算进度</h3>
+                    <p className="mt-2 text-sm leading-7 text-stone-300">
+                      在线停留时，进度条每跑满一次就自动结算一轮收益，公式和离线收益保持一致。
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
+                    <p className="text-xs uppercase tracking-[0.2em] text-stone-400">本轮进度</p>
+                    <p className="mt-2 text-2xl font-semibold text-amber-50">
+                      {formatClock(currentTaskProgressSeconds)} / {formatClock(currentTaskDurationSeconds)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 h-4 overflow-hidden rounded-full bg-stone-950">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#f6c35b_0%,#fb923c_100%)] transition-[width] duration-700"
+                    style={{ width: `${currentTaskProgressPercent}%` }}
+                  />
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["每轮金币", currentTaskReward.gold],
+                    ["每轮以太", currentTaskReward.aetherCrystal],
+                    ["每轮经验", currentTaskReward.exp],
+                  ].map(([label, value]) => (
+                    <article key={label} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <p className="text-sm text-stone-400">{label}</p>
+                      <p className="mt-2 text-xl font-semibold text-amber-50">{formatNumber(Number(value))}</p>
+                    </article>
+                  ))}
+                </div>
+
+                <p className="mt-4 text-sm text-stone-300">
+                  {snapshot.afk.status === "active"
+                    ? `距离下一轮自动结算还有 ${formatDuration(currentTaskDurationSeconds - currentTaskProgressSeconds)}。`
+                    : "开始挂机后会自动循环执行这轮任务。"}
+                </p>
+              </article>
+
               <div className="grid gap-4 md:grid-cols-3">
                 <article className="rounded-2xl border border-white/10 bg-white/4 p-4">
                   <p className="text-sm text-stone-400">挂机中</p>
@@ -667,25 +726,24 @@ function MainDashboard() {
                   </p>
                 </article>
                 <article className="rounded-2xl border border-white/10 bg-white/4 p-4">
-                  <p className="text-sm text-stone-400">累计时长</p>
+                  <p className="text-sm text-stone-400">当前执行进度</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
-                    {formatDuration(snapshot.afk.pendingReward.seconds)}
+                    {formatDuration(currentTaskProgressSeconds)}
                   </p>
                 </article>
                 <article className="rounded-2xl border border-white/10 bg-white/4 p-4">
-                  <p className="text-sm text-stone-400">剩余封顶时间</p>
+                  <p className="text-sm text-stone-400">本轮剩余时间</p>
                   <p className="mt-2 text-2xl font-semibold text-white">
-                    {formatDuration(snapshot.afk.maxOfflineSeconds - snapshot.afk.pendingReward.seconds)}
+                    {formatDuration(currentTaskDurationSeconds - currentTaskProgressSeconds)}
                   </p>
                 </article>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-4">
                 {[
-                  ["预计金币", snapshot.afk.pendingReward.gold],
-                  ["预计绑金", snapshot.afk.pendingReward.boundGold],
-                  ["预计以太", snapshot.afk.pendingReward.aetherCrystal],
-                  ["预计经验", snapshot.afk.pendingReward.exp],
+                  ["当前累计金币", snapshot.afk.pendingReward.gold],
+                  ["当前累计以太", snapshot.afk.pendingReward.aetherCrystal],
+                  ["当前累计经验", snapshot.afk.pendingReward.exp],
                 ].map(([label, value]) => (
                   <article key={label} className="rounded-2xl border border-amber-100/12 bg-amber-100/7 p-4">
                     <p className="text-sm text-stone-400">{label}</p>
@@ -760,7 +818,7 @@ function MainDashboard() {
               }}
               type="button"
             >
-              领取离线收益
+              领取挂机收益
             </button>
           </div>
         </section>

@@ -1,6 +1,6 @@
 export type RaceKey = "human" | "elf" | "dwarf";
 export type ClassKey = "warrior" | "mage" | "farmer";
-export type MapKey = "palmia-wilds" | "vernis-outskirts";
+export type MapKey = "palmia-wilds";
 export type PanelKey = "role" | "backpack" | "task" | "afk" | "settings" | "help";
 
 export type Stats = {
@@ -30,13 +30,12 @@ export type MapConfig = {
   label: string;
   summary: string;
   goldPerMinute: number;
-  boundGoldPerMinute: number;
   aetherPerMinute: number;
   expPerMinute: number;
 };
 
 export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
-export const TICK_REFRESH_MS = 15000;
+export const AFK_TASK_SECONDS = 10;
 export const LEVEL_CAP = 30;
 export const EXP_PER_LEVEL = 100;
 
@@ -90,19 +89,9 @@ export const mapConfigs: MapConfig[] = [
     key: "palmia-wilds",
     label: "帕罗米亚野外",
     summary: "收益平衡，适合刚创角时开第一张图。",
-    goldPerMinute: 16,
-    boundGoldPerMinute: 4,
+    goldPerMinute: 20,
     aetherPerMinute: 0.25,
     expPerMinute: 10,
-  },
-  {
-    key: "vernis-outskirts",
-    label: "韦尔尼斯郊外",
-    summary: "收益更高，但更偏向持续挂机与经验积累。",
-    goldPerMinute: 24,
-    boundGoldPerMinute: 6,
-    aetherPerMinute: 0.45,
-    expPerMinute: 14,
   },
 ];
 

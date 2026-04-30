@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:ws\"",
+    "dev": "concurrently -k -s first \"pnpm dev:web\" \"pnpm dev:ws\"",
     "dev:web": "next dev --turbopack",
-    "dev:ws": "node server/websocket.js",
+    "dev:ws": "node server/start-websocket.js",
     "db:init": "node server/init-db.js",
     "build": "next build",
     "start": "next start",

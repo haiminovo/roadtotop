@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import {
+  AFK_TASK_SECONDS,
   classConfigs,
   EXP_PER_LEVEL,
   getClassConfig,
@@ -36,7 +37,6 @@ type RoleRow = {
   level: number;
   exp: number;
   gold: number;
-  bound_gold: number;
   aether_crystal: number;
   strength: number;
   agility: number;
@@ -53,7 +53,6 @@ type AfkRow = {
   started_at: Date | null;
   last_settled_at: Date | null;
   pending_gold: number;
-  pending_bound_gold: number;
   pending_aether_crystal: number;
   pending_exp: number;
   accrued_seconds: number;
@@ -87,9 +86,16 @@ type TaskRow = {
 type RewardPreview = {
   seconds: number;
   gold: number;
-  boundGold: number;
   aetherCrystal: number;
   exp: number;
+};
+
+type RewardDelta = {
+  aetherCrystal: number;
+  exp: number;
+  executions: number;
+  gold: number;
+  seconds: number;
 };
 
 type DashboardData = {
@@ -123,7 +129,6 @@ export type Day0SessionSnapshot = {
     currentLevelExp: number;
     nextLevelExp: number;
     gold: number;
-    boundGold: number;
     aetherCrystal: number;
     avatarSeed: string;
     stats: {
@@ -161,7 +166,9 @@ export type Day0SessionSnapshot = {
     mapKey: MapKey | null;
     startedAt: number | null;
     lastSettledAt: number | null;
+    shouldShowOfflineRewardModal: boolean;
     accruedSeconds: number;
+    taskDurationSeconds: number;
     maxOfflineSeconds: number;
     mapOptions: typeof mapConfigs;
     currentMap: null | {
@@ -169,7 +176,6 @@ export type Day0SessionSnapshot = {
       label: string;
       summary: string;
       goldPerMinute: number;
-      boundGoldPerMinute: number;
       aetherPerMinute: number;
       expPerMinute: number;
     };
@@ -185,6 +191,8 @@ export type GuestLoginResult = {
   userId: string;
 };
 
+const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
+
 function makeId(prefix: string) {
   return `${prefix}-${randomUUID()}`;
 }
@@ -194,13 +202,8 @@ function toMillis(value: Date | null) {
 }
 
 function normalizeNumber(value: number) {
-  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-}
-
-function computeGrowth(previousSeconds: number, nextSeconds: number, perMinute: number) {
-  const previousTotal = Math.floor((Math.max(0, previousSeconds) * perMinute) / 60);
-  const nextTotal = Math.floor((Math.max(0, nextSeconds) * perMinute) / 60);
-  return Math.max(0, nextTotal - previousTotal);
+  const numericValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
 }
 
 function buildHourlyReward(mapKey: MapKey | null): RewardPreview {
@@ -210,7 +213,6 @@ function buildHourlyReward(mapKey: MapKey | null): RewardPreview {
     return {
       seconds: 3600,
       gold: 0,
-      boundGold: 0,
       aetherCrystal: 0,
       exp: 0,
     };
@@ -219,21 +221,71 @@ function buildHourlyReward(mapKey: MapKey | null): RewardPreview {
   return {
     seconds: 3600,
     gold: map.goldPerMinute * 60,
-    boundGold: map.boundGoldPerMinute * 60,
     aetherCrystal: Math.floor(map.aetherPerMinute * 60),
     exp: map.expPerMinute * 60,
   };
 }
 
-function settleAfkState(afk: AfkRow, now = Date.now()) {
-  if (afk.status !== "active" || !afk.map_key || !afk.last_settled_at) {
-    return afk;
-  }
-
-  const map = getMapConfig(afk.map_key);
+function buildRewardForSeconds(mapKey: MapKey | null, seconds: number): RewardPreview {
+  const map = mapKey ? getMapConfig(mapKey) : null;
 
   if (!map) {
-    return afk;
+    return {
+      seconds,
+      gold: 0,
+      aetherCrystal: 0,
+      exp: 0,
+    };
+  }
+
+  return {
+    seconds,
+    gold: Math.floor((seconds * map.goldPerMinute) / 60),
+    aetherCrystal: Math.floor((seconds * map.aetherPerMinute) / 60),
+    exp: Math.floor((seconds * map.expPerMinute) / 60),
+  };
+}
+
+function buildRewardDeltaForExecutions(mapKey: MapKey | null, previousExecutions: number, nextExecutions: number): RewardDelta {
+  const previousSeconds = previousExecutions * AFK_TASK_SECONDS;
+  const nextSeconds = nextExecutions * AFK_TASK_SECONDS;
+  const previousReward = buildRewardForSeconds(mapKey, previousSeconds);
+  const nextReward = buildRewardForSeconds(mapKey, nextSeconds);
+
+  return {
+    aetherCrystal: Math.max(0, nextReward.aetherCrystal - previousReward.aetherCrystal),
+    exp: Math.max(0, nextReward.exp - previousReward.exp),
+    executions: Math.max(0, nextExecutions - previousExecutions),
+    gold: Math.max(0, nextReward.gold - previousReward.gold),
+    seconds: Math.max(0, nextSeconds - previousSeconds),
+  };
+}
+
+function applyRewardToRole(role: RoleRow, reward: RewardDelta) {
+  if (reward.gold <= 0 && reward.aetherCrystal <= 0 && reward.exp <= 0) {
+    return false;
+  }
+
+  role.gold += reward.gold;
+  role.aether_crystal += reward.aetherCrystal;
+  role.exp += reward.exp;
+  role.level = getLevelFromExp(role.exp);
+  return true;
+}
+
+function settleAfkState(afk: AfkRow, options?: { capSeconds?: number; now?: number }): RewardDelta {
+  const now = options?.now ?? Date.now();
+
+  const emptyReward: RewardDelta = {
+    aetherCrystal: 0,
+    exp: 0,
+    executions: 0,
+    gold: 0,
+    seconds: 0,
+  };
+
+  if (afk.status !== "active" || !afk.map_key || !afk.last_settled_at) {
+    return emptyReward;
   }
 
   const elapsedSeconds = Math.max(
@@ -242,28 +294,56 @@ function settleAfkState(afk: AfkRow, now = Date.now()) {
   );
 
   if (elapsedSeconds <= 0) {
-    return afk;
+    return emptyReward;
   }
 
-  const remainingSeconds = Math.max(0, MAX_OFFLINE_SECONDS - afk.accrued_seconds);
-  const grantedSeconds = Math.min(elapsedSeconds, remainingSeconds);
-  const nextAccruedSeconds = afk.accrued_seconds + grantedSeconds;
+  const grantedSeconds =
+    options?.capSeconds === undefined ? elapsedSeconds : Math.min(elapsedSeconds, Math.max(0, options.capSeconds));
+  const previousTotalSeconds = Math.max(0, afk.accrued_seconds);
+  const nextTotalSeconds = previousTotalSeconds + grantedSeconds;
+  const previousExecutions = Math.floor(previousTotalSeconds / AFK_TASK_SECONDS);
+  const nextExecutions = Math.floor(nextTotalSeconds / AFK_TASK_SECONDS);
+  const rewardDelta = buildRewardDeltaForExecutions(afk.map_key, previousExecutions, nextExecutions);
 
-  afk.pending_gold += computeGrowth(afk.accrued_seconds, nextAccruedSeconds, map.goldPerMinute);
-  afk.pending_bound_gold += computeGrowth(
-    afk.accrued_seconds,
-    nextAccruedSeconds,
-    map.boundGoldPerMinute,
-  );
-  afk.pending_aether_crystal += computeGrowth(
-    afk.accrued_seconds,
-    nextAccruedSeconds,
-    map.aetherPerMinute,
-  );
-  afk.pending_exp += computeGrowth(afk.accrued_seconds, nextAccruedSeconds, map.expPerMinute);
-  afk.accrued_seconds = nextAccruedSeconds;
+  afk.pending_gold += rewardDelta.gold;
+  afk.pending_aether_crystal += rewardDelta.aetherCrystal;
+  afk.pending_exp += rewardDelta.exp;
+  afk.accrued_seconds = nextTotalSeconds % AFK_TASK_SECONDS;
   afk.last_settled_at = new Date(now);
-  return afk;
+
+  return rewardDelta;
+}
+
+function consumePendingReward(afk: AfkRow, reward: RewardDelta) {
+  afk.pending_gold = Math.max(0, afk.pending_gold - reward.gold);
+  afk.pending_aether_crystal = Math.max(0, afk.pending_aether_crystal - reward.aetherCrystal);
+  afk.pending_exp = Math.max(0, afk.pending_exp - reward.exp);
+}
+
+function discardCurrentTaskProgress(afk: AfkRow) {
+  afk.accrued_seconds = 0;
+}
+
+async function persistRole(client: PoolClient, role: RoleRow) {
+  await client.query(
+    `
+      UPDATE "role"
+      SET
+        level = $2,
+        exp = $3,
+        gold = $4,
+        aether_crystal = $5,
+        updated_at = NOW()
+      WHERE role_id = $1
+    `,
+    [
+      role.role_id,
+      role.level,
+      normalizeNumber(role.exp),
+      normalizeNumber(role.gold),
+      normalizeNumber(role.aether_crystal),
+    ],
+  );
 }
 
 async function persistAfk(client: PoolClient, afk: AfkRow) {
@@ -276,10 +356,9 @@ async function persistAfk(client: PoolClient, afk: AfkRow) {
         started_at = $4,
         last_settled_at = $5,
         pending_gold = $6,
-        pending_bound_gold = $7,
-        pending_aether_crystal = $8,
-        pending_exp = $9,
-        accrued_seconds = $10,
+        pending_aether_crystal = $7,
+        pending_exp = $8,
+        accrued_seconds = $9,
         updated_at = NOW()
       WHERE afk_id = $1
     `,
@@ -290,7 +369,6 @@ async function persistAfk(client: PoolClient, afk: AfkRow) {
       afk.started_at,
       afk.last_settled_at,
       normalizeNumber(afk.pending_gold),
-      normalizeNumber(afk.pending_bound_gold),
       normalizeNumber(afk.pending_aether_crystal),
       normalizeNumber(afk.pending_exp),
       normalizeNumber(afk.accrued_seconds),
@@ -311,7 +389,6 @@ async function syncAfkRedis(afk: AfkRow) {
     lastSettledAt: toMillis(afk.last_settled_at),
     mapKey: afk.map_key,
     pendingAetherCrystal: afk.pending_aether_crystal,
-    pendingBoundGold: afk.pending_bound_gold,
     pendingExp: afk.pending_exp,
     pendingGold: afk.pending_gold,
     startedAt: toMillis(afk.started_at),
@@ -340,7 +417,6 @@ async function findRoleByUserId(userId: string) {
         level,
         exp,
         gold,
-        bound_gold,
         aether_crystal,
         strength,
         agility,
@@ -380,7 +456,6 @@ async function requireDashboardData(guestToken: string) {
           started_at,
           last_settled_at,
           pending_gold,
-          pending_bound_gold,
           pending_aether_crystal,
           pending_exp,
           accrued_seconds
@@ -444,7 +519,7 @@ async function requireDashboardData(guestToken: string) {
   };
 }
 
-function buildSnapshot(data: DashboardData): Day0SessionSnapshot {
+function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardModal?: boolean }): Day0SessionSnapshot {
   const progress = getCurrentLevelProgress(data.role.exp);
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
 
@@ -471,7 +546,6 @@ function buildSnapshot(data: DashboardData): Day0SessionSnapshot {
       currentLevelExp: progress.currentLevelExp,
       nextLevelExp: progress.nextLevelExp,
       gold: data.role.gold,
-      boundGold: data.role.bound_gold,
       aetherCrystal: data.role.aether_crystal,
       avatarSeed: data.role.avatar_seed,
       stats: {
@@ -504,21 +578,22 @@ function buildSnapshot(data: DashboardData): Day0SessionSnapshot {
       rewardGold: task.reward_gold,
       rewardExp: task.reward_exp,
     })),
-    afk: {
-      status: data.afk.status,
-      mapKey: data.afk.map_key,
-      startedAt: toMillis(data.afk.started_at),
-      lastSettledAt: toMillis(data.afk.last_settled_at),
-      accruedSeconds: data.afk.accrued_seconds,
-      maxOfflineSeconds: MAX_OFFLINE_SECONDS,
-      mapOptions: mapConfigs,
+  afk: {
+    status: data.afk.status,
+    mapKey: data.afk.map_key,
+    startedAt: toMillis(data.afk.started_at),
+    lastSettledAt: toMillis(data.afk.last_settled_at),
+    shouldShowOfflineRewardModal: options?.shouldShowOfflineRewardModal ?? false,
+    accruedSeconds: data.afk.accrued_seconds,
+    taskDurationSeconds: AFK_TASK_SECONDS,
+    maxOfflineSeconds: MAX_OFFLINE_SECONDS,
+    mapOptions: mapConfigs,
       currentMap: currentMap
         ? {
             key: currentMap.key,
             label: currentMap.label,
             summary: currentMap.summary,
             goldPerMinute: currentMap.goldPerMinute,
-            boundGoldPerMinute: currentMap.boundGoldPerMinute,
             aetherPerMinute: currentMap.aetherPerMinute,
             expPerMinute: currentMap.expPerMinute,
           }
@@ -526,7 +601,6 @@ function buildSnapshot(data: DashboardData): Day0SessionSnapshot {
       pendingReward: {
         seconds: data.afk.accrued_seconds,
         gold: data.afk.pending_gold,
-        boundGold: data.afk.pending_bound_gold,
         aetherCrystal: data.afk.pending_aether_crystal,
         exp: data.afk.pending_exp,
       },
@@ -541,7 +615,7 @@ export async function loginGuest(existingGuestToken?: string | null): Promise<Gu
 
   if (existing) {
     await query(
-      `UPDATE "user" SET last_login_at = NOW(), last_seen_at = NOW() WHERE user_id = $1`,
+      `UPDATE "user" SET last_login_at = NOW() WHERE user_id = $1`,
       [existing.user_id],
     );
 
@@ -623,7 +697,6 @@ export async function createRoleForGuest(input: {
           level,
           exp,
           gold,
-          bound_gold,
           aether_crystal,
           strength,
           agility,
@@ -634,7 +707,7 @@ export async function createRoleForGuest(input: {
           updated_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, 1, 0, 180, 60, 12, $6, $7, $8, $9, $10, NOW(), NOW()
+          $1, $2, $3, $4, $5, 1, 0, 240, 12, $6, $7, $8, $9, $10, NOW(), NOW()
         )
       `,
       [
@@ -661,14 +734,13 @@ export async function createRoleForGuest(input: {
           started_at,
           last_settled_at,
           pending_gold,
-          pending_bound_gold,
           pending_aether_crystal,
           pending_exp,
           accrued_seconds,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, 'idle', NULL, NULL, $3, 0, 0, 0, 0, 0, NOW(), NOW())
+        VALUES ($1, $2, 'idle', NULL, NULL, $3, 0, 0, 0, 0, NOW(), NOW())
       `,
       [afkId, roleId, now],
     );
@@ -745,21 +817,21 @@ export async function getGuestBootstrap(guestToken?: string | null) {
         mapKey: null,
         startedAt: null,
         lastSettledAt: null,
+        shouldShowOfflineRewardModal: false,
         accruedSeconds: 0,
+        taskDurationSeconds: AFK_TASK_SECONDS,
         maxOfflineSeconds: MAX_OFFLINE_SECONDS,
         mapOptions: mapConfigs,
         currentMap: null,
         pendingReward: {
           seconds: 0,
           gold: 0,
-          boundGold: 0,
           aetherCrystal: 0,
           exp: 0,
         },
         estimatedHourlyReward: {
           seconds: 3600,
           gold: 0,
-          boundGold: 0,
           aetherCrystal: 0,
           exp: 0,
         },
@@ -783,16 +855,34 @@ export async function getGuestBootstrap(guestToken?: string | null) {
 export async function getFullSessionSnapshot(guestToken: string) {
   const data = await requireDashboardData(guestToken);
   const now = Date.now();
-  settleAfkState(data.afk, now);
+  const lastSeenAt = new Date(data.user.last_seen_at).getTime();
+  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
+  const rewardDelta = settleAfkState(data.afk, {
+    capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
+    now,
+  });
+
+  const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
+
+  if (didAutoSettleOnlineReward) {
+    consumePendingReward(data.afk, rewardDelta);
+  }
+
+  const shouldShowOfflineRewardModal =
+    wasOffline &&
+    (data.afk.pending_gold > 0 || data.afk.pending_aether_crystal > 0 || data.afk.pending_exp > 0);
 
   await withTransaction(async (client) => {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
+    if (didAutoSettleOnlineReward) {
+      await persistRole(client, data.role);
+    }
     await persistAfk(client, data.afk);
   });
 
   await syncAfkRedis(data.afk);
   data.role.level = getLevelFromExp(data.role.exp);
-  return buildSnapshot(data);
+  return buildSnapshot(data, { shouldShowOfflineRewardModal });
 }
 
 async function markFirstAfkTaskCompleted(client: PoolClient, roleId: string) {
@@ -818,7 +908,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 
   const data = await requireDashboardData(guestToken);
   const now = Date.now();
-  settleAfkState(data.afk, now);
+  settleAfkState(data.afk, { now });
 
   if (data.afk.status === "active") {
     throw new Error("当前已经处于挂机中，请先停止。");
@@ -841,16 +931,22 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 export async function stopAfk(guestToken: string) {
   const data = await requireDashboardData(guestToken);
   const now = Date.now();
-  settleAfkState(data.afk, now);
+  const rewardDelta = settleAfkState(data.afk, { now });
 
   if (data.afk.status === "idle") {
     return buildSnapshot(data);
   }
 
+  if (applyRewardToRole(data.role, rewardDelta)) {
+    consumePendingReward(data.afk, rewardDelta);
+  }
+
   data.afk.status = "idle";
   data.afk.last_settled_at = new Date(now);
+  discardCurrentTaskProgress(data.afk);
 
   await withTransaction(async (client) => {
+    await persistRole(client, data.role);
     await persistAfk(client, data.afk);
   });
 
@@ -861,11 +957,20 @@ export async function stopAfk(guestToken: string) {
 export async function claimAfkReward(guestToken: string) {
   const data = await requireDashboardData(guestToken);
   const now = Date.now();
-  settleAfkState(data.afk, now);
+  const rewardDelta = settleAfkState(data.afk, {
+    capSeconds: MAX_OFFLINE_SECONDS,
+    now,
+  });
+
+  const lastSeenAt = new Date(data.user.last_seen_at).getTime();
+  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
+
+  if (!wasOffline && applyRewardToRole(data.role, rewardDelta)) {
+    consumePendingReward(data.afk, rewardDelta);
+  }
 
   if (
     data.afk.pending_gold <= 0 &&
-    data.afk.pending_bound_gold <= 0 &&
     data.afk.pending_aether_crystal <= 0 &&
     data.afk.pending_exp <= 0
   ) {
@@ -873,39 +978,16 @@ export async function claimAfkReward(guestToken: string) {
   }
 
   data.role.gold += data.afk.pending_gold;
-  data.role.bound_gold += data.afk.pending_bound_gold;
   data.role.aether_crystal += data.afk.pending_aether_crystal;
   data.role.exp += data.afk.pending_exp;
   data.role.level = getLevelFromExp(data.role.exp);
   data.afk.pending_gold = 0;
-  data.afk.pending_bound_gold = 0;
   data.afk.pending_aether_crystal = 0;
   data.afk.pending_exp = 0;
-  data.afk.accrued_seconds = 0;
   data.afk.last_settled_at = new Date(now);
 
   await withTransaction(async (client) => {
-    await client.query(
-      `
-        UPDATE "role"
-        SET
-          level = $2,
-          exp = $3,
-          gold = $4,
-          bound_gold = $5,
-          aether_crystal = $6,
-          updated_at = NOW()
-        WHERE role_id = $1
-      `,
-      [
-        data.role.role_id,
-        data.role.level,
-        data.role.exp,
-        normalizeNumber(data.role.gold),
-        normalizeNumber(data.role.bound_gold),
-        normalizeNumber(data.role.aether_crystal),
-      ],
-    );
+    await persistRole(client, data.role);
     await persistAfk(client, data.afk);
   });
 

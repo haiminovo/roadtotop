@@ -13,7 +13,6 @@ export type ConnectionStatus = "booting" | "ready" | "saving" | "error";
 export type RewardPreview = {
   seconds: number;
   gold: number;
-  boundGold: number;
   aetherCrystal: number;
   exp: number;
 };
@@ -66,7 +65,6 @@ export type SessionSnapshot = {
     currentLevelExp: number;
     nextLevelExp: number;
     gold: number;
-    boundGold: number;
     aetherCrystal: number;
     avatarSeed: string;
     stats: {
@@ -83,7 +81,9 @@ export type SessionSnapshot = {
     mapKey: MapKey | null;
     startedAt: number | null;
     lastSettledAt: number | null;
+    shouldShowOfflineRewardModal: boolean;
     accruedSeconds: number;
+    taskDurationSeconds: number;
     maxOfflineSeconds: number;
     mapOptions: MapConfig[];
     currentMap: MapConfig | null;

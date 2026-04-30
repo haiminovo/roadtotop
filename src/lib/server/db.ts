@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { logger } from "@/lib/server/logger";
+
+types.setTypeParser(20, (value) => Number.parseInt(value, 10));
 
 const databaseUrl = process.env.DATABASE_URL;
 

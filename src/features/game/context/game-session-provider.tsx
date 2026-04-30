@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { TICK_REFRESH_MS, type MapKey, type PanelKey } from "@/lib/game-config";
+import { type MapKey, type PanelKey } from "@/lib/game-config";
 import type {
   ConnectionStatus,
   CreateRoleDraft,
@@ -55,25 +55,169 @@ function setStoredGuestToken(token: string) {
   window.localStorage.setItem(GUEST_TOKEN_KEY, token);
 }
 
+function isLocalDevelopmentHost() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+}
+
+function getFallbackWebSocketUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const { hostname } = window.location;
+
+  const configuredUrl = process.env.NEXT_PUBLIC_WS_URL;
+
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (hostname === "localhost" || hostname === "127.0.0.1") {
+    return `${protocol}//${hostname}:8080`;
+  }
+
+  return `${protocol}//${window.location.host}`;
+}
+
+async function getWebSocketUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const response = await fetch("/api/runtime/ws", { cache: "no-store" });
+    const payload = await response.json() as { ok?: boolean; port?: number | null };
+
+    if (response.ok && payload.ok && typeof payload.port === "number" && payload.port > 0) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${window.location.hostname}:${payload.port}`;
+    }
+  } catch {
+    // Fallback to static configuration when runtime discovery is unavailable.
+  }
+
+  if (isLocalDevelopmentHost()) {
+    return null;
+  }
+
+  return getFallbackWebSocketUrl();
+}
+
 export function GameSessionProvider({ children }: { children: React.ReactNode }) {
   const [activePanel, setActivePanel] = useState<PanelKey>("afk");
   const [error, setError] = useState<string | null>(null);
+  const [guestToken, setGuestToken] = useState<string | null>(null);
   const [selectedMapKey, setSelectedMapKey] = useState<MapKey>("palmia-wilds");
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("booting");
-  const pollTimerRef = useRef<number | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const shouldReconnectRef = useRef(true);
+  const socketRef = useRef<WebSocket | null>(null);
 
-  const loadSession = useCallback(async (guestToken: string) => {
-    const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>(
-      `/api/session?guestToken=${encodeURIComponent(guestToken)}`,
-      { method: "GET" },
-    );
-
-    setSnapshot(payload.snapshot);
+  const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot) => {
+    setError(null);
+    setSnapshot(nextSnapshot);
     setStatus("ready");
-    setSelectedMapKey(payload.snapshot.afk.mapKey ?? payload.snapshot.config.maps[0]?.key ?? "palmia-wilds");
-    return payload.snapshot;
+    setSelectedMapKey(nextSnapshot.afk.mapKey ?? nextSnapshot.config.maps[0]?.key ?? "palmia-wilds");
   }, []);
+
+  const sendSocketMessage = useCallback((type: string, payload?: Record<string, unknown>) => {
+    const socket = socketRef.current;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      throw new Error("与挂机服务器的连接尚未建立。");
+    }
+
+    socket.send(JSON.stringify({ payload, type }));
+  }, []);
+
+  const connectSocket = useCallback(async (nextGuestToken: string) => {
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    const socketUrl = await getWebSocketUrl();
+
+    if (!socketUrl) {
+      reconnectTimerRef.current = window.setTimeout(() => {
+        if (nextGuestToken) {
+          void connectSocket(nextGuestToken);
+        }
+      }, 1000);
+      return;
+    }
+
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+
+    shouldReconnectRef.current = true;
+    setStatus("booting");
+
+    const socket = new WebSocket(socketUrl);
+    socketRef.current = socket;
+
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({
+        payload: { guestToken: nextGuestToken },
+        type: "game:session:start",
+      }));
+    });
+
+    socket.addEventListener("message", (event) => {
+      const packet = JSON.parse(event.data) as {
+        payload?: {
+          content?: string;
+          snapshot?: SessionSnapshot;
+        };
+        type: string;
+      };
+
+      if (packet.type === "game:error") {
+        setStatus("error");
+        setError(packet.payload?.content ?? "连接挂机服务器失败。");
+        return;
+      }
+
+      if (packet.type === "game:session:ready" || packet.type === "game:state:update") {
+        if (packet.payload?.snapshot) {
+          handleIncomingSnapshot(packet.payload.snapshot);
+        }
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      if (socketRef.current !== socket) {
+        return;
+      }
+
+      socketRef.current = null;
+
+      if (!shouldReconnectRef.current) {
+        return;
+      }
+
+      setStatus((current) => (current === "ready" ? "booting" : current));
+
+      reconnectTimerRef.current = window.setTimeout(() => {
+        if (nextGuestToken) {
+          void connectSocket(nextGuestToken);
+        }
+      }, 2000);
+    });
+
+    socket.addEventListener("error", () => {
+      setStatus("error");
+      setError("挂机长连接建立失败。");
+    });
+  }, [handleIncomingSnapshot]);
 
   const guestLogin = useCallback(async () => {
     setStatus("booting");
@@ -89,17 +233,19 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       });
 
       setStoredGuestToken(payload.account.guestToken);
-      await loadSession(payload.account.guestToken);
+      setGuestToken(payload.account.guestToken);
+      await connectSocket(payload.account.guestToken);
     } catch (loginError) {
       setStatus("error");
       setError(loginError instanceof Error ? loginError.message : "游客登录失败。");
     }
-  }, [loadSession]);
+  }, [connectSocket]);
 
   useEffect(() => {
     const storedToken = getStoredGuestToken();
 
     if (storedToken) {
+      setGuestToken(storedToken);
       void guestLogin();
       return;
     }
@@ -108,34 +254,26 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   }, [guestLogin]);
 
   useEffect(() => {
-    if (!snapshot?.account.guestToken || !snapshot.role) {
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-      return;
-    }
-
-    pollTimerRef.current = window.setInterval(() => {
-      void loadSession(snapshot.account.guestToken).catch((pollError) => {
-        setStatus("error");
-        setError(pollError instanceof Error ? pollError.message : "刷新会话失败。");
-      });
-    }, TICK_REFRESH_MS);
-
     return () => {
-      if (pollTimerRef.current) {
-        window.clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
+      shouldReconnectRef.current = false;
+
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
       }
     };
-  }, [loadSession, snapshot?.account.guestToken, snapshot?.role]);
+  }, []);
 
-  const performSnapshotMutation = useCallback(
-    async (path: string, body: Record<string, unknown>) => {
-      const guestToken = getStoredGuestToken();
+  const createRole = useCallback(
+    async (draft: CreateRoleDraft) => {
+      const currentGuestToken = guestToken ?? getStoredGuestToken();
 
-      if (!guestToken) {
+      if (!currentGuestToken) {
         throw new Error("游客会话不存在，请重新登录。");
       }
 
@@ -143,44 +281,64 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       setError(null);
 
       try {
-        const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>(path, {
-          body: JSON.stringify({ guestToken, ...body }),
+        const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>("/api/role/create", {
+          body: JSON.stringify({ guestToken: currentGuestToken, ...draft }),
           method: "POST",
         });
-        setSnapshot(payload.snapshot);
-        setStatus("ready");
-        if (payload.snapshot.afk.mapKey) {
-          setSelectedMapKey(payload.snapshot.afk.mapKey);
+
+        handleIncomingSnapshot(payload.snapshot);
+        setActivePanel("afk");
+
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+          sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+        } else {
+          void connectSocket(currentGuestToken);
         }
       } catch (mutationError) {
         setStatus("error");
-        setError(mutationError instanceof Error ? mutationError.message : "提交失败。");
+        setError(mutationError instanceof Error ? mutationError.message : "创建角色失败。");
         throw mutationError;
       }
     },
-    [],
-  );
-
-  const createRole = useCallback(
-    async (draft: CreateRoleDraft) => {
-      await performSnapshotMutation("/api/role/create", draft);
-      setActivePanel("afk");
-    },
-    [performSnapshotMutation],
+    [connectSocket, guestToken, handleIncomingSnapshot, sendSocketMessage],
   );
 
   const startAfk = useCallback(async () => {
-    await performSnapshotMutation("/api/afk/start", { mapKey: selectedMapKey });
-    setActivePanel("afk");
-  }, [performSnapshotMutation, selectedMapKey]);
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:afk:start", { mapKey: selectedMapKey });
+      setActivePanel("afk");
+    } catch (sendError) {
+      setStatus("error");
+      setError(sendError instanceof Error ? sendError.message : "开始挂机失败。");
+      throw sendError;
+    }
+  }, [selectedMapKey, sendSocketMessage]);
 
   const stopAfk = useCallback(async () => {
-    await performSnapshotMutation("/api/afk/stop", {});
-  }, [performSnapshotMutation]);
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:afk:stop");
+    } catch (sendError) {
+      setStatus("error");
+      setError(sendError instanceof Error ? sendError.message : "停止挂机失败。");
+      throw sendError;
+    }
+  }, [sendSocketMessage]);
 
   const claimOfflineReward = useCallback(async () => {
-    await performSnapshotMutation("/api/afk/claim", {});
-  }, [performSnapshotMutation]);
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:afk:claim");
+    } catch (sendError) {
+      setStatus("error");
+      setError(sendError instanceof Error ? sendError.message : "领取收益失败。");
+      throw sendError;
+    }
+  }, [sendSocketMessage]);
 
   const dismissError = useCallback(() => {
     setError(null);
