@@ -1388,7 +1388,10 @@ export async function createRoleForGuest(input: {
   return getFullSessionSnapshot(input.guestToken);
 }
 
-export async function getGuestBootstrap(guestToken?: string | null) {
+export async function getGuestBootstrap(
+  guestToken?: string | null,
+  options?: { forceOfflineSettlement?: boolean },
+) {
   const loginResult = await loginGuest(guestToken);
 
   if (!loginResult.hasRole) {
@@ -1438,15 +1441,20 @@ export async function getGuestBootstrap(guestToken?: string | null) {
     };
   }
 
-  return getFullSessionSnapshot(loginResult.guestToken);
+  return getFullSessionSnapshot(loginResult.guestToken, options);
 }
 
-export async function getFullSessionSnapshot(guestToken: string) {
+export async function getFullSessionSnapshot(
+  guestToken: string,
+  options?: { forceOfflineSettlement?: boolean },
+) {
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
   const now = Date.now();
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
-  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
+  const wasOffline =
+    options?.forceOfflineSettlement === true
+    || now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
   const rewardDelta = settleAfkState(data.afk, {
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,

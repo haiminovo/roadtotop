@@ -21,6 +21,7 @@ import type {
 } from "@/features/game/types";
 
 const GUEST_TOKEN_KEY = "roadtotop.guest-token";
+const RETURNING_FROM_BACKGROUND_KEY = "roadtotop.returning-from-background";
 
 const GameSessionContext = createContext<GameSessionContextValue | null>(null);
 
@@ -42,8 +43,19 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   return payload;
 }
 
-async function fetchSessionSnapshot(guestToken: string) {
-  const response = await fetch(`/api/session?guestToken=${encodeURIComponent(guestToken)}`, {
+async function fetchSessionSnapshot(
+  guestToken: string,
+  options?: { returningFromBackground?: boolean },
+) {
+  const searchParams = new URLSearchParams({
+    guestToken,
+  });
+
+  if (options?.returningFromBackground) {
+    searchParams.set("returning", "1");
+  }
+
+  const response = await fetch(`/api/session?${searchParams.toString()}`, {
     cache: "no-store",
   });
 
@@ -82,6 +94,30 @@ function clearStoredGuestToken() {
   }
 
   window.localStorage.removeItem(GUEST_TOKEN_KEY);
+}
+
+function hasPendingReturnSettlement() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(RETURNING_FROM_BACKGROUND_KEY) === "1";
+}
+
+function setPendingReturnSettlement() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(RETURNING_FROM_BACKGROUND_KEY, "1");
+}
+
+function clearPendingReturnSettlement() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(RETURNING_FROM_BACKGROUND_KEY);
 }
 
 function isLocalDevelopmentHost() {
@@ -146,7 +182,12 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("booting");
   const reconnectTimerRef = useRef<number | null>(null);
+  const autoBackgroundHandledRef = useRef(false);
+  const backgroundStartRequestRef = useRef<Promise<void> | null>(null);
+  const guestTokenRef = useRef<string | null>(null);
+  const selectedMapKeyRef = useRef<MapKey>("palmia-wilds");
   const shouldReconnectRef = useRef(true);
+  const snapshotRef = useRef<SessionSnapshot | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot) => {
@@ -270,9 +311,93 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const loadSessionForToken = useCallback(async (nextGuestToken: string) => {
     setStoredGuestToken(nextGuestToken);
     setGuestToken(nextGuestToken);
-    const nextSnapshot = await fetchSessionSnapshot(nextGuestToken);
+    guestTokenRef.current = nextGuestToken;
+    const returningFromBackground = hasPendingReturnSettlement();
+    const nextSnapshot = await fetchSessionSnapshot(nextGuestToken, { returningFromBackground });
+    clearPendingReturnSettlement();
     handleIncomingSnapshot(nextSnapshot);
     void connectSocket(nextGuestToken);
+  }, [connectSocket, handleIncomingSnapshot]);
+
+  const closeSocketConnection = useCallback(() => {
+    shouldReconnectRef.current = false;
+
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+  }, []);
+
+  const silentlyStartBackgroundAfk = useCallback(() => {
+    const currentGuestToken = guestTokenRef.current ?? getStoredGuestToken();
+    const currentSnapshot = snapshotRef.current;
+    const mapKey =
+      currentSnapshot?.afk.mapKey
+      ?? selectedMapKeyRef.current
+      ?? currentSnapshot?.config.maps[0]?.key
+      ?? "palmia-wilds";
+
+    if (!currentGuestToken || !currentSnapshot?.role || !mapKey) {
+      return;
+    }
+
+    setPendingReturnSettlement();
+
+    backgroundStartRequestRef.current = fetch("/api/afk/start", {
+      body: JSON.stringify({
+        guestToken: currentGuestToken,
+        mapKey,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      keepalive: true,
+      method: "POST",
+    })
+      .then(() => undefined)
+      .catch(() => {
+        // Best effort only. Re-entry will still resync from the server.
+      });
+  }, []);
+
+  const resumeFromBackground = useCallback(() => {
+    const currentGuestToken = guestTokenRef.current ?? getStoredGuestToken();
+
+    autoBackgroundHandledRef.current = false;
+
+    if (!currentGuestToken || !hasPendingReturnSettlement()) {
+      if (currentGuestToken && !socketRef.current) {
+        void connectSocket(currentGuestToken);
+      }
+      return;
+    }
+
+    setStatus("booting");
+    setError(null);
+
+    const backgroundStartRequest = backgroundStartRequestRef.current ?? Promise.resolve();
+
+    void backgroundStartRequest
+      .finally(() => {
+        backgroundStartRequestRef.current = null;
+
+        return fetchSessionSnapshot(currentGuestToken, { returningFromBackground: true })
+          .then((nextSnapshot) => {
+            clearPendingReturnSettlement();
+            handleIncomingSnapshot(nextSnapshot);
+            void connectSocket(currentGuestToken);
+          })
+          .catch((resumeError) => {
+            setStatus("error");
+            setError(resumeError instanceof Error ? resumeError.message : "恢复挂机会话失败。");
+            void connectSocket(currentGuestToken);
+          });
+      });
   }, [connectSocket, handleIncomingSnapshot]);
 
   const guestLogin = useCallback(async () => {
@@ -334,20 +459,70 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   }, [loadSessionForToken]);
 
   useEffect(() => {
+    guestTokenRef.current = guestToken;
+  }, [guestToken]);
+
+  useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  useEffect(() => {
+    selectedMapKeyRef.current = selectedMapKey;
+  }, [selectedMapKey]);
+
+  useEffect(() => {
     return () => {
-      shouldReconnectRef.current = false;
-
-      if (reconnectTimerRef.current) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
+      closeSocketConnection();
     };
-  }, []);
+  }, [closeSocketConnection]);
+
+  useEffect(() => {
+    const handleBackgroundEntry = () => {
+      if (document.visibilityState !== "hidden") {
+        return;
+      }
+
+      if (autoBackgroundHandledRef.current) {
+        return;
+      }
+
+      autoBackgroundHandledRef.current = true;
+      silentlyStartBackgroundAfk();
+      closeSocketConnection();
+    };
+
+    const handlePageHide = () => {
+      if (autoBackgroundHandledRef.current) {
+        return;
+      }
+
+      autoBackgroundHandledRef.current = true;
+      silentlyStartBackgroundAfk();
+      closeSocketConnection();
+    };
+
+    const handleForegroundEntry = () => {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
+      resumeFromBackground();
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handleForegroundEntry);
+    window.addEventListener("focus", handleForegroundEntry);
+    document.addEventListener("visibilitychange", handleBackgroundEntry);
+    document.addEventListener("visibilitychange", handleForegroundEntry);
+
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handleForegroundEntry);
+      window.removeEventListener("focus", handleForegroundEntry);
+      document.removeEventListener("visibilitychange", handleBackgroundEntry);
+      document.removeEventListener("visibilitychange", handleForegroundEntry);
+    };
+  }, [closeSocketConnection, resumeFromBackground, silentlyStartBackgroundAfk]);
 
   const createRole = useCallback(
     async (draft: CreateRoleDraft) => {

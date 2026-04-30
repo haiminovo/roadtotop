@@ -1140,10 +1140,10 @@ function MainDashboard() {
       {shouldShowRewardModal ? (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/72 px-4">
           <div className="w-full max-w-2xl rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-7 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
-            <SectionEyebrow>Offline Settlement</SectionEyebrow>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">离线收益已结算</h2>
+            <SectionEyebrow>AFK Summary</SectionEyebrow>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">挂机总结</h2>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              服务端已经按挂机地图与完整执行轮次完成结算，未跑满的那一轮不会被计入奖励。
+              离开页面期间，角色会自动进入挂机状态。服务端已经按挂机地图与完整执行轮次完成结算，未跑满的那一轮不会被计入奖励。
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
