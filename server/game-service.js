@@ -5,6 +5,28 @@ const AFK_TASK_SECONDS = 10;
 const LEVEL_CAP = 30;
 const EXP_PER_LEVEL = 100;
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
+const MAX_RECENT_ENCOUNTERS = 8;
+const itemSeeds = [
+  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "weapon", description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
+  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "weapon", description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
+  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", slot: "weapon", description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", slot: "armor", description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", slot: "accessory", description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
+  { itemId: "training-bow", name: "练习短弓", rarity: "white", slot: "weapon", description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
+  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", slot: "armor", description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
+  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", slot: "accessory", description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
+  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", slot: "weapon", description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
+  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", slot: "weapon", description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
+  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", slot: "armor", description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
+  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", slot: "accessory", description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
+  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", slot: "weapon", description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
+  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", slot: "armor", description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
+  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", slot: "accessory", description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
+  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", slot: "weapon", description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
+  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", slot: "armor", description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
+  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", slot: "accessory", description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
+];
+const itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
 
 const raceConfigs = [
   {
@@ -62,6 +84,87 @@ const mapConfigs = [
   },
 ];
 
+const afkEncounterChances = {
+  common: 0.001,
+  rare: 0.0001,
+  legendary: 0.00001,
+};
+
+const afkEncounterPool = [
+  {
+    key: "wanderer-cache",
+    tier: "common",
+    title: "拾荒者的暗袋",
+    description: "你在枯树根下翻出一只旧布袋，里面还残留着些许可用物资。",
+    reward: { gold: 28, aetherCrystal: 0, exp: 8 },
+  },
+  {
+    key: "mossy-altar",
+    tier: "common",
+    title: "长苔石坛",
+    description: "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
+    reward: { gold: 12, aetherCrystal: 1, exp: 10 },
+  },
+  {
+    key: "merchant-clue",
+    tier: "common",
+    title: "流商的线索",
+    description: "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
+    reward: { gold: 36, aetherCrystal: 0, exp: 6 },
+  },
+  {
+    key: "windfall-fruit",
+    tier: "common",
+    title: "风落浆果",
+    description: "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
+    reward: { gold: 0, aetherCrystal: 1, exp: 14 },
+  },
+  {
+    key: "crystal-burrow",
+    tier: "rare",
+    title: "隐晶兽巢",
+    description: "灌木后藏着一处被废弃的兽巢，里面滚落出几枚完整结晶。",
+    reward: { gold: 120, aetherCrystal: 4, exp: 36 },
+  },
+  {
+    key: "forgotten-caravan",
+    tier: "rare",
+    title: "失落商队",
+    description: "你在旧车辙旁找到半埋的补给箱，像是某支商队遗落的库存。",
+    reward: { gold: 168, aetherCrystal: 2, exp: 28 },
+  },
+  {
+    key: "moonlit-guidance",
+    tier: "rare",
+    title: "月影指引",
+    description: "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
+    reward: { gold: 88, aetherCrystal: 3, exp: 56 },
+  },
+  {
+    key: "dragonbone-relic",
+    tier: "legendary",
+    title: "龙骨遗辉",
+    description: "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
+    reward: { gold: 888, aetherCrystal: 18, exp: 220 },
+  },
+  {
+    key: "starlight-vault",
+    tier: "legendary",
+    title: "星辉秘匣",
+    description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
+    reward: { gold: 1280, aetherCrystal: 12, exp: 188 },
+  },
+];
+
+const afkEncounterPoolByTier = afkEncounterPool.reduce((accumulator, encounter) => {
+  accumulator[encounter.tier].push(encounter);
+  return accumulator;
+}, {
+  common: [],
+  rare: [],
+  legendary: [],
+});
+
 const levelTable = Array.from({ length: LEVEL_CAP }, (_, index) => ({
   level: index + 1,
   totalExpRequired: index * EXP_PER_LEVEL,
@@ -74,6 +177,265 @@ function toMillis(value) {
 function normalizeNumber(value) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
+}
+
+function getRarityRank(rarity) {
+  return {
+    white: 1,
+    green: 2,
+    blue: 3,
+    purple: 4,
+    orange: 5,
+  }[rarity] || 0;
+}
+
+function sortBackpackRows(backpack) {
+  backpack.sort((left, right) => {
+    if (left.equipped !== right.equipped) {
+      return left.equipped ? -1 : 1;
+    }
+
+    const rarityDelta = getRarityRank(right.rarity) - getRarityRank(left.rarity);
+
+    if (rarityDelta !== 0) {
+      return rarityDelta;
+    }
+
+    return left.name.localeCompare(right.name, "zh-CN");
+  });
+}
+
+function resolveEncounterRewardItems(reward) {
+  return (reward.items || [])
+    .map((itemReward) => {
+      const quantity = normalizeNumber(itemReward.quantity);
+      const itemSeed = itemSeedById.get(itemReward.itemId);
+
+      if (!itemSeed || quantity <= 0) {
+        return null;
+      }
+
+      return {
+        itemId: itemSeed.itemId,
+        quantity,
+        name: itemSeed.name,
+        rarity: itemSeed.rarity,
+        slot: itemSeed.slot,
+        description: itemSeed.description,
+        sellPrice: itemSeed.sellPrice,
+        stats: itemSeed.stats,
+      };
+    })
+    .filter(Boolean);
+}
+
+function applyEncounterItemsToBackpack(backpack, itemDrops) {
+  if (!itemDrops.length) {
+    return false;
+  }
+
+  let didMutate = false;
+
+  for (const itemDrop of itemDrops) {
+    const existing = backpack.find((entry) => entry.item_id === itemDrop.itemId);
+
+    if (existing) {
+      existing.quantity += itemDrop.quantity;
+      didMutate = true;
+      continue;
+    }
+
+    backpack.push({
+      backpack_id: `bag-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      item_id: itemDrop.itemId,
+      quantity: itemDrop.quantity,
+      equipped: false,
+      name: itemDrop.name,
+      rarity: itemDrop.rarity,
+      slot: itemDrop.slot,
+      description: itemDrop.description,
+      sell_price: itemDrop.sellPrice,
+      stat_json: itemDrop.stats,
+    });
+    didMutate = true;
+  }
+
+  if (didMutate) {
+    sortBackpackRows(backpack);
+  }
+
+  return didMutate;
+}
+
+function makeEncounterId() {
+  return `encounter-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeEncounterLog(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      if (
+        typeof entry.id !== "string"
+        || typeof entry.key !== "string"
+        || typeof entry.title !== "string"
+        || typeof entry.description !== "string"
+        || !["common", "rare", "legendary"].includes(entry.tier)
+      ) {
+        return null;
+      }
+
+      const reward = entry.reward && typeof entry.reward === "object" ? entry.reward : {};
+      const triggeredAt = Number(entry.triggeredAt);
+
+      if (!Number.isFinite(triggeredAt)) {
+        return null;
+      }
+
+      return {
+        id: entry.id,
+        key: entry.key,
+        tier: entry.tier,
+        title: entry.title,
+        description: entry.description,
+        reward: {
+          gold: normalizeNumber(reward.gold),
+          aetherCrystal: normalizeNumber(reward.aetherCrystal),
+          exp: normalizeNumber(reward.exp),
+          items: Array.isArray(reward.items)
+            ? reward.items
+              .map((itemReward) => {
+                if (!itemReward || typeof itemReward !== "object") {
+                  return null;
+                }
+
+                const quantity = normalizeNumber(itemReward.quantity);
+
+                if (typeof itemReward.itemId !== "string" || quantity <= 0) {
+                  return null;
+                }
+
+                return {
+                  itemId: itemReward.itemId,
+                  quantity,
+                  name: typeof itemReward.name === "string" ? itemReward.name : undefined,
+                  rarity: ["white", "green", "blue", "purple", "orange"].includes(itemReward.rarity)
+                    ? itemReward.rarity
+                    : undefined,
+                };
+              })
+              .filter(Boolean)
+            : [],
+        },
+        triggeredAt,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_RECENT_ENCOUNTERS);
+}
+
+function pickRandomEncounter(tier) {
+  const pool = afkEncounterPoolByTier[tier];
+
+  if (!pool || pool.length === 0) {
+    return null;
+  }
+
+  return pool[Math.floor(Math.random() * pool.length)] || null;
+}
+
+function resolveEncounterTierByRoll(roll) {
+  if (roll < afkEncounterChances.legendary) {
+    return "legendary";
+  }
+
+  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare) {
+    return "rare";
+  }
+
+  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare + afkEncounterChances.common) {
+    return "common";
+  }
+
+  return null;
+}
+
+function buildEncounterDelta(executions, settledAt) {
+  const delta = {
+    aetherCrystal: 0,
+    encounters: [],
+    exp: 0,
+    gold: 0,
+    itemDrops: [],
+  };
+
+  for (let index = 0; index < executions; index += 1) {
+    const tier = resolveEncounterTierByRoll(Math.random());
+
+    if (!tier) {
+      continue;
+    }
+
+    const encounter = pickRandomEncounter(tier);
+
+    if (!encounter) {
+      continue;
+    }
+
+    const reward = {
+      gold: normalizeNumber(encounter.reward.gold),
+      aetherCrystal: normalizeNumber(encounter.reward.aetherCrystal),
+      exp: normalizeNumber(encounter.reward.exp),
+      items: resolveEncounterRewardItems(encounter.reward).map((item) => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        name: item.name,
+        rarity: item.rarity,
+      })),
+    };
+
+    delta.gold += reward.gold;
+    delta.aetherCrystal += reward.aetherCrystal;
+    delta.exp += reward.exp;
+    delta.itemDrops.push(
+      ...reward.items.map((itemReward) => {
+        const itemSeed = itemSeedById.get(itemReward.itemId);
+
+        if (!itemSeed) {
+          return null;
+        }
+
+        return {
+          itemId: itemSeed.itemId,
+          quantity: itemReward.quantity,
+          name: itemSeed.name,
+          rarity: itemSeed.rarity,
+          slot: itemSeed.slot,
+          description: itemSeed.description,
+          sellPrice: itemSeed.sellPrice,
+          stats: itemSeed.stats,
+        };
+      }).filter(Boolean),
+    );
+    delta.encounters.push({
+      id: makeEncounterId(),
+      key: encounter.key,
+      tier,
+      title: encounter.title,
+      description: encounter.description,
+      reward,
+      triggeredAt: settledAt,
+    });
+  }
+
+  return delta;
 }
 
 function getLevelFromExp(exp) {
@@ -142,7 +504,9 @@ function buildRewardDeltaForExecutions(mapKey, previousExecutions, nextExecution
 
   return {
     aetherCrystal: Math.max(0, nextReward.aetherCrystal - previousReward.aetherCrystal),
+    encounters: [],
     exp: Math.max(0, nextReward.exp - previousReward.exp),
+    itemDrops: [],
     executions: Math.max(0, nextExecutions - previousExecutions),
     gold: Math.max(0, nextReward.gold - previousReward.gold),
   };
@@ -162,7 +526,7 @@ function applyRewardToRole(role, reward) {
 
 function settleAfkState(afk, options = {}) {
   const now = options.now || Date.now();
-  const emptyReward = { aetherCrystal: 0, exp: 0, executions: 0, gold: 0 };
+  const emptyReward = { aetherCrystal: 0, encounters: [], exp: 0, itemDrops: [], executions: 0, gold: 0 };
 
   if (afk.status !== "active" || !afk.map_key || !afk.last_settled_at) {
     return emptyReward;
@@ -185,10 +549,20 @@ function settleAfkState(afk, options = {}) {
   const previousExecutions = Math.floor(previousTotalSeconds / AFK_TASK_SECONDS);
   const nextExecutions = Math.floor(nextTotalSeconds / AFK_TASK_SECONDS);
   const rewardDelta = buildRewardDeltaForExecutions(afk.map_key, previousExecutions, nextExecutions);
+  const encounterDelta = buildEncounterDelta(rewardDelta.executions, now);
 
+  rewardDelta.gold += encounterDelta.gold;
+  rewardDelta.aetherCrystal += encounterDelta.aetherCrystal;
+  rewardDelta.exp += encounterDelta.exp;
+  rewardDelta.encounters = encounterDelta.encounters;
+  rewardDelta.itemDrops = encounterDelta.itemDrops;
   afk.pending_gold += rewardDelta.gold;
   afk.pending_aether_crystal += rewardDelta.aetherCrystal;
   afk.pending_exp += rewardDelta.exp;
+  afk.recent_encounters = [
+    ...encounterDelta.encounters.slice().reverse(),
+    ...normalizeEncounterLog(afk.recent_encounters),
+  ].slice(0, MAX_RECENT_ENCOUNTERS);
   afk.accrued_seconds = nextTotalSeconds % AFK_TASK_SECONDS;
   afk.last_settled_at = new Date(now);
 
@@ -240,6 +614,7 @@ async function persistAfk(client, afk) {
         pending_aether_crystal = $7,
         pending_exp = $8,
         accrued_seconds = $9,
+        recent_encounters = $10::jsonb,
         updated_at = NOW()
       WHERE afk_id = $1
     `,
@@ -253,8 +628,34 @@ async function persistAfk(client, afk) {
       normalizeNumber(afk.pending_aether_crystal),
       normalizeNumber(afk.pending_exp),
       normalizeNumber(afk.accrued_seconds),
+      JSON.stringify(normalizeEncounterLog(afk.recent_encounters)),
     ],
   );
+}
+
+async function persistBackpackItemRewards(client, roleId, itemDrops) {
+  if (!itemDrops.length) {
+    return;
+  }
+
+  const itemDropsById = itemDrops.reduce((accumulator, itemDrop) => {
+    accumulator.set(itemDrop.itemId, (accumulator.get(itemDrop.itemId) || 0) + itemDrop.quantity);
+    return accumulator;
+  }, new Map());
+
+  for (const [itemId, quantity] of itemDropsById.entries()) {
+    await client.query(
+      `
+        INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+        ON CONFLICT (role_id, item_id)
+        DO UPDATE SET
+          quantity = backpack.quantity + EXCLUDED.quantity,
+          updated_at = NOW()
+      `,
+      [`bag-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, roleId, itemId, quantity],
+    );
+  }
 }
 
 async function deleteBackpackEntry(client, roleId, backpackId) {
@@ -331,7 +732,8 @@ async function requireDashboardData(guestToken) {
           pending_gold,
           pending_aether_crystal,
           pending_exp,
-          accrued_seconds
+          accrued_seconds,
+          recent_encounters
         FROM afk
         WHERE role_id = $1
       `,
@@ -364,6 +766,8 @@ async function requireDashboardData(guestToken) {
   if (!afk) {
     throw new Error("挂机状态不存在，请重新创建角色。");
   }
+
+  afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
 
   return {
     afk,
@@ -439,6 +843,8 @@ function buildSnapshot(data, options = {}) {
         exp: data.afk.pending_exp,
       },
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
+      encounterRates: afkEncounterChances,
+      recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
     },
   };
 }
@@ -473,6 +879,8 @@ function buildBootstrapSnapshot(user) {
         aetherCrystal: 0,
         exp: 0,
       },
+      encounterRates: afkEncounterChances,
+      recentEncounters: [],
     },
     backpack: [],
     config: {
@@ -507,6 +915,7 @@ async function getSessionSnapshot(guestToken) {
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,
   });
+  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
   const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
 
@@ -522,6 +931,9 @@ async function getSessionSnapshot(guestToken) {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
     if (didAutoSettleOnlineReward) {
       await persistRole(client, data.role);
+    }
+    if (didApplyEncounterItems) {
+      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
     }
     await persistAfk(client, data.afk);
   });
@@ -566,6 +978,8 @@ async function stopAfkForGuest(guestToken) {
     return buildSnapshot(data);
   }
 
+  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
+
   if (applyRewardToRole(data.role, rewardDelta)) {
     consumePendingReward(data.afk, rewardDelta);
   }
@@ -576,6 +990,9 @@ async function stopAfkForGuest(guestToken) {
 
   await withTransaction(async (client) => {
     await persistRole(client, data.role);
+    if (didApplyEncounterItems) {
+      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+    }
     await persistAfk(client, data.afk);
   });
 
@@ -589,6 +1006,7 @@ async function claimAfkRewardForGuest(guestToken) {
     capSeconds: MAX_OFFLINE_SECONDS,
     now,
   });
+  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
@@ -602,6 +1020,12 @@ async function claimAfkRewardForGuest(guestToken) {
     data.afk.pending_aether_crystal <= 0 &&
     data.afk.pending_exp <= 0
   ) {
+    if (didApplyEncounterItems) {
+      await withTransaction(async (client) => {
+        await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+        await persistAfk(client, data.afk);
+      });
+    }
     return buildSnapshot(data);
   }
 
@@ -616,6 +1040,9 @@ async function claimAfkRewardForGuest(guestToken) {
 
   await withTransaction(async (client) => {
     await persistRole(client, data.role);
+    if (didApplyEncounterItems) {
+      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+    }
     await persistAfk(client, data.afk);
   });
 

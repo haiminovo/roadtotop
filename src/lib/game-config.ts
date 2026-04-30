@@ -2,6 +2,8 @@ export type RaceKey = "human" | "elf" | "dwarf";
 export type ClassKey = "warrior" | "mage" | "farmer";
 export type MapKey = "palmia-wilds";
 export type PanelKey = "role" | "backpack" | "afk";
+export type EncounterTier = "common" | "rare" | "legendary";
+export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
 
 export type Stats = {
   strength: number;
@@ -32,6 +34,26 @@ export type MapConfig = {
   goldPerMinute: number;
   aetherPerMinute: number;
   expPerMinute: number;
+};
+
+export type AfkEncounterReward = {
+  gold: number;
+  aetherCrystal: number;
+  exp: number;
+  items?: Array<{
+    itemId: string;
+    quantity: number;
+    name?: string;
+    rarity?: ItemRarity;
+  }>;
+};
+
+export type AfkEncounterConfig = {
+  key: string;
+  tier: EncounterTier;
+  title: string;
+  description: string;
+  reward: AfkEncounterReward;
 };
 
 export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
@@ -92,6 +114,78 @@ export const mapConfigs: MapConfig[] = [
     goldPerMinute: 20,
     aetherPerMinute: 0.25,
     expPerMinute: 10,
+  },
+];
+
+export const afkEncounterChances: Record<EncounterTier, number> = {
+  common: 0.001,
+  rare: 0.0001,
+  legendary: 0.00001,
+};
+
+export const afkEncounterPool: AfkEncounterConfig[] = [
+  {
+    key: "wanderer-cache",
+    tier: "common",
+    title: "拾荒者的暗袋",
+    description: "你在枯树根下翻出一只旧布袋，里面还残留着些许可用物资。",
+    reward: { gold: 28, aetherCrystal: 0, exp: 8, items: [{ itemId: "scout-bracers", quantity: 1 }] },
+  },
+  {
+    key: "mossy-altar",
+    tier: "common",
+    title: "长苔石坛",
+    description: "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
+    reward: { gold: 12, aetherCrystal: 1, exp: 10, items: [{ itemId: "leather-cap", quantity: 1 }] },
+  },
+  {
+    key: "merchant-clue",
+    tier: "common",
+    title: "流商的线索",
+    description: "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
+    reward: { gold: 36, aetherCrystal: 0, exp: 6, items: [{ itemId: "training-bow", quantity: 1 }] },
+  },
+  {
+    key: "windfall-fruit",
+    tier: "common",
+    title: "风落浆果",
+    description: "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
+    reward: { gold: 0, aetherCrystal: 1, exp: 14 },
+  },
+  {
+    key: "crystal-burrow",
+    tier: "rare",
+    title: "隐晶兽巢",
+    description: "灌木后藏着一处被废弃的兽巢，里面滚落出几枚完整结晶。",
+    reward: { gold: 120, aetherCrystal: 4, exp: 36, items: [{ itemId: "amber-charm", quantity: 1 }] },
+  },
+  {
+    key: "forgotten-caravan",
+    tier: "rare",
+    title: "失落商队",
+    description: "你在旧车辙旁找到半埋的补给箱，像是某支商队遗落的库存。",
+    reward: { gold: 168, aetherCrystal: 2, exp: 28, items: [{ itemId: "hunter-leathers", quantity: 1 }] },
+  },
+  {
+    key: "moonlit-guidance",
+    tier: "rare",
+    title: "月影指引",
+    description: "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
+    reward: { gold: 88, aetherCrystal: 3, exp: 56, items: [{ itemId: "moonshadow-dagger", quantity: 1 }] },
+  },
+  {
+    key: "dragonbone-relic",
+    tier: "legendary",
+    title: "龙骨遗辉",
+    description: "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
+    reward: { gold: 888, aetherCrystal: 18, exp: 220, items: [{ itemId: "knightwatch-mail", quantity: 1 }] },
+  },
+  {
+    key: "starlight-vault",
+    tier: "legendary",
+    title: "星辉秘匣",
+    description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
+    reward: { gold: 1280, aetherCrystal: 12, exp: 188, items: [{ itemId: "dawnfire-pendant", quantity: 1 }] },
   },
 ];
 

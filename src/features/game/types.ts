@@ -1,6 +1,8 @@
 import type {
+  AfkEncounterReward,
   ClassConfig,
   MapConfig,
+  EncounterTier,
   PanelKey,
   RaceConfig,
   ClassKey,
@@ -77,6 +79,16 @@ export type SessionSnapshot = {
     currentMap: MapConfig | null;
     pendingReward: RewardPreview;
     estimatedHourlyReward: RewardPreview;
+    encounterRates: Record<EncounterTier, number>;
+    recentEncounters: Array<{
+      id: string;
+      key: string;
+      tier: EncounterTier;
+      title: string;
+      description: string;
+      reward: AfkEncounterReward;
+      triggeredAt: number;
+    }>;
   };
 };
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Chat from "@/components/chat";
-import type { ClassKey, MapConfig, MapKey, PanelKey, RaceKey } from "@/lib/game-config";
+import type { AfkEncounterReward, ClassKey, EncounterTier, MapConfig, MapKey, PanelKey, RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
 
 function formatNumber(value: number) {
@@ -43,6 +43,56 @@ function formatPercent(current: number, total: number) {
   }
 
   return `${Math.min(100, Math.floor((current / total) * 100))}%`;
+}
+
+function formatEncounterRate(rate: number) {
+  return `${(Math.max(0, rate) * 100).toFixed(3).replace(/\.?0+$/, "")}%`;
+}
+
+function formatEncounterReward(reward: AfkEncounterReward) {
+  const segments = [
+    reward.gold > 0 ? `金 ${formatNumber(reward.gold)}` : null,
+    reward.exp > 0 ? `经 ${formatNumber(reward.exp)}` : null,
+    reward.aetherCrystal > 0 ? `以太 ${formatNumber(reward.aetherCrystal)}` : null,
+    ...(reward.items ?? []).map((item) => `${item.name ?? item.itemId} x${formatNumber(item.quantity)}`),
+  ].filter(Boolean);
+
+  return segments.length > 0 ? segments.join(" / ") : "无额外奖励";
+}
+
+function rarityLabel(rarity: string) {
+  return {
+    white: "白装",
+    green: "绿装",
+    blue: "蓝装",
+    purple: "紫装",
+    orange: "橙装",
+  }[rarity] ?? rarity;
+}
+
+function encounterTierLabel(tier: EncounterTier) {
+  return {
+    common: "普通奇遇",
+    rare: "稀有奇遇",
+    legendary: "传说奇遇",
+  }[tier];
+}
+
+function encounterTierAccent(tier: EncounterTier) {
+  return {
+    common: "border-sky-300/25 bg-sky-300/10 text-sky-100",
+    rare: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+    legendary: "border-rose-300/25 bg-rose-300/12 text-rose-100",
+  }[tier];
+}
+
+function formatEncounterTriggeredAt(timestamp: number) {
+  return new Date(timestamp).toLocaleString("zh-CN", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function formatStatsSummary(stats: Record<string, number>) {
@@ -98,9 +148,13 @@ type PendingItemAction = {
 } | null;
 
 function itemAccent(rarity: string) {
-  return rarity === "green"
-    ? "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
-    : "border-slate-300/20 bg-slate-200/8 text-slate-100";
+  return {
+    white: "border-slate-300/20 bg-slate-200/8 text-slate-100",
+    green: "border-emerald-300/35 bg-emerald-300/10 text-emerald-100",
+    blue: "border-sky-300/35 bg-sky-300/10 text-sky-100",
+    purple: "border-fuchsia-300/35 bg-fuchsia-300/10 text-fuchsia-100",
+    orange: "border-amber-300/35 bg-amber-300/10 text-amber-100",
+  }[rarity] ?? "border-slate-300/20 bg-slate-200/8 text-slate-100";
 }
 
 function getItemActionDefinition(actionKey: ItemActionKey) {
@@ -644,6 +698,48 @@ function CenterPanel({
             <DataPill label="单轮经验" value={formatNumber(currentTaskReward.exp)} />
           </div>
         </div>
+
+        <div className="rounded-[1rem] border border-amber-300/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.1),rgba(15,23,42,0.18))] p-4 xl:col-span-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <SectionEyebrow>Encounter Log</SectionEyebrow>
+              <h3 className="mt-2 text-xl font-semibold text-white">自己触发的奇遇</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-300">
+                每次完整执行动作后都会在服务端做一次奇遇判定，触发后会直接记录在这里。
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <DataPill label="普通" value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
+              <DataPill label="稀有" value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
+              <DataPill label="传说" value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {snapshot.afk.recentEncounters.length > 0 ? snapshot.afk.recentEncounters.slice(0, 4).map((encounter) => (
+              <div
+                key={encounter.id}
+                className="rounded-[1rem] border border-white/8 bg-slate-950/30 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.14)]"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-white">{encounter.title}</p>
+                    <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt)}</p>
+                  </div>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
+                    {encounterTierLabel(encounter.tier)}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{encounter.description}</p>
+                <p className="mt-3 text-xs leading-6 text-amber-100/90">{formatEncounterReward(encounter.reward)}</p>
+              </div>
+            )) : (
+              <div className="rounded-[1rem] border border-dashed border-white/10 bg-slate-950/20 p-4 text-sm leading-6 text-slate-400 lg:col-span-2">
+                这里会显示你最近触发的奇遇。当前还没有记录，继续挂机跑完整轮次就有机会刷出来。
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </SectionCard>
   );
@@ -684,7 +780,7 @@ function RightRail({
                     <div>
                       <p className="text-lg font-semibold text-white">{selectedItem.name}</p>
                       <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-                        {slotLabel(selectedItem.slot)} · {selectedItem.rarity === "green" ? "绿装" : "白装"}
+                        {slotLabel(selectedItem.slot)} · {rarityLabel(selectedItem.rarity)}
                       </p>
                     </div>
                     <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-200">
@@ -738,6 +834,40 @@ function RightRail({
                 label="预计小时收益"
                 value={`金 ${formatNumber(snapshot.afk.estimatedHourlyReward.gold)} / 经 ${formatNumber(snapshot.afk.estimatedHourlyReward.exp)}`}
               />
+            </div>
+
+            <SectionEyebrow>
+              <span className="mt-6 block">Encounter Rates</span>
+            </SectionEyebrow>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <DataPill label="普通" value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
+              <DataPill label="稀有" value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
+              <DataPill label="传说" value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
+            </div>
+
+            <SectionEyebrow>
+              <span className="mt-6 block">Recent Encounters</span>
+            </SectionEyebrow>
+            <div className="mt-3 space-y-3">
+              {snapshot.afk.recentEncounters.length > 0 ? snapshot.afk.recentEncounters.slice(0, 5).map((encounter) => (
+                <div key={encounter.id} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{encounter.title}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt)}</p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
+                      {encounterTierLabel(encounter.tier)}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{encounter.description}</p>
+                  <p className="mt-3 text-xs leading-6 text-sky-100/80">{formatEncounterReward(encounter.reward)}</p>
+                </div>
+              )) : (
+                <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-slate-400">
+                  完成每一次完整动作执行后，服务端都会分别以普通 0.1%、稀有 0.01%、传说 0.001% 的概率判定奇遇。
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -958,7 +1088,7 @@ function MainDashboard() {
             <div className="min-w-0">
               <h2 className="text-2xl font-semibold text-white">{actionItem.name}</h2>
               <p className="mt-2 text-sm text-slate-300">
-                {slotLabel(actionItem.slot)} · {actionItem.rarity === "green" ? "绿装" : "白装"} · 数量 x{actionItem.quantity}
+                {slotLabel(actionItem.slot)} · {rarityLabel(actionItem.rarity)} · 数量 x{actionItem.quantity}
               </p>
               <p className="mt-3 text-sm leading-7 text-slate-300">{actionItem.description}</p>
               <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats)}</p>
@@ -1013,7 +1143,7 @@ function MainDashboard() {
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <DataPill label="类型" value={slotLabel(pendingActionItem.slot)} />
-            <DataPill label="品质" value={pendingActionItem.rarity === "green" ? "绿装" : "白装"} />
+            <DataPill label="品质" value={rarityLabel(pendingActionItem.rarity)} />
             <DataPill label="出售价格" value={formatNumber(pendingActionItem.sellPrice)} />
           </div>
 

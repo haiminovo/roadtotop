@@ -64,6 +64,9 @@ CREATE TABLE IF NOT EXISTS afk (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE afk
+ADD COLUMN IF NOT EXISTS recent_encounters JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 DO $$
 BEGIN
   IF EXISTS (
@@ -179,6 +182,136 @@ VALUES
     '会在冒险者启程时发放的基础指环。',
     36,
     '{"strength": 1, "intelligence": 1, "vitality": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'training-bow',
+    '练习短弓',
+    'white',
+    'weapon',
+    '拉力一般，但足够让新手学会瞄准与走位。',
+    18,
+    '{"agility": 2}'::jsonb,
+    NOW()
+  ),
+  (
+    'leather-cap',
+    '皮质便帽',
+    'white',
+    'armor',
+    '不起眼的小帽子，能挡一点风沙与碎石。',
+    14,
+    '{"vitality": 1, "agility": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'scout-bracers',
+    '斥候护腕',
+    'white',
+    'accessory',
+    '轻量护腕，让抬手与闪避动作更利落。',
+    16,
+    '{"agility": 1, "intelligence": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'bronze-longsword',
+    '青铜长剑',
+    'green',
+    'weapon',
+    '保养得当的军用品，劈砍手感远胜生锈短剑。',
+    48,
+    '{"strength": 3, "vitality": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'whisper-wand',
+    '低语木杖',
+    'green',
+    'weapon',
+    '杖身会在夜里发出轻鸣，能稳定初阶法术。',
+    46,
+    '{"intelligence": 3, "agility": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'hunter-leathers',
+    '猎人皮甲',
+    'green',
+    'armor',
+    '柔韧结实，适合长时间追踪与奔行。',
+    54,
+    '{"agility": 2, "vitality": 2}'::jsonb,
+    NOW()
+  ),
+  (
+    'amber-charm',
+    '琥珀护符',
+    'green',
+    'accessory',
+    '封着温热树脂的护符，能让心神更稳定。',
+    52,
+    '{"intelligence": 2, "vitality": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'moonshadow-dagger',
+    '月影短匕',
+    'blue',
+    'weapon',
+    '刀锋轻薄如月光，适合迅捷而精准的出手。',
+    96,
+    '{"agility": 4, "intelligence": 1}'::jsonb,
+    NOW()
+  ),
+  (
+    'runic-vest',
+    '符纹战衣',
+    'blue',
+    'armor',
+    '内衬刻着细密符纹，兼顾防护与法感引导。',
+    104,
+    '{"intelligence": 3, "vitality": 2}'::jsonb,
+    NOW()
+  ),
+  (
+    'wolfbone-talisman',
+    '狼骨符坠',
+    'blue',
+    'accessory',
+    '粗犷却实用的护符，佩戴后胆气更足。',
+    98,
+    '{"strength": 2, "agility": 2}'::jsonb,
+    NOW()
+  ),
+  (
+    'stormglass-staff',
+    '风暴晶杖',
+    'purple',
+    'weapon',
+    '杖芯封着风暴碎晶，能显著放大施法者感知。',
+    188,
+    '{"intelligence": 5, "agility": 2}'::jsonb,
+    NOW()
+  ),
+  (
+    'knightwatch-mail',
+    '守夜骑士甲',
+    'purple',
+    'armor',
+    '历经修补的厚重甲胄，仍保留着可靠的守护感。',
+    210,
+    '{"strength": 3, "vitality": 5}'::jsonb,
+    NOW()
+  ),
+  (
+    'dawnfire-pendant',
+    '晨焰坠饰',
+    'orange',
+    'accessory',
+    '内部像封着一缕朝阳，能同时提振体魄与精神。',
+    320,
+    '{"strength": 2, "intelligence": 3, "vitality": 3}'::jsonb,
     NOW()
   )
 ON CONFLICT (item_id) DO UPDATE SET
