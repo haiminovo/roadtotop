@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { type MapKey, type PanelKey } from "@/lib/game-config";
+import type { ChatChannelKey, ChatMessage } from "@/features/chat/types";
 import type {
   ConnectionStatus,
   CreateRoleDraft,
@@ -110,6 +111,7 @@ async function getWebSocketUrl() {
 
 export function GameSessionProvider({ children }: { children: React.ReactNode }) {
   const [activePanel, setActivePanel] = useState<PanelKey>("afk");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [guestToken, setGuestToken] = useState<string | null>(null);
   const [selectedMapKey, setSelectedMapKey] = useState<MapKey>("palmia-wilds");
@@ -174,6 +176,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     socket.addEventListener("message", (event) => {
       const packet = JSON.parse(event.data) as {
         payload?: {
+          message?: ChatMessage;
+          messages?: ChatMessage[];
           content?: string;
           snapshot?: SessionSnapshot;
         };
@@ -190,6 +194,22 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         if (packet.payload?.snapshot) {
           handleIncomingSnapshot(packet.payload.snapshot);
         }
+        return;
+      }
+
+      if (packet.type === "game:chat:history") {
+        setChatMessages(packet.payload?.messages ?? []);
+        return;
+      }
+
+      if (packet.type === "game:chat:message" && packet.payload?.message) {
+        const incomingMessage = packet.payload.message;
+
+        setChatMessages((current) => {
+          const nextMessages = current.filter((message) => message.id !== incomingMessage.id);
+          nextMessages.push(incomingMessage);
+          return nextMessages.slice(-80);
+        });
       }
     });
 
@@ -352,6 +372,17 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [sendSocketMessage]);
 
+  const sendChatMessage = useCallback(async (channelKey: ChatChannelKey, content: string) => {
+    try {
+      setError(null);
+      sendSocketMessage("game:chat:send", { channelKey, content });
+    } catch (sendError) {
+      setStatus("error");
+      setError(sendError instanceof Error ? sendError.message : "发送聊天消息失败。");
+      throw sendError;
+    }
+  }, [sendSocketMessage]);
+
   const dismissError = useCallback(() => {
     setError(null);
     setStatus((current) => (current === "error" ? "ready" : current));
@@ -360,12 +391,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const value = useMemo<GameSessionContextValue>(
     () => ({
       activePanel,
+      chatMessages,
       claimOfflineReward,
       createRole,
       dismissError,
       dropBackpackItem,
       error,
       guestLogin,
+      sendChatMessage,
       selectedMapKey,
       selectMap: setSelectedMapKey,
       setActivePanel,
@@ -376,12 +409,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }),
     [
       activePanel,
+      chatMessages,
       claimOfflineReward,
       createRole,
       dismissError,
       dropBackpackItem,
       error,
       guestLogin,
+      sendChatMessage,
       selectedMapKey,
       snapshot,
       startAfk,

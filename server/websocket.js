@@ -2,6 +2,11 @@ const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
 const WebSocketServer = require("websocket").server;
+const {
+  CHAT_CHANNELS,
+  createChatMessageForGuest,
+  getRecentChatMessages,
+} = require("./chat-service");
 const { closeDatabase, initDatabase } = require("./db");
 const {
   AFK_TASK_SECONDS,
@@ -42,6 +47,25 @@ function sendError(connection, content) {
     type: "game:error",
     payload: { content },
   });
+}
+
+function sendChatHistory(connection, messages) {
+  send(connection, {
+    type: "game:chat:history",
+    payload: {
+      channels: CHAT_CHANNELS,
+      messages,
+    },
+  });
+}
+
+function broadcastChatMessage(message) {
+  for (const connection of sessions.keys()) {
+    send(connection, {
+      type: "game:chat:message",
+      payload: { message },
+    });
+  }
 }
 
 function getSession(connection) {
@@ -150,8 +174,10 @@ async function handleSessionStart(connection, packet) {
   }
 
   const snapshot = await getSessionSnapshot(guestToken);
+  const chatMessages = await getRecentChatMessages();
   setSession(connection, guestToken, snapshot);
   sendSnapshot(connection, snapshot, "ready", "game:session:ready");
+  sendChatHistory(connection, chatMessages);
 }
 
 async function handleAfkStart(connection, session, packet) {
@@ -184,6 +210,17 @@ async function handleBackpackDrop(connection, session, packet) {
   sendSnapshot(connection, snapshot, "drop");
 }
 
+async function handleChatSend(session, packet) {
+  const channelKey = typeof packet.payload?.channelKey === "string"
+    ? packet.payload.channelKey
+    : "";
+  const content = typeof packet.payload?.content === "string"
+    ? packet.payload.content
+    : "";
+  const message = await createChatMessageForGuest(session.guestToken, channelKey, content);
+  broadcastChatMessage(message);
+}
+
 async function handlePacket(connection, packet) {
   if (packet.type === "game:session:start") {
     await handleSessionStart(connection, packet);
@@ -213,6 +250,11 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:backpack:drop") {
     await handleBackpackDrop(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:chat:send") {
+    await handleChatSend(session, packet);
   }
 }
 

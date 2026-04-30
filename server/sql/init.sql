@@ -64,9 +64,39 @@ CREATE TABLE IF NOT EXISTS afk (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name = 'chat_logs'
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'chat_logs'
+      AND column_name = 'channel_key'
+  ) THEN
+    EXECUTE 'DROP TABLE chat_logs';
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS chat_logs (
+  chat_id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES "user"(user_id) ON DELETE CASCADE,
+  role_id TEXT NOT NULL REFERENCES "role"(role_id) ON DELETE CASCADE,
+  channel_key TEXT NOT NULL,
+  sender_name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_role_user_id ON "role" (user_id);
 CREATE INDEX IF NOT EXISTS idx_backpack_role_id ON backpack (role_id);
 CREATE INDEX IF NOT EXISTS idx_afk_role_id ON afk (role_id);
+CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON chat_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_logs_channel_key ON chat_logs (channel_key, created_at DESC);
 
 DROP TABLE IF EXISTS task;
 

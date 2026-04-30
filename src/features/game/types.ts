@@ -7,6 +7,7 @@ import type {
   MapKey,
   RaceKey,
 } from "@/lib/game-config";
+import type { ChatChannelKey, ChatMessage } from "@/features/chat/types";
 
 export type ConnectionStatus = "booting" | "ready" | "saving" | "error";
 
@@ -87,12 +88,14 @@ export type CreateRoleDraft = {
 
 export type GameSessionContextValue = {
   activePanel: PanelKey;
+  chatMessages: ChatMessage[];
   createRole: (draft: CreateRoleDraft) => Promise<void>;
   error: string | null;
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
+  sendChatMessage: (channelKey: ChatChannelKey, content: string) => Promise<void>;
   selectedMapKey: MapKey;
   selectMap: (mapKey: MapKey) => void;
   setActivePanel: (panel: PanelKey) => void;

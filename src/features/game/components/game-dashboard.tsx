@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
+import Chat from "@/components/chat";
 import type { ClassKey, MapConfig, MapKey, PanelKey, RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
 
@@ -130,7 +131,7 @@ function SectionCard({
     <section
       className={[
         "rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.96),rgba(11,16,30,0.98))]",
-        "shadow-[0_18px_60px_rgba(0,0,0,0.28)]",
+        "shadow-[0_12px_36px_rgba(0,0,0,0.22)]",
         className,
       ].join(" ")}
     >
@@ -183,16 +184,18 @@ function TopStatusBar({
 }
 
 function DataPill({
+  className = "",
   label,
   value,
 }: {
+  className?: string;
   label: string;
   value: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+    <div className={["rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2", className].join(" ")}>
       <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+      <p className="mt-1 text-sm font-semibold leading-5 text-white">{value}</p>
     </div>
   );
 }
@@ -275,7 +278,7 @@ function LandingView() {
   const { guestLogin, status } = useGameSession();
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <SectionCard className="overflow-hidden px-6 py-7 md:px-8">
           <SectionEyebrow>Idle MMO</SectionEyebrow>
@@ -334,7 +337,7 @@ function CreateRoleView() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <SectionCard className="px-6 py-7 md:px-8">
           <SectionEyebrow>Character Setup</SectionEyebrow>
@@ -510,13 +513,13 @@ function CenterPanel({
 
   if (activePanel === "backpack") {
     return (
-      <SectionCard className="overflow-hidden">
-        <div className="border-b border-white/8 px-5 py-4">
+      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="border-b border-white/8 px-4 py-3">
           <SectionEyebrow>Inventory</SectionEyebrow>
-          <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-white">背包仓库</h2>
-              <p className="mt-2 text-sm leading-7 text-slate-300">这里只展示当前真实拥有的物品和装备状态。</p>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">背包</h2>
+              <p className="mt-1 text-sm text-slate-300">只展示当前真实拥有的物品。</p>
             </div>
             <div className="flex gap-2">
               <DataPill label="物品数" value={formatNumber(backpack.length)} />
@@ -528,8 +531,8 @@ function CenterPanel({
           </div>
         </div>
 
-        <div className="p-5">
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
             {backpack.map((item) => (
               <ItemTile
                 key={item.backpackId}
@@ -552,19 +555,19 @@ function CenterPanel({
     const roleClass = snapshot.config.classes.find((item) => item.key === role.classKey);
 
     return (
-      <SectionCard className="overflow-hidden">
-        <div className="border-b border-white/8 px-5 py-4">
+      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="border-b border-white/8 px-4 py-3">
           <SectionEyebrow>Character Sheet</SectionEyebrow>
-          <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-white">角色档案</h2>
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">角色档案</h2>
         </div>
-        <div className="grid gap-4 p-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-5">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
             <p className="text-2xl font-semibold text-white">{role.name}</p>
             <p className="mt-2 text-sm text-slate-300">
               {race?.label} / {roleClass?.label}
             </p>
-            <p className="mt-4 text-sm leading-7 text-slate-300">{race?.summary}</p>
-            <p className="mt-2 text-sm leading-7 text-slate-300">{roleClass?.summary}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{race?.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-300">{roleClass?.summary}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -581,81 +584,68 @@ function CenterPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <SectionCard className="overflow-hidden">
-        <div className="border-b border-white/8 px-5 py-4">
-          <SectionEyebrow>Current Map</SectionEyebrow>
-          <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-3xl font-semibold tracking-[-0.04em] text-white">挂机区域</h2>
-              <p className="mt-2 text-sm leading-7 text-slate-300">当前版本只保留一张已实现地图，收益和进度都按服务端状态展示。</p>
-            </div>
-            <DataPill label="结算周期" value={formatClock(taskDuration)} />
+    <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-white/8 px-4 py-3">
+        <SectionEyebrow>AFK Control</SectionEyebrow>
+        <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">挂机控制</h2>
+            <p className="mt-1 text-sm text-slate-300">当前版本只保留一张已实现地图，收益与结算都以服务端状态为准。</p>
+          </div>
+          <div className="flex gap-2">
+            <DataPill label="周期" value={formatClock(taskDuration)} />
+            <DataPill label="本轮" value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
           </div>
         </div>
+      </div>
 
-        <div className="p-5">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-4">
           {maps
             .filter((map) => map.key === selectedMapKey)
             .map((map) => (
-              <button
-                key={map.key}
-                className="w-full rounded-[1rem] border border-sky-300/35 bg-sky-300/10 p-5 text-left transition"
-                onClick={() => selectMap(map.key)}
-                type="button"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div key={map.key}>
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-2xl font-semibold text-white">{map.label}</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-300">{map.summary}</p>
+                    <p className="text-xl font-semibold text-white">{map.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300">{map.summary}</p>
                   </div>
-                  <span className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300">
+                  <button
+                    className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300"
+                    onClick={() => selectMap(map.key)}
+                    type="button"
+                  >
                     当前地图
-                  </span>
+                  </button>
                 </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   <DataPill label="金币/分" value={formatDecimal(map.goldPerMinute)} />
                   <DataPill label="以太/分" value={formatDecimal(map.aetherPerMinute)} />
                   <DataPill label="经验/分" value={formatDecimal(map.expPerMinute)} />
                 </div>
-              </button>
+              </div>
             ))}
         </div>
-      </SectionCard>
 
-      <SectionCard className="overflow-hidden">
-        <div className="border-b border-white/8 px-5 py-4">
-          <SectionEyebrow>Execution Loop</SectionEyebrow>
-          <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h3 className="text-2xl font-semibold text-white">在线执行进度</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-300">
-                在线时进度会平滑展示，但每一轮是否完成、奖励是否结算，仍然只以服务端结果为准。
-              </p>
-            </div>
-            <DataPill label="本轮计时" value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
-          </div>
-        </div>
-
-        <div className="space-y-5 p-5">
+        <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
           <TopStatusBar
             label="执行进度"
             tone="from-sky-400 via-cyan-300 to-emerald-300"
             value={taskProgressPercent}
           />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <DataPill label="挂机中" value={snapshot.afk.status === "active" ? "是" : "否"} />
-            <DataPill label="剩余时间" value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
-            <DataPill label="已跑时长" value={formatDuration(taskProgress)} />
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <DataPill label="状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
+            <DataPill label="剩余" value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
+            <DataPill label="已执行" value={formatDuration(taskProgress)} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label="单轮金币" value={formatNumber(currentTaskReward.gold)} />
             <DataPill label="单轮以太" value={formatNumber(currentTaskReward.aetherCrystal)} />
             <DataPill label="单轮经验" value={formatNumber(currentTaskReward.exp)} />
           </div>
         </div>
-      </SectionCard>
-    </div>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -663,7 +653,6 @@ function RightRail({
   activePanel,
   backpack,
   pendingReward,
-  role,
   selectedItem,
   snapshot,
 }: {
@@ -675,41 +664,15 @@ function RightRail({
     gold: number;
     seconds: number;
   };
-  role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
   selectedItem: BackpackItem | undefined;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
 }) {
-  if (!role) {
-    return null;
-  }
-
   const equippedItems = backpack.filter((item) => item.equipped);
 
   return (
-    <SectionCard className="overflow-hidden">
+    <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className={`h-1 w-full bg-gradient-to-r ${panelAccent(activePanel)}`} />
-      <div className="space-y-5 p-5">
-        <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-[1rem] border border-white/10 bg-white/[0.045] text-3xl font-semibold text-sky-100">
-            {role.avatarSeed}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xl font-semibold text-white">{role.name}</p>
-            <p className="mt-1 text-sm text-slate-300">
-              Lv.{role.level} · {snapshot.config.races.find((item) => item.key === role.raceKey)?.label}
-            </p>
-            <p className="mt-1 text-sm text-slate-400">
-              {snapshot.config.classes.find((item) => item.key === role.classKey)?.label}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <DataPill label="金币" value={formatNumber(role.gold)} />
-          <DataPill label="以太结晶" value={formatNumber(role.aetherCrystal)} />
-          <DataPill label="待领取金币" value={formatNumber(pendingReward.gold)} />
-          <DataPill label="待领取经验" value={formatNumber(pendingReward.exp)} />
-        </div>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
 
         {activePanel === "backpack" ? (
           <>
@@ -731,9 +694,6 @@ function RightRail({
                   <p className="mt-3 text-sm leading-6 text-slate-300">{selectedItem.description}</p>
                   <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(selectedItem.stats)}</p>
                   <p className="mt-3 text-xs text-slate-400">出售价格 {formatNumber(selectedItem.sellPrice)}</p>
-                  <p className="mt-4 rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-3 text-xs leading-6 text-slate-400">
-                    第一次点击背包格子会选中物品，再次点击同一个格子才会弹出操作菜单。
-                  </p>
                 </div>
               ) : (
                 <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
@@ -753,34 +713,31 @@ function RightRail({
           <div>
             <SectionEyebrow>Equipped Items</SectionEyebrow>
             <div className="mt-3 space-y-3">
-              {equippedItems.map((item) => (
+              {equippedItems.length > 0 ? equippedItems.map((item) => (
                 <div key={item.backpackId} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
                   <p className="text-sm font-semibold text-white">{item.name}</p>
                   <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{slotLabel(item.slot)}</p>
                   <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(item.stats)}</p>
                 </div>
-              ))}
+              )) : (
+                <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
+                  当前没有已装备物品。
+                </div>
+              )}
             </div>
           </div>
         ) : (
           <div>
             <SectionEyebrow>Settlement Summary</SectionEyebrow>
-            <div className="mt-3 space-y-3">
-              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
-                <p className="text-sm font-semibold text-white">当前地图</p>
-                <p className="mt-2 text-sm text-slate-300">{snapshot.afk.currentMap?.label ?? "未选择"}</p>
-              </div>
-              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
-                <p className="text-sm font-semibold text-white">在线状态</p>
-                <p className="mt-2 text-sm text-slate-300">{snapshot.afk.status === "active" ? "挂机中" : "待机"}</p>
-              </div>
-              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
-                <p className="text-sm font-semibold text-white">预计小时收益</p>
-                <p className="mt-2 text-sm text-slate-300">
-                  金币 {formatNumber(snapshot.afk.estimatedHourlyReward.gold)} · 经验{" "}
-                  {formatNumber(snapshot.afk.estimatedHourlyReward.exp)}
-                </p>
-              </div>
+            <div className="mt-3 grid gap-2">
+              <DataPill label="待领取金币" value={formatNumber(pendingReward.gold)} />
+              <DataPill label="待领取经验" value={formatNumber(pendingReward.exp)} />
+              <DataPill label="待领取以太" value={formatNumber(pendingReward.aetherCrystal)} />
+              <DataPill label="累计时长" value={formatDuration(pendingReward.seconds)} />
+              <DataPill
+                label="预计小时收益"
+                value={`金 ${formatNumber(snapshot.afk.estimatedHourlyReward.gold)} / 经 ${formatNumber(snapshot.afk.estimatedHourlyReward.exp)}`}
+              />
             </div>
           </div>
         )}
@@ -944,7 +901,7 @@ function MainDashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#27326d_0%,#111630_34%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4">
+    <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#27326d_0%,#111630_34%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4">
       {error ? (
         <div className="mx-auto mb-3 flex max-w-[1600px] items-center justify-between gap-4 rounded-[1rem] border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           <span>{error}</span>
@@ -1096,18 +1053,18 @@ function MainDashboard() {
         </OverlayModal>
       ) : null}
 
-      <div className="mx-auto max-w-[1600px] space-y-3">
+      <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-3 overflow-hidden">
         <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(49,62,121,0.95),rgba(12,16,34,0.98))]">
-          <div className="space-y-5 px-4 py-4 md:px-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-4 px-4 py-3 md:px-5">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-[1rem] border border-white/12 bg-white/[0.05] text-2xl font-semibold text-sky-100">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[1rem] border border-white/12 bg-white/[0.05] text-xl font-semibold text-sky-100">
                   {role.avatarSeed}
                 </div>
                 <div>
                   <SectionEyebrow>Overview</SectionEyebrow>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-white">{role.name}</h1>
-                  <p className="mt-2 text-sm text-slate-200/80">
+                  <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white">{role.name}</h1>
+                  <p className="mt-1 text-sm text-slate-200/80">
                     Lv.{role.level} · {snapshot.config.races.find((item) => item.key === role.raceKey)?.label} · {snapshot.config.classes.find((item) => item.key === role.classKey)?.label}
                   </p>
                 </div>
@@ -1115,22 +1072,18 @@ function MainDashboard() {
 
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <DataPill label="当前金币" value={formatNumber(role.gold)} />
+                <DataPill label="以太结晶" value={formatNumber(role.aetherCrystal)} />
                 <DataPill label="待领取" value={formatNumber(snapshot.afk.pendingReward.gold)} />
                 <DataPill label="执行状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
-                <DataPill label="成长率" value={progressCopy} />
+                <DataPill label="升级进度" value={progressCopy} />
               </div>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-[1fr_1fr_320px]">
+            <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
               <TopStatusBar
                 label="等级进度"
                 tone="from-teal-300 via-cyan-300 to-sky-400"
                 value={role.nextLevelExp > 0 ? (role.currentLevelExp / role.nextLevelExp) * 100 : 100}
-              />
-              <TopStatusBar
-                label="执行进度"
-                tone="from-emerald-300 via-lime-300 to-yellow-300"
-                value={taskProgressPercent}
               />
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
                 <button
@@ -1167,8 +1120,8 @@ function MainDashboard() {
           </div>
         </SectionCard>
 
-        <div className="grid gap-3 xl:grid-cols-[240px_1fr_340px]">
-          <SectionCard className="p-4">
+        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[220px_minmax(0,1fr)_320px]">
+          <SectionCard className="min-h-0 p-3">
             <div className="space-y-3">
               {menuItems.map((item) => (
                 <RailButton
@@ -1183,27 +1136,29 @@ function MainDashboard() {
             </div>
           </SectionCard>
 
-          <CenterPanel
-            activePanel={activePanel}
-            backpack={backpack}
-            currentTaskReward={currentTaskReward}
-            maps={maps}
-            onSelectItem={handleSelectBackpackItem}
-            role={role}
-            selectedBackpackId={selectedBackpackId}
-            selectedMapKey={selectedMapKey}
-            selectMap={selectMap}
-            snapshot={snapshot}
-            taskDuration={taskDuration}
-            taskProgress={taskProgress}
-            taskProgressPercent={taskProgressPercent}
-          />
+          <div className="grid min-h-0 gap-3 xl:grid-rows-[minmax(0,1fr)_240px]">
+            <CenterPanel
+              activePanel={activePanel}
+              backpack={backpack}
+              currentTaskReward={currentTaskReward}
+              maps={maps}
+              onSelectItem={handleSelectBackpackItem}
+              role={role}
+              selectedBackpackId={selectedBackpackId}
+              selectedMapKey={selectedMapKey}
+              selectMap={selectMap}
+              snapshot={snapshot}
+              taskDuration={taskDuration}
+              taskProgress={taskProgress}
+              taskProgressPercent={taskProgressPercent}
+            />
+            <Chat />
+          </div>
 
           <RightRail
             activePanel={activePanel}
             backpack={backpack}
             pendingReward={snapshot.afk.pendingReward}
-            role={role}
             selectedItem={selectedItem}
             snapshot={snapshot}
           />
