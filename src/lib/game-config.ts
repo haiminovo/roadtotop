@@ -87,7 +87,7 @@ export const classConfigs: ClassConfig[] = [
 export const mapConfigs: MapConfig[] = [
   {
     key: "palmia-wilds",
-    label: "帕罗米亚野外",
+    label: "野外",
     summary: "收益平衡，适合刚创角时开第一张图。",
     goldPerMinute: 20,
     aetherPerMinute: 0.25,
