@@ -340,6 +340,18 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [sendSocketMessage]);
 
+  const dropBackpackItem = useCallback(async (backpackId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:backpack:drop", { backpackId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(sendError instanceof Error ? sendError.message : "丢弃物品失败。");
+      throw sendError;
+    }
+  }, [sendSocketMessage]);
+
   const dismissError = useCallback(() => {
     setError(null);
     setStatus((current) => (current === "error" ? "ready" : current));
@@ -351,6 +363,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       claimOfflineReward,
       createRole,
       dismissError,
+      dropBackpackItem,
       error,
       guestLogin,
       selectedMapKey,
@@ -366,6 +379,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       claimOfflineReward,
       createRole,
       dismissError,
+      dropBackpackItem,
       error,
       guestLogin,
       selectedMapKey,

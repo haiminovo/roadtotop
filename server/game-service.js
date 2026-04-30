@@ -257,6 +257,18 @@ async function persistAfk(client, afk) {
   );
 }
 
+async function deleteBackpackEntry(client, roleId, backpackId) {
+  const result = await client.query(
+    `
+      DELETE FROM backpack
+      WHERE role_id = $1 AND backpack_id = $2
+    `,
+    [roleId, backpackId],
+  );
+
+  return result.rowCount > 0;
+}
+
 async function findUserByGuestToken(guestToken) {
   const result = await query(
     `SELECT user_id, guest_token, last_login_at, last_seen_at FROM "user" WHERE guest_token = $1`,
@@ -610,10 +622,36 @@ async function claimAfkRewardForGuest(guestToken) {
   return getSessionSnapshot(guestToken);
 }
 
+async function dropBackpackItemForGuest(guestToken, backpackId) {
+  const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要丢弃的物品不存在。");
+  }
+
+  await withTransaction(async (client) => {
+    const deleted = await deleteBackpackEntry(client, data.role.role_id, normalizedBackpackId);
+
+    if (!deleted) {
+      throw new Error("物品丢弃失败，请稍后重试。");
+    }
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
 module.exports = {
   AFK_TASK_SECONDS,
   getSessionSnapshot,
   startAfkForGuest,
   stopAfkForGuest,
   claimAfkRewardForGuest,
+  dropBackpackItemForGuest,
 };

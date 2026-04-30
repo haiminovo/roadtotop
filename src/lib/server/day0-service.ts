@@ -475,6 +475,18 @@ async function requireDashboardData(guestToken: string) {
   };
 }
 
+async function deleteBackpackEntry(client: PoolClient, roleId: string, backpackId: string) {
+  const result = await client.query(
+    `
+      DELETE FROM backpack
+      WHERE role_id = $1 AND backpack_id = $2
+    `,
+    [roleId, backpackId],
+  );
+
+  return (result.rowCount ?? 0) > 0;
+}
+
 function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardModal?: boolean }): Day0SessionSnapshot {
   const progress = getCurrentLevelProgress(data.role.exp);
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
@@ -886,6 +898,31 @@ export async function claimAfkReward(guestToken: string) {
   });
 
   await syncAfkRedis(data.afk);
+  return getFullSessionSnapshot(guestToken);
+}
+
+export async function dropBackpackItem(guestToken: string, backpackId: string) {
+  const normalizedBackpackId = backpackId.trim();
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要丢弃的物品不存在。");
+  }
+
+  await withTransaction(async (client) => {
+    const deleted = await deleteBackpackEntry(client, data.role.role_id, normalizedBackpackId);
+
+    if (!deleted) {
+      throw new Error("物品丢弃失败，请稍后重试。");
+    }
+  });
+
   return getFullSessionSnapshot(guestToken);
 }
 

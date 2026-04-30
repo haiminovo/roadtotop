@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
-import { Noto_Sans_SC, Space_Grotesk } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { GameSessionProvider } from "@/features/game/context/game-session-provider";
-
-const bodyFont = Noto_Sans_SC({
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "600", "700"],
-});
 
 const displayFont = Space_Grotesk({
   display: "swap",
@@ -29,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${bodyFont.variable} ${displayFont.variable} min-h-screen antialiased`}>
+      <body className={`${displayFont.variable} min-h-screen antialiased`}>
         <GameSessionProvider>
           {children}
         </GameSessionProvider>

@@ -90,6 +90,7 @@ export type GameSessionContextValue = {
   createRole: (draft: CreateRoleDraft) => Promise<void>;
   error: string | null;
   claimOfflineReward: () => Promise<void>;
+  dropBackpackItem: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
   selectedMapKey: MapKey;

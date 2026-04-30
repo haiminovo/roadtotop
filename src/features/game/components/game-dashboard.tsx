@@ -241,13 +241,9 @@ function LandingView() {
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.1fr_0.9fr]">
         <SectionCard className="overflow-hidden px-6 py-7 md:px-8">
           <SectionEyebrow>Idle MMO</SectionEyebrow>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
-            只保留已经做完的挂机功能。
-          </h1>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {[
               ["服务端执行", "开始、停止和结算都在服务端处理。"],
-              ["在线进度", "在线停留时会持续看到当前 10 秒轮次进度。"],
               ["离线收益", "离线后按完整轮次结算，未满一轮不计入。"],
               ["背包查看", "已拥有物品可以在背包里查看详情。"],
             ].map(([title, summary]) => (
@@ -617,9 +613,11 @@ function CenterPanel({
 function RightRail({
   activePanel,
   backpack,
+  onDropItem,
   pendingReward,
   role,
   selectedItem,
+  status,
   snapshot,
 }: {
   activePanel: PanelKey;
@@ -635,6 +633,7 @@ function RightRail({
     sellPrice: number;
     stats: Record<string, number>;
   }>;
+  onDropItem: (backpackId: string) => Promise<void>;
   pendingReward: {
     aetherCrystal: number;
     exp: number;
@@ -656,6 +655,7 @@ function RightRail({
     stats: Record<string, number>;
   }
   | undefined;
+  status: "booting" | "ready" | "saving" | "error";
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
 }) {
   if (!role) {
@@ -710,6 +710,20 @@ function RightRail({
                   <p className="mt-3 text-sm leading-6 text-slate-300">{selectedItem.description}</p>
                   <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(selectedItem.stats)}</p>
                   <p className="mt-3 text-xs text-slate-400">出售价格 {formatNumber(selectedItem.sellPrice)}</p>
+                  <button
+                    className="mt-4 w-full rounded-[0.9rem] border border-rose-300/30 bg-rose-300/10 px-3 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={status === "saving"}
+                    onClick={() => {
+                      if (!window.confirm(`确定要丢弃「${selectedItem.name}」x${selectedItem.quantity} 吗？此操作不可恢复。`)) {
+                        return;
+                      }
+
+                      void onDropItem(selectedItem.backpackId);
+                    }}
+                    type="button"
+                  >
+                    {status === "saving" ? "处理中..." : "丢弃这组物品"}
+                  </button>
                 </div>
               ) : (
                 <div className="mt-3 rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 text-sm text-slate-400">
@@ -769,6 +783,7 @@ function MainDashboard() {
   const {
     activePanel,
     claimOfflineReward,
+    dropBackpackItem,
     dismissError,
     error,
     selectedMapKey,
@@ -1037,9 +1052,11 @@ function MainDashboard() {
           <RightRail
             activePanel={activePanel}
             backpack={backpack}
+            onDropItem={dropBackpackItem}
             pendingReward={snapshot.afk.pendingReward}
             role={role}
             selectedItem={selectedItem}
+            status={status}
             snapshot={snapshot}
           />
         </div>

@@ -10,8 +10,8 @@
   --app-muted: #94a3b8;
   --app-cyan: #67e8f9;
   --app-lime: #a3e635;
-  --font-body: "Noto Sans SC", "Segoe UI", sans-serif;
-  --font-display: "Space Grotesk", "Noto Sans SC", sans-serif;
+  --font-body: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Segoe UI", sans-serif;
+  --font-display: "Space Grotesk", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
 @theme inline {

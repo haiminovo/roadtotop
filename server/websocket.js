@@ -6,6 +6,7 @@ const { closeDatabase, initDatabase } = require("./db");
 const {
   AFK_TASK_SECONDS,
   claimAfkRewardForGuest,
+  dropBackpackItemForGuest,
   getSessionSnapshot,
   startAfkForGuest,
   stopAfkForGuest,
@@ -174,6 +175,15 @@ async function handleAfkClaim(connection, session) {
   sendSnapshot(connection, snapshot, "claim");
 }
 
+async function handleBackpackDrop(connection, session, packet) {
+  const backpackId = typeof packet.payload?.backpackId === "string"
+    ? packet.payload.backpackId
+    : "";
+  const snapshot = await dropBackpackItemForGuest(session.guestToken, backpackId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "drop");
+}
+
 async function handlePacket(connection, packet) {
   if (packet.type === "game:session:start") {
     await handleSessionStart(connection, packet);
@@ -198,6 +208,11 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:afk:claim") {
     await handleAfkClaim(connection, session);
+    return;
+  }
+
+  if (packet.type === "game:backpack:drop") {
+    await handleBackpackDrop(connection, session, packet);
   }
 }
 
