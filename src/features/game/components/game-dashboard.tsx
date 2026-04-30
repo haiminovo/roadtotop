@@ -329,7 +329,10 @@ function ItemTile({
 }
 
 function LandingView() {
-  const { guestLogin, status } = useGameSession();
+  const { accountLogin, guestLogin, status } = useGameSession();
+  const [loginMode, setLoginMode] = useState<"guest" | "account">("guest");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   return (
     <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
@@ -354,19 +357,85 @@ function LandingView() {
           <SectionEyebrow>Access</SectionEyebrow>
           <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">进入游戏</h2>
           <p className="mt-4 text-sm leading-7 text-slate-300">
-            游客登录会恢复上一次角色和挂机状态，直接回到当前进度。
+            可以直接游客登录，也可以输入账号密码进入已绑定角色。
           </p>
 
-          <button
-            className="mt-8 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={status === "booting" || status === "saving"}
-            onClick={() => {
-              void guestLogin();
-            }}
-            type="button"
-          >
-            {status === "booting" ? "正在建立游客会话..." : "进入主控界面"}
-          </button>
+          <div className="mt-6 grid gap-2 sm:grid-cols-2">
+            <button
+              className={[
+                "rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition",
+                loginMode === "guest"
+                  ? "border-sky-300/45 bg-sky-300/12 text-white"
+                  : "border-white/10 bg-white/[0.04] text-slate-300",
+              ].join(" ")}
+              onClick={() => setLoginMode("guest")}
+              type="button"
+            >
+              游客登录
+            </button>
+            <button
+              className={[
+                "rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition",
+                loginMode === "account"
+                  ? "border-emerald-300/45 bg-emerald-300/12 text-white"
+                  : "border-white/10 bg-white/[0.04] text-slate-300",
+              ].join(" ")}
+              onClick={() => setLoginMode("account")}
+              type="button"
+            >
+              账号登录
+            </button>
+          </div>
+
+          {loginMode === "guest" ? (
+            <button
+              className="mt-8 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={status === "booting" || status === "saving"}
+              onClick={() => {
+                void guestLogin();
+              }}
+              type="button"
+            >
+              {status === "booting" ? "正在建立游客会话..." : "以游客身份进入"}
+            </button>
+          ) : (
+            <>
+              <label className="mt-8 block">
+                <span className="text-sm font-medium text-emerald-100">账号</span>
+                <input
+                  className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="输入账号"
+                  value={username}
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className="text-sm font-medium text-emerald-100">密码</span>
+                <input
+                  className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="输入密码"
+                  type="password"
+                  value={password}
+                />
+              </label>
+
+              <button
+                className="mt-8 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={status === "booting" || status === "saving" || !username.trim() || !password}
+                onClick={() => {
+                  void accountLogin({
+                    password,
+                    username,
+                  });
+                }}
+                type="button"
+              >
+                {status === "booting" ? "正在校验账号..." : "登录账号"}
+              </button>
+            </>
+          )}
         </SectionCard>
       </div>
     </main>
@@ -881,8 +950,10 @@ function MainDashboard() {
     activePanel,
     claimOfflineReward,
     dropBackpackItem,
+    deleteAccountRole,
     dismissError,
     error,
+    registerAccount,
     selectedMapKey,
     selectMap,
     setActivePanel,
@@ -895,6 +966,11 @@ function MainDashboard() {
   const [displayNow, setDisplayNow] = useState(() => Date.now());
   const [itemActionBackpackId, setItemActionBackpackId] = useState<string | null>(null);
   const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction>(null);
+  const [showDeleteRoleConfirm, setShowDeleteRoleConfirm] = useState(false);
+  const [showRegisterAccountModal, setShowRegisterAccountModal] = useState(false);
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerUsername, setRegisterUsername] = useState("");
   const [selectedBackpackId, setSelectedBackpackId] = useState<string | null>(null);
 
   const pendingReward = snapshot?.afk.pendingReward;
@@ -989,6 +1065,8 @@ function MainDashboard() {
   const pendingActionDefinition = pendingItemAction
     ? getItemActionDefinition(pendingItemAction.actionKey)
     : null;
+  const isAccountUser = snapshot?.account.mode === "account";
+  const isGuestUser = snapshot?.account.mode === "guest";
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
   const taskProgress = snapshot?.afk.status === "active"
@@ -1076,6 +1154,119 @@ function MainDashboard() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {showRegisterAccountModal && snapshot ? (
+        <OverlayModal>
+          <SectionEyebrow>Bind Account</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">注册账号</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            当前游客角色会直接绑定到新账号 <span className="font-semibold text-white">{role.name}</span> 上，之后可以通过账号密码登录。
+          </p>
+
+          <label className="mt-6 block">
+            <span className="text-sm font-medium text-emerald-100">账号</span>
+            <input
+              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+              onChange={(event) => setRegisterUsername(event.target.value)}
+              placeholder="4~20 位字母、数字或下划线"
+              value={registerUsername}
+            />
+          </label>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-medium text-emerald-100">密码</span>
+            <input
+              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+              onChange={(event) => setRegisterPassword(event.target.value)}
+              placeholder="至少 6 位"
+              type="password"
+              value={registerPassword}
+            />
+          </label>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-medium text-emerald-100">重复密码</span>
+            <input
+              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+              onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+              placeholder="再次输入密码"
+              type="password"
+              value={registerConfirmPassword}
+            />
+          </label>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="flex-1 rounded-[1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-4 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                status === "saving"
+                || !registerUsername.trim()
+                || !registerPassword
+                || !registerConfirmPassword
+              }
+              onClick={() => {
+                void registerAccount({
+                  confirmPassword: registerConfirmPassword,
+                  password: registerPassword,
+                  username: registerUsername,
+                }).then(() => {
+                  setShowRegisterAccountModal(false);
+                  setRegisterUsername("");
+                  setRegisterPassword("");
+                  setRegisterConfirmPassword("");
+                });
+              }}
+              type="button"
+            >
+              {status === "saving" ? "提交中..." : "确认注册账号"}
+            </button>
+            <button
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              disabled={status === "saving"}
+              onClick={() => {
+                setShowRegisterAccountModal(false);
+              }}
+              type="button"
+            >
+              取消
+            </button>
+          </div>
+        </OverlayModal>
+      ) : null}
+
+      {showDeleteRoleConfirm && snapshot ? (
+        <OverlayModal>
+          <SectionEyebrow>Delete Role</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">确认删除角色</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            这个操作会永久删除账号 <span className="font-semibold text-white">{snapshot.account.username}</span> 绑定的角色
+            <span className="font-semibold text-white"> {role.name}</span>，背包、挂机和收益记录都会一起移除。
+          </p>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="flex-1 rounded-[1rem] bg-rose-500 px-4 py-4 text-base font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={status === "saving"}
+              onClick={() => {
+                void deleteAccountRole().then(() => {
+                  setShowDeleteRoleConfirm(false);
+                });
+              }}
+              type="button"
+            >
+              {status === "saving" ? "删除中..." : "确认删除角色"}
+            </button>
+            <button
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              disabled={status === "saving"}
+              onClick={() => setShowDeleteRoleConfirm(false)}
+              type="button"
+            >
+              我再想想
+            </button>
+          </div>
+        </OverlayModal>
       ) : null}
 
       {actionItem ? (
@@ -1206,6 +1397,7 @@ function MainDashboard() {
                 <DataPill label="待领取" value={formatNumber(snapshot.afk.pendingReward.gold)} />
                 <DataPill label="执行状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
                 <DataPill label="升级进度" value={progressCopy} />
+                <DataPill label="账号状态" value={isAccountUser ? (snapshot.account.username ?? "账号已绑定") : "游客"} />
               </div>
             </div>
 
@@ -1216,6 +1408,26 @@ function MainDashboard() {
                 value={role.nextLevelExp > 0 ? (role.currentLevelExp / role.nextLevelExp) * 100 : 100}
               />
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                {isGuestUser ? (
+                  <button
+                    className="rounded-[0.95rem] border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={status === "saving"}
+                    onClick={() => setShowRegisterAccountModal(true)}
+                    type="button"
+                  >
+                    注册账号
+                  </button>
+                ) : null}
+                {isAccountUser ? (
+                  <button
+                    className="rounded-[0.95rem] border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={status === "saving"}
+                    onClick={() => setShowDeleteRoleConfirm(true)}
+                    type="button"
+                  >
+                    删除角色
+                  </button>
+                ) : null}
                 <button
                   className="rounded-[0.95rem] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={snapshot.afk.status === "active" || status === "saving"}

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
 import {
   AFK_TASK_SECONDS,
@@ -29,6 +29,10 @@ import { deleteRedisKey, setRedisJson } from "@/lib/server/redis";
 type UserRow = {
   user_id: string;
   guest_token: string;
+  account_type: "guest" | "account";
+  username: string | null;
+  password_hash: string | null;
+  password_salt: string | null;
   last_login_at: Date;
   last_seen_at: Date;
 };
@@ -137,6 +141,8 @@ export type GameSessionSnapshot = {
   account: {
     guestToken: string;
     hasRole: boolean;
+    mode: "guest" | "account";
+    username: string | null;
     userId: string;
   };
   config: {
@@ -204,12 +210,28 @@ export type GameSessionSnapshot = {
 export type GuestLoginResult = {
   guestToken: string;
   hasRole: boolean;
+  mode: "guest" | "account";
+  username: string | null;
   serverTime: number;
   userId: string;
 };
 
+export type AccountLoginInput = {
+  password: string;
+  username: string;
+};
+
+export type AccountRegistrationInput = {
+  guestToken: string;
+  password: string;
+  username: string;
+};
+
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
+const MIN_PASSWORD_LENGTH = 6;
+const MIN_USERNAME_LENGTH = 4;
+const MAX_USERNAME_LENGTH = 20;
 const itemSeeds: ItemSeed[] = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "weapon", description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "weapon", description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
@@ -245,6 +267,55 @@ const afkEncounterPoolByTier = afkEncounterPool.reduce<Record<EncounterTier, Afk
 
 function makeId(prefix: string) {
   return `${prefix}-${randomUUID()}`;
+}
+
+function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isValidUsername(value: string) {
+  return /^[a-zA-Z0-9_]+$/.test(value);
+}
+
+function validateUsername(username: string) {
+  const normalizedUsername = normalizeUsername(username);
+
+  if (
+    normalizedUsername.length < MIN_USERNAME_LENGTH
+    || normalizedUsername.length > MAX_USERNAME_LENGTH
+    || !isValidUsername(normalizedUsername)
+  ) {
+    throw new Error("账号需为 4 到 20 位，仅支持字母、数字和下划线。");
+  }
+
+  return normalizedUsername;
+}
+
+function validatePassword(password: string) {
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > 64) {
+    throw new Error("密码需为 6 到 64 个字符。");
+  }
+}
+
+function hashPassword(password: string, salt?: string) {
+  const resolvedSalt = salt ?? randomBytes(16).toString("hex");
+  const passwordHash = scryptSync(password, resolvedSalt, 64).toString("hex");
+
+  return {
+    passwordHash,
+    passwordSalt: resolvedSalt,
+  };
+}
+
+function verifyPassword(password: string, passwordHash: string, passwordSalt: string) {
+  const nextHash = scryptSync(password, passwordSalt, 64);
+  const currentHash = Buffer.from(passwordHash, "hex");
+
+  if (nextHash.length !== currentHash.length) {
+    return false;
+  }
+
+  return timingSafeEqual(nextHash, currentHash);
 }
 
 function toMillis(value: Date | null) {
@@ -743,8 +814,41 @@ async function syncAfkRedis(afk: AfkRow) {
 
 async function findUserByGuestToken(guestToken: string) {
   const result = await query<UserRow>(
-    `SELECT user_id, guest_token, last_login_at, last_seen_at FROM "user" WHERE guest_token = $1`,
+    `
+      SELECT
+        user_id,
+        guest_token,
+        account_type,
+        username,
+        password_hash,
+        password_salt,
+        last_login_at,
+        last_seen_at
+      FROM "user"
+      WHERE guest_token = $1
+    `,
     [guestToken],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+async function findUserByUsername(username: string) {
+  const result = await query<UserRow>(
+    `
+      SELECT
+        user_id,
+        guest_token,
+        account_type,
+        username,
+        password_hash,
+        password_salt,
+        last_login_at,
+        last_seen_at
+      FROM "user"
+      WHERE username = $1
+    `,
+    [normalizeUsername(username)],
   );
 
   return result.rows[0] ?? null;
@@ -869,6 +973,8 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
     account: {
       guestToken: data.user.guest_token,
       hasRole: true,
+      mode: data.user.account_type,
+      username: data.user.username,
       userId: data.user.user_id,
     },
     config: {
@@ -954,6 +1060,8 @@ export async function loginGuest(existingGuestToken?: string | null): Promise<Gu
     return {
       guestToken: existing.guest_token,
       hasRole: Boolean(await findRoleByUserId(existing.user_id)),
+      mode: existing.account_type,
+      username: existing.username,
       serverTime: Date.now(),
       userId: existing.user_id,
     };
@@ -972,9 +1080,91 @@ export async function loginGuest(existingGuestToken?: string | null): Promise<Gu
   return {
     guestToken,
     hasRole: false,
+    mode: "guest",
+    username: null,
     serverTime: Date.now(),
     userId,
   };
+}
+
+export async function loginAccount(input: AccountLoginInput): Promise<GuestLoginResult> {
+  const normalizedUsername = validateUsername(input.username);
+  validatePassword(input.password);
+  const user = await findUserByUsername(normalizedUsername);
+
+  if (
+    !user
+    || user.account_type !== "account"
+    || !user.password_hash
+    || !user.password_salt
+    || !verifyPassword(input.password, user.password_hash, user.password_salt)
+  ) {
+    throw new Error("账号或密码错误。");
+  }
+
+  await query(
+    `UPDATE "user" SET last_login_at = NOW(), last_seen_at = NOW() WHERE user_id = $1`,
+    [user.user_id],
+  );
+
+  return {
+    guestToken: user.guest_token,
+    hasRole: Boolean(await findRoleByUserId(user.user_id)),
+    mode: user.account_type,
+    username: user.username,
+    serverTime: Date.now(),
+    userId: user.user_id,
+  };
+}
+
+export async function registerGuestAccount(input: AccountRegistrationInput) {
+  const normalizedUsername = validateUsername(input.username);
+  validatePassword(input.password);
+  const data = await requireDashboardData(input.guestToken);
+
+  if (data.user.account_type === "account") {
+    throw new Error("当前角色已经绑定账号。");
+  }
+
+  const existingUser = await findUserByUsername(normalizedUsername);
+
+  if (existingUser) {
+    throw new Error("该账号名已被占用。");
+  }
+
+  const { passwordHash, passwordSalt } = hashPassword(input.password);
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `
+        UPDATE "user"
+        SET
+          account_type = 'account',
+          username = $2,
+          password_hash = $3,
+          password_salt = $4
+        WHERE user_id = $1
+      `,
+      [data.user.user_id, normalizedUsername, passwordHash, passwordSalt],
+    );
+  });
+
+  return getFullSessionSnapshot(input.guestToken);
+}
+
+export async function deleteAccountRole(guestToken: string) {
+  const data = await requireDashboardData(guestToken);
+
+  if (data.user.account_type !== "account") {
+    throw new Error("只有已注册账号可以删除角色。");
+  }
+
+  await withTransaction(async (client) => {
+    await client.query(`DELETE FROM "role" WHERE user_id = $1`, [data.user.user_id]);
+  });
+
+  await deleteRedisKey(`afk:${data.role.role_id}`);
+  return getGuestBootstrap(guestToken);
 }
 
 export async function createRoleForGuest(input: {
@@ -1107,6 +1297,8 @@ export async function getGuestBootstrap(guestToken?: string | null) {
       account: {
         guestToken: loginResult.guestToken,
         hasRole: false,
+        mode: loginResult.mode,
+        username: loginResult.username,
         userId: loginResult.userId,
       },
       afk: {

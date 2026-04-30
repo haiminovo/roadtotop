@@ -38,6 +38,8 @@ export type SessionSnapshot = {
   account: {
     guestToken: string;
     hasRole: boolean;
+    mode: "guest" | "account";
+    username: string | null;
     userId: string;
   };
   config: {
@@ -98,15 +100,29 @@ export type CreateRoleDraft = {
   raceKey: RaceKey;
 };
 
+export type AccountLoginDraft = {
+  password: string;
+  username: string;
+};
+
+export type AccountRegistrationDraft = {
+  confirmPassword: string;
+  password: string;
+  username: string;
+};
+
 export type GameSessionContextValue = {
   activePanel: PanelKey;
+  accountLogin: (draft: AccountLoginDraft) => Promise<void>;
   chatMessages: ChatMessage[];
   createRole: (draft: CreateRoleDraft) => Promise<void>;
+  deleteAccountRole: () => Promise<void>;
   error: string | null;
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
+  registerAccount: (draft: AccountRegistrationDraft) => Promise<void>;
   sendChatMessage: (channelKey: ChatChannelKey, content: string) => Promise<void>;
   selectedMapKey: MapKey;
   selectMap: (mapKey: MapKey) => void;

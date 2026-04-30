@@ -672,7 +672,17 @@ async function deleteBackpackEntry(client, roleId, backpackId) {
 
 async function findUserByGuestToken(guestToken) {
   const result = await query(
-    `SELECT user_id, guest_token, last_login_at, last_seen_at FROM "user" WHERE guest_token = $1`,
+    `
+      SELECT
+        user_id,
+        guest_token,
+        account_type,
+        username,
+        last_login_at,
+        last_seen_at
+      FROM "user"
+      WHERE guest_token = $1
+    `,
     [guestToken],
   );
 
@@ -786,6 +796,8 @@ function buildSnapshot(data, options = {}) {
     account: {
       guestToken: data.user.guest_token,
       hasRole: true,
+      mode: data.user.account_type || "guest",
+      username: data.user.username || null,
       userId: data.user.user_id,
     },
     config: {
@@ -854,6 +866,8 @@ function buildBootstrapSnapshot(user) {
     account: {
       guestToken: user.guest_token,
       hasRole: false,
+      mode: user.account_type || "guest",
+      username: user.username || null,
       userId: user.user_id,
     },
     afk: {

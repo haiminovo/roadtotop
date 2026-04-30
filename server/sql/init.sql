@@ -2,10 +2,22 @@ CREATE TABLE IF NOT EXISTS "user" (
   user_id TEXT PRIMARY KEY,
   guest_token TEXT NOT NULL UNIQUE,
   account_type TEXT NOT NULL DEFAULT 'guest',
+  username TEXT,
+  password_hash TEXT,
+  password_salt TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE "user"
+ADD COLUMN IF NOT EXISTS username TEXT;
+
+ALTER TABLE "user"
+ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+ALTER TABLE "user"
+ADD COLUMN IF NOT EXISTS password_salt TEXT;
 
 CREATE TABLE IF NOT EXISTS "role" (
   role_id TEXT PRIMARY KEY,
@@ -100,6 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_backpack_role_id ON backpack (role_id);
 CREATE INDEX IF NOT EXISTS idx_afk_role_id ON afk (role_id);
 CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON chat_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_logs_channel_key ON chat_logs (channel_key, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_username_unique ON "user" (username) WHERE username IS NOT NULL;
 
 DROP TABLE IF EXISTS task;
 

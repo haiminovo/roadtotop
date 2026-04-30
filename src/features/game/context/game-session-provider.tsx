@@ -12,6 +12,8 @@ import {
 import { type MapKey, type PanelKey } from "@/lib/game-config";
 import type { ChatChannelKey, ChatMessage } from "@/features/chat/types";
 import type {
+  AccountLoginDraft,
+  AccountRegistrationDraft,
   ConnectionStatus,
   CreateRoleDraft,
   GameSessionContextValue,
@@ -40,6 +42,24 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
   return payload;
 }
 
+async function fetchSessionSnapshot(guestToken: string) {
+  const response = await fetch(`/api/session?guestToken=${encodeURIComponent(guestToken)}`, {
+    cache: "no-store",
+  });
+
+  const payload = await response.json() as {
+    error?: string;
+    ok: boolean;
+    snapshot?: SessionSnapshot;
+  };
+
+  if (!response.ok || !payload.ok || !payload.snapshot) {
+    throw new Error(payload.error ?? "拉取会话快照失败。");
+  }
+
+  return payload.snapshot;
+}
+
 function getStoredGuestToken() {
   if (typeof window === "undefined") {
     return null;
@@ -54,6 +74,14 @@ function setStoredGuestToken(token: string) {
   }
 
   window.localStorage.setItem(GUEST_TOKEN_KEY, token);
+}
+
+function clearStoredGuestToken() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(GUEST_TOKEN_KEY);
 }
 
 function isLocalDevelopmentHost() {
@@ -239,6 +267,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     });
   }, [handleIncomingSnapshot]);
 
+  const loadSessionForToken = useCallback(async (nextGuestToken: string) => {
+    setStoredGuestToken(nextGuestToken);
+    setGuestToken(nextGuestToken);
+    const nextSnapshot = await fetchSessionSnapshot(nextGuestToken);
+    handleIncomingSnapshot(nextSnapshot);
+    void connectSocket(nextGuestToken);
+  }, [connectSocket, handleIncomingSnapshot]);
+
   const guestLogin = useCallback(async () => {
     setStatus("booting");
     setError(null);
@@ -252,26 +288,50 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         method: "POST",
       });
 
-      setStoredGuestToken(payload.account.guestToken);
-      setGuestToken(payload.account.guestToken);
-      await connectSocket(payload.account.guestToken);
+      await loadSessionForToken(payload.account.guestToken);
     } catch (loginError) {
       setStatus("error");
       setError(loginError instanceof Error ? loginError.message : "游客登录失败。");
     }
-  }, [connectSocket]);
+  }, [loadSessionForToken]);
+
+  const accountLogin = useCallback(async (draft: AccountLoginDraft) => {
+    setStatus("booting");
+    setError(null);
+
+    try {
+      const payload = await requestJson<{
+        account: { guestToken: string };
+        ok: boolean;
+      }>("/api/auth/account", {
+        body: JSON.stringify(draft),
+        method: "POST",
+      });
+
+      await loadSessionForToken(payload.account.guestToken);
+    } catch (loginError) {
+      setStatus("error");
+      setError(loginError instanceof Error ? loginError.message : "账号登录失败。");
+      throw loginError;
+    }
+  }, [loadSessionForToken]);
 
   useEffect(() => {
     const storedToken = getStoredGuestToken();
 
     if (storedToken) {
       setGuestToken(storedToken);
-      void guestLogin();
+      void loadSessionForToken(storedToken).catch(() => {
+        clearStoredGuestToken();
+        setGuestToken(null);
+        setSnapshot(null);
+        setStatus("ready");
+      });
       return;
     }
 
     setStatus("ready");
-  }, [guestLogin]);
+  }, [loadSessionForToken]);
 
   useEffect(() => {
     return () => {
@@ -322,6 +382,66 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     },
     [connectSocket, guestToken, handleIncomingSnapshot, sendSocketMessage],
   );
+
+  const registerAccount = useCallback(async (draft: AccountRegistrationDraft) => {
+    const currentGuestToken = guestToken ?? getStoredGuestToken();
+
+    if (!currentGuestToken) {
+      throw new Error("游客会话不存在，请重新登录。");
+    }
+
+    setStatus("saving");
+    setError(null);
+
+    try {
+      const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>("/api/account/register", {
+        body: JSON.stringify({
+          confirmPassword: draft.confirmPassword,
+          guestToken: currentGuestToken,
+          password: draft.password,
+          username: draft.username,
+        }),
+        method: "POST",
+      });
+
+      handleIncomingSnapshot(payload.snapshot);
+    } catch (mutationError) {
+      setStatus("error");
+      setError(mutationError instanceof Error ? mutationError.message : "注册账号失败。");
+      throw mutationError;
+    }
+  }, [guestToken, handleIncomingSnapshot]);
+
+  const deleteAccountRole = useCallback(async () => {
+    const currentGuestToken = guestToken ?? getStoredGuestToken();
+
+    if (!currentGuestToken) {
+      throw new Error("账号会话不存在，请重新登录。");
+    }
+
+    setStatus("saving");
+    setError(null);
+
+    try {
+      const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>("/api/account/role/delete", {
+        body: JSON.stringify({ guestToken: currentGuestToken }),
+        method: "POST",
+      });
+
+      handleIncomingSnapshot(payload.snapshot);
+      setActivePanel("afk");
+
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+      } else {
+        void connectSocket(currentGuestToken);
+      }
+    } catch (mutationError) {
+      setStatus("error");
+      setError(mutationError instanceof Error ? mutationError.message : "删除角色失败。");
+      throw mutationError;
+    }
+  }, [connectSocket, guestToken, handleIncomingSnapshot, sendSocketMessage]);
 
   const startAfk = useCallback(async () => {
     try {
@@ -391,13 +511,16 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const value = useMemo<GameSessionContextValue>(
     () => ({
       activePanel,
+      accountLogin,
       chatMessages,
       claimOfflineReward,
       createRole,
+      deleteAccountRole,
       dismissError,
       dropBackpackItem,
       error,
       guestLogin,
+      registerAccount,
       sendChatMessage,
       selectedMapKey,
       selectMap: setSelectedMapKey,
@@ -409,13 +532,16 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }),
     [
       activePanel,
+      accountLogin,
       chatMessages,
       claimOfflineReward,
       createRole,
+      deleteAccountRole,
       dismissError,
       dropBackpackItem,
       error,
       guestLogin,
+      registerAccount,
       sendChatMessage,
       selectedMapKey,
       snapshot,
