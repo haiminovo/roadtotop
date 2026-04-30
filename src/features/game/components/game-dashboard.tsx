@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Chat from "@/components/chat";
-import type { AfkEncounterReward, ClassKey, EncounterTier, MapConfig, MapKey, PanelKey, RaceKey } from "@/lib/game-config";
+import { getMaxHealth, type AfkEncounterReward, type ClassKey, type EncounterTier, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
 
 function formatNumber(value: number) {
@@ -54,6 +54,9 @@ function formatEncounterReward(reward: AfkEncounterReward) {
     reward.gold > 0 ? `金 ${formatNumber(reward.gold)}` : null,
     reward.exp > 0 ? `经 ${formatNumber(reward.exp)}` : null,
     reward.aetherCrystal > 0 ? `以太 ${formatNumber(reward.aetherCrystal)}` : null,
+    reward.healthDelta
+      ? `生命 ${reward.healthDelta > 0 ? "+" : "-"}${formatNumber(Math.abs(reward.healthDelta))}`
+      : null,
     ...(reward.items ?? []).map((item) => `${item.name ?? item.itemId} x${formatNumber(item.quantity)}`),
   ].filter(Boolean);
 
@@ -458,6 +461,7 @@ function CreateRoleView() {
     strength: (selectedRace?.stats.strength ?? 0) + (selectedClass?.stats.strength ?? 0),
     vitality: (selectedRace?.stats.vitality ?? 0) + (selectedClass?.stats.vitality ?? 0),
   };
+  const previewHealth = getMaxHealth(fusedStats.vitality, 1);
 
   return (
     <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
@@ -556,6 +560,7 @@ function CreateRoleView() {
             <DataPill label="敏捷" value={fusedStats.agility} />
             <DataPill label="智力" value={fusedStats.intelligence} />
             <DataPill label="体质" value={fusedStats.vitality} />
+            <DataPill label="生命" value={formatNumber(previewHealth)} />
           </div>
 
           <button
@@ -693,9 +698,22 @@ function CenterPanel({
             <p className="mt-2 text-sm leading-6 text-slate-300">{roleClass?.summary}</p>
           </div>
 
+          <div className="rounded-[1rem] border border-rose-300/20 bg-[linear-gradient(180deg,rgba(244,63,94,0.12),rgba(15,23,42,0.18))] p-4">
+            <TopStatusBar
+              label="生命状态"
+              tone="from-rose-500 via-orange-400 to-emerald-300"
+              value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
+            />
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <DataPill label="当前生命" value={`${formatNumber(role.currentHealth)} / ${formatNumber(role.maxHealth)}`} />
+              <DataPill label="死亡惩罚" value="生命归零时掉 1 级" />
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <DataPill label="等级" value={formatNumber(role.level)} />
             <DataPill label="经验" value={formatNumber(role.exp)} />
+            <DataPill label="最大生命" value={formatNumber(role.maxHealth)} />
             <DataPill label="力量" value={formatNumber(role.stats.strength)} />
             <DataPill label="敏捷" value={formatNumber(role.stats.agility)} />
             <DataPill label="智力" value={formatNumber(role.stats.intelligence)} />
@@ -774,7 +792,7 @@ function CenterPanel({
               <SectionEyebrow>Encounter Log</SectionEyebrow>
               <h3 className="mt-2 text-xl font-semibold text-white">自己触发的奇遇</h3>
               <p className="mt-1 text-sm leading-6 text-slate-300">
-                每次完整执行动作后都会在服务端做一次奇遇判定，触发后会直接记录在这里。
+                每次完整执行动作后都会在服务端做一次奇遇判定，部分奇遇会直接掉血或回血，血量归零会立刻掉 1 级。
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -1394,6 +1412,7 @@ function MainDashboard() {
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <DataPill label="当前金币" value={formatNumber(role.gold)} />
                 <DataPill label="以太结晶" value={formatNumber(role.aetherCrystal)} />
+                <DataPill label="当前生命" value={`${formatNumber(role.currentHealth)} / ${formatNumber(role.maxHealth)}`} />
                 <DataPill label="待领取" value={formatNumber(snapshot.afk.pendingReward.gold)} />
                 <DataPill label="执行状态" value={snapshot.afk.status === "active" ? "挂机中" : "待机"} />
                 <DataPill label="升级进度" value={progressCopy} />
@@ -1401,11 +1420,16 @@ function MainDashboard() {
               </div>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[1fr_320px]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
               <TopStatusBar
                 label="等级进度"
                 tone="from-teal-300 via-cyan-300 to-sky-400"
                 value={role.nextLevelExp > 0 ? (role.currentLevelExp / role.nextLevelExp) * 100 : 100}
+              />
+              <TopStatusBar
+                label="生命状态"
+                tone="from-rose-500 via-orange-400 to-emerald-300"
+                value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
               />
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
                 {isGuestUser ? (

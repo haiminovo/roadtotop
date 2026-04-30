@@ -8,7 +8,9 @@ import {
   EXP_PER_LEVEL,
   getClassConfig,
   getCurrentLevelProgress,
+  getLevelBaseExp,
   getLevelFromExp,
+  getMaxHealth,
   getMapConfig,
   getRaceConfig,
   levelTable,
@@ -51,6 +53,7 @@ type RoleRow = {
   agility: number;
   intelligence: number;
   vitality: number;
+  current_health: number;
   avatar_seed: string;
 };
 
@@ -160,6 +163,8 @@ export type GameSessionSnapshot = {
     exp: number;
     currentLevelExp: number;
     nextLevelExp: number;
+    currentHealth: number;
+    maxHealth: number;
     gold: number;
     aetherCrystal: number;
     avatarSeed: string;
@@ -327,6 +332,11 @@ function normalizeNumber(value: number) {
   return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
 }
 
+function normalizeSignedNumber(value: number) {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
+}
+
 function getRarityRank(rarity: string) {
   return {
     white: 1,
@@ -492,6 +502,7 @@ function normalizeEncounterLog(value: unknown): AfkEncounterLogEntry[] {
           gold: normalizeNumber(rewardCandidate.gold ?? 0),
           aetherCrystal: normalizeNumber(rewardCandidate.aetherCrystal ?? 0),
           exp: normalizeNumber(rewardCandidate.exp ?? 0),
+          healthDelta: normalizeSignedNumber(rewardCandidate.healthDelta ?? 0),
           items: normalizeEncounterRewardItems(rewardCandidate.items),
         },
         triggeredAt,
@@ -550,10 +561,12 @@ function buildEncounterDelta(executions: number, settledAt: number) {
     }
 
     const rewardItems = resolveEncounterRewardItems(encounter.reward);
+    const healthDelta = normalizeSignedNumber(encounter.reward.healthDelta ?? 0);
     const reward: AfkEncounterReward = {
       gold: normalizeNumber(encounter.reward.gold),
       aetherCrystal: normalizeNumber(encounter.reward.aetherCrystal),
       exp: normalizeNumber(encounter.reward.exp),
+      ...(healthDelta !== 0 ? { healthDelta } : {}),
       items: rewardItems.map((item) => ({
         itemId: item.itemId,
         quantity: item.quantity,
@@ -637,16 +650,95 @@ function buildRewardDeltaForExecutions(mapKey: MapKey | null, previousExecutions
   };
 }
 
+function getRoleMaxHealth(role: Pick<RoleRow, "level" | "vitality">) {
+  return getMaxHealth(role.vitality, role.level);
+}
+
+function normalizeRoleHealth(role: RoleRow) {
+  const maxHealth = getRoleMaxHealth(role);
+  const rawHealth = Number(role.current_health);
+  const nextHealth =
+    Number.isFinite(rawHealth) && rawHealth > 0
+      ? Math.min(maxHealth, Math.floor(rawHealth))
+      : maxHealth;
+
+  if (nextHealth === role.current_health) {
+    return false;
+  }
+
+  role.current_health = nextHealth;
+  return true;
+}
+
+function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogEntry[]) {
+  let didMutate = false;
+
+  for (const encounter of encounters) {
+    const healthDelta = normalizeSignedNumber(encounter.reward.healthDelta ?? 0);
+
+    if (healthDelta === 0) {
+      continue;
+    }
+
+    didMutate = true;
+
+    if (healthDelta > 0) {
+      role.current_health = Math.min(getRoleMaxHealth(role), role.current_health + healthDelta);
+      continue;
+    }
+
+    role.current_health += healthDelta;
+
+    if (role.current_health > 0) {
+      continue;
+    }
+
+    const nextLevel = Math.max(1, role.level - 1);
+    role.level = nextLevel;
+    role.exp = getLevelBaseExp(nextLevel);
+    role.current_health = getRoleMaxHealth(role);
+  }
+
+  return didMutate;
+}
+
 function applyRewardToRole(role: RoleRow, reward: RewardDelta) {
   if (reward.gold <= 0 && reward.aetherCrystal <= 0 && reward.exp <= 0) {
     return false;
   }
 
+  const previousLevel = role.level;
+  const previousMaxHealth = getRoleMaxHealth(role);
   role.gold += reward.gold;
   role.aether_crystal += reward.aetherCrystal;
   role.exp += reward.exp;
   role.level = getLevelFromExp(role.exp);
+  const nextMaxHealth = getRoleMaxHealth(role);
+
+  if (role.level > previousLevel) {
+    role.current_health = Math.min(
+      nextMaxHealth,
+      role.current_health + Math.max(0, nextMaxHealth - previousMaxHealth),
+    );
+  } else {
+    role.current_health = Math.min(nextMaxHealth, role.current_health);
+  }
+
   return true;
+}
+
+function applyPendingRewardToRole(role: RoleRow, afk: AfkRow) {
+  const pendingReward: RewardDelta = {
+    aetherCrystal: afk.pending_aether_crystal,
+    encounters: [],
+    exp: afk.pending_exp,
+    itemDrops: [],
+    executions: 0,
+    gold: afk.pending_gold,
+    seconds: afk.accrued_seconds,
+  };
+
+  return applyRewardToRole(role, pendingReward);
 }
 
 function settleAfkState(afk: AfkRow, options?: { capSeconds?: number; now?: number }): RewardDelta {
@@ -721,6 +813,7 @@ async function persistRole(client: PoolClient, role: RoleRow) {
         exp = $3,
         gold = $4,
         aether_crystal = $5,
+        current_health = $6,
         updated_at = NOW()
       WHERE role_id = $1
     `,
@@ -730,6 +823,7 @@ async function persistRole(client: PoolClient, role: RoleRow) {
       normalizeNumber(role.exp),
       normalizeNumber(role.gold),
       normalizeNumber(role.aether_crystal),
+      normalizeNumber(role.current_health),
     ],
   );
 }
@@ -871,6 +965,7 @@ async function findRoleByUserId(userId: string) {
         agility,
         intelligence,
         vitality,
+        current_health,
         avatar_seed
       FROM "role"
       WHERE user_id = $1
@@ -992,6 +1087,8 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       exp: data.role.exp,
       currentLevelExp: progress.currentLevelExp,
       nextLevelExp: progress.nextLevelExp,
+      currentHealth: data.role.current_health,
+      maxHealth: getRoleMaxHealth(data.role),
       gold: data.role.gold,
       aetherCrystal: data.role.aether_crystal,
       avatarSeed: data.role.avatar_seed,
@@ -1224,12 +1321,13 @@ export async function createRoleForGuest(input: {
           agility,
           intelligence,
           vitality,
+          current_health,
           avatar_seed,
           created_at,
           updated_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, 1, 0, 240, 12, $6, $7, $8, $9, $10, NOW(), NOW()
+          $1, $2, $3, $4, $5, 1, 0, 240, 12, $6, $7, $8, $9, $10, $11, NOW(), NOW()
         )
       `,
       [
@@ -1242,6 +1340,7 @@ export async function createRoleForGuest(input: {
         startingStats.agility,
         startingStats.intelligence,
         startingStats.vitality,
+        getMaxHealth(startingStats.vitality, 1),
         trimmedName.slice(0, 1),
       ],
     );
@@ -1344,6 +1443,7 @@ export async function getGuestBootstrap(guestToken?: string | null) {
 
 export async function getFullSessionSnapshot(guestToken: string) {
   const data = await requireDashboardData(guestToken);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
   const now = Date.now();
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
@@ -1351,6 +1451,7 @@ export async function getFullSessionSnapshot(guestToken: string) {
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,
   });
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
   const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
@@ -1365,7 +1466,7 @@ export async function getFullSessionSnapshot(guestToken: string) {
 
   await withTransaction(async (client) => {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
-    if (didAutoSettleOnlineReward) {
+    if (didNormalizeRoleHealth || didApplyEncounterEffects || didAutoSettleOnlineReward) {
       await persistRole(client, data.role);
     }
     if (didApplyEncounterItems) {
@@ -1409,6 +1510,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 
 export async function stopAfk(guestToken: string) {
   const data = await requireDashboardData(guestToken);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
   const now = Date.now();
   const rewardDelta = settleAfkState(data.afk, { now });
 
@@ -1416,9 +1518,11 @@ export async function stopAfk(guestToken: string) {
     return buildSnapshot(data);
   }
 
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
+  const didApplyReward = applyRewardToRole(data.role, rewardDelta);
 
-  if (applyRewardToRole(data.role, rewardDelta)) {
+  if (didApplyReward) {
     consumePendingReward(data.afk, rewardDelta);
   }
 
@@ -1427,7 +1531,9 @@ export async function stopAfk(guestToken: string) {
   discardCurrentTaskProgress(data.afk);
 
   await withTransaction(async (client) => {
-    await persistRole(client, data.role);
+    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyReward) {
+      await persistRole(client, data.role);
+    }
     if (didApplyEncounterItems) {
       await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
     }
@@ -1440,17 +1546,21 @@ export async function stopAfk(guestToken: string) {
 
 export async function claimAfkReward(guestToken: string) {
   const data = await requireDashboardData(guestToken);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
   const now = Date.now();
   const rewardDelta = settleAfkState(data.afk, {
     capSeconds: MAX_OFFLINE_SECONDS,
     now,
   });
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
 
-  if (!wasOffline && applyRewardToRole(data.role, rewardDelta)) {
+  const didApplyOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
+
+  if (didApplyOnlineReward) {
     consumePendingReward(data.afk, rewardDelta);
   }
 
@@ -1459,9 +1569,14 @@ export async function claimAfkReward(guestToken: string) {
     data.afk.pending_aether_crystal <= 0 &&
     data.afk.pending_exp <= 0
   ) {
-    if (didApplyEncounterItems) {
+    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didApplyEncounterItems) {
       await withTransaction(async (client) => {
-        await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+        if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward) {
+          await persistRole(client, data.role);
+        }
+        if (didApplyEncounterItems) {
+          await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+        }
         await persistAfk(client, data.afk);
       });
       await syncAfkRedis(data.afk);
@@ -1469,17 +1584,16 @@ export async function claimAfkReward(guestToken: string) {
     return buildSnapshot(data);
   }
 
-  data.role.gold += data.afk.pending_gold;
-  data.role.aether_crystal += data.afk.pending_aether_crystal;
-  data.role.exp += data.afk.pending_exp;
-  data.role.level = getLevelFromExp(data.role.exp);
+  const didClaimPendingReward = applyPendingRewardToRole(data.role, data.afk);
   data.afk.pending_gold = 0;
   data.afk.pending_aether_crystal = 0;
   data.afk.pending_exp = 0;
   data.afk.last_settled_at = new Date(now);
 
   await withTransaction(async (client) => {
-    await persistRole(client, data.role);
+    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didClaimPendingReward) {
+      await persistRole(client, data.role);
+    }
     if (didApplyEncounterItems) {
       await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
     }

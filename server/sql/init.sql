@@ -33,10 +33,24 @@ CREATE TABLE IF NOT EXISTS "role" (
   agility INTEGER NOT NULL,
   intelligence INTEGER NOT NULL,
   vitality INTEGER NOT NULL,
+  current_health INTEGER NOT NULL DEFAULT 1,
   avatar_seed TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE "role"
+ADD COLUMN IF NOT EXISTS current_health INTEGER;
+
+UPDATE "role"
+SET current_health = GREATEST(1, 50 + vitality * 12 + level * 2)
+WHERE current_health IS NULL;
+
+ALTER TABLE "role"
+ALTER COLUMN current_health SET DEFAULT 1;
+
+ALTER TABLE "role"
+ALTER COLUMN current_health SET NOT NULL;
 
 CREATE TABLE IF NOT EXISTS item (
   item_id TEXT PRIMARY KEY,

@@ -57,6 +57,8 @@ export type SessionSnapshot = {
     exp: number;
     currentLevelExp: number;
     nextLevelExp: number;
+    currentHealth: number;
+    maxHealth: number;
     gold: number;
     aetherCrystal: number;
     avatarSeed: string;
