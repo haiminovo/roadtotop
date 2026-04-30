@@ -85,9 +85,9 @@ const mapConfigs = [
 ];
 
 const afkEncounterChances = {
-  common: 0.001,
-  rare: 0.0001,
-  legendary: 0.00001,
+  common: 0.1,
+  rare: 0.01,
+  legendary: 0.001,
 };
 
 const afkEncounterPool = [

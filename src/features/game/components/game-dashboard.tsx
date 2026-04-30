@@ -934,7 +934,7 @@ function RightRail({
                 </div>
               )) : (
                 <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-slate-400">
-                  完成每一次完整动作执行后，服务端都会分别以普通 0.1%、稀有 0.01%、传说 0.001% 的概率判定奇遇。
+                  完成每一次完整动作执行后，服务端都会分别以普通 10%、稀有 1%、传说 0.1% 的概率判定奇遇。
                 </div>
               )}
             </div>
