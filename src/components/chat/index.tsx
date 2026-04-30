@@ -3,29 +3,30 @@
 import { useChatSocket } from "@/features/chat/hooks/use-chat-socket";
 
 const statusLabel = {
-  connected: "Connected",
-  connecting: "Connecting",
-  disconnected: "Disconnected",
+  booting: "世界初始化中",
+  error: "状态同步异常",
+  ready: "主界面就绪",
+  saving: "正在提交操作",
 } as const;
 
 export default function Chat() {
   const { input, messages, sendMessage, setInput, status } = useChatSocket();
 
   return (
-    <section className="border-t border-slate-200 bg-white p-5">
+    <section className="border-t border-cyan-400/10 bg-slate-950 p-5 text-white">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Realtime Chat</h3>
-          <p className="text-xs text-slate-500">Talk to other connected clients through WebSocket.</p>
+          <h3 className="text-sm font-semibold text-white">酒馆大厅</h3>
+          <p className="text-xs text-slate-400">通过 WebSocket 模拟世界聊天、酒馆招募、交易喊话和委托播报。</p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+        <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-medium text-cyan-100">
           {statusLabel[status]}
         </span>
       </div>
 
-      <div className="mb-4 h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-4 h-56 space-y-2 overflow-y-auto rounded-2xl border border-white/8 bg-slate-900/70 p-3">
         {messages.length === 0 ? (
-          <p className="text-sm text-slate-400">No messages yet. Start the conversation below.</p>
+          <p className="text-sm text-slate-500">大厅还很安静。发一句招募、收购或委托情报试试看。</p>
         ) : (
           messages.map((message) => (
             <div
@@ -33,13 +34,13 @@ export default function Chat() {
               className={[
                 "rounded-lg px-3 py-2 text-sm",
                 message.role === "self"
-                  ? "ml-auto max-w-[80%] bg-blue-600 text-white"
+                  ? "ml-auto max-w-[80%] bg-cyan-400 text-slate-950"
                   : message.role === "server"
-                    ? "max-w-[80%] bg-white text-slate-700"
-                    : "bg-transparent px-0 py-1 text-xs text-slate-400",
+                    ? "max-w-[80%] bg-white/8 text-slate-100"
+                    : "bg-transparent px-0 py-1 text-xs text-slate-500",
               ].join(" ")}
             >
-              {message.role === "server" ? `Server: ${message.content}` : message.content}
+              {message.role === "server" ? `频道: ${message.content}` : message.content}
             </div>
           ))
         )}
@@ -55,15 +56,15 @@ export default function Chat() {
               sendMessage();
             }
           }}
-          className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
-          placeholder="Type a message"
+          className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
+          placeholder="输入招募、交易、酒馆情报..."
         />
         <button
           onClick={sendMessage}
-          className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+          className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-cyan-300"
           type="button"
         >
-          Send
+          发送
         </button>
       </div>
     </section>

@@ -8,18 +8,18 @@ function SidebarItem({ icon, menuName, progress }: SidebarItemType) {
   const clampedProgress = Math.min(100, Math.max(0, progress));
 
   return (
-    <div className="mb-3 flex w-full items-center rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-50">
+    <div className="mb-3 flex w-full items-center rounded-2xl border border-white/8 bg-white/4 p-3">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900">
         {icon}
       </div>
       <div className="ml-4 flex grow flex-col">
-        <div className="mb-1 flex justify-between text-sm font-medium text-slate-700">
+        <div className="mb-1 flex justify-between text-sm font-medium text-slate-100">
           <span>{menuName}</span>
-          <span>{clampedProgress}%</span>
+          <span className="text-cyan-200">{clampedProgress}%</span>
         </div>
-        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
+        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-800">
           <div
-            className="h-full rounded-full bg-blue-600 transition-all duration-300"
+            className="h-full rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#3b82f6_100%)] transition-all duration-300"
             style={{ width: `${clampedProgress}%` }}
           />
         </div>
@@ -30,12 +30,15 @@ function SidebarItem({ icon, menuName, progress }: SidebarItemType) {
 
 export default function Sidebar({ items }: SidebarProps) {
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50 p-5">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-cyan-400/10 bg-slate-950 p-5 text-white">
       <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-          Road To Top
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/65">
+          Borderland Chronicle
         </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-900">Learning Progress</h2>
+        <h2 className="mt-2 text-xl font-semibold text-white">旅人养成面板</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-400">
+          先把采摘、钓鱼、锻造和冒险四条成长线收进同一套异世界语义里。
+        </p>
       </div>
       <div className="overflow-y-auto">
         {items.map((item) => (

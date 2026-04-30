@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "@/components/sidebar";
-import Chat from "@/components/chat";
-import { sidebarItems } from "@/features/navigation/sidebar-items";
+import { GameSessionProvider } from "@/features/game/context/game-session-provider";
 
 export const metadata: Metadata = {
-  title: "roadtotop",
-  description: "",
+  title: "伊洛纳网页挂机 MMO · Day0",
+  description: "游客登录、角色创建、挂机与离线收益结算的最小可运行骨架。",
 };
 
 export default function RootLayout({
@@ -15,15 +13,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="h-screen w-screen antialiased">
-        <div className="flex h-full w-full bg-white">
-          <Sidebar items={sidebarItems} />
-          <div className="flex h-full w-full min-w-0 flex-col justify-between">
-            {children}
-            <Chat />
-          </div>
-        </div>
+    <html lang="zh-CN">
+      <body className="min-h-screen antialiased">
+        <GameSessionProvider>
+          {children}
+        </GameSessionProvider>
       </body>
     </html>
   );

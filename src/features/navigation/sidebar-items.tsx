@@ -39,7 +39,8 @@ function PlusIcon() {
 }
 
 export const sidebarItems: SidebarItem[] = [
-  { icon: <MenuIcon />, menuName: "Dashboard", progress: 75 },
-  { icon: <PlusIcon />, menuName: "Settings", progress: 50 },
-  { icon: <MenuIcon />, menuName: "Profile", progress: 90 },
+  { icon: <MenuIcon />, menuName: "采摘熟练", progress: 52 },
+  { icon: <PlusIcon />, menuName: "钓鱼熟练", progress: 37 },
+  { icon: <MenuIcon />, menuName: "锻造熟练", progress: 48 },
+  { icon: <PlusIcon />, menuName: "冒险名望", progress: 68 },
 ];
