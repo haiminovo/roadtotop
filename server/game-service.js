@@ -306,7 +306,7 @@ async function requireDashboardData(guestToken) {
     throw new Error("角色不存在，请先创建角色。");
   }
 
-  const [afkResult, backpackResult, taskResult] = await Promise.all([
+  const [afkResult, backpackResult] = await Promise.all([
     query(
       `
         SELECT
@@ -345,24 +345,6 @@ async function requireDashboardData(guestToken) {
       `,
       [role.role_id],
     ),
-    query(
-      `
-        SELECT
-          task_id,
-          code,
-          title,
-          description,
-          status,
-          progress,
-          target,
-          reward_gold,
-          reward_exp
-        FROM task
-        WHERE role_id = $1
-        ORDER BY created_at ASC
-      `,
-      [role.role_id],
-    ),
   ]);
 
   const afk = afkResult.rows[0];
@@ -375,7 +357,6 @@ async function requireDashboardData(guestToken) {
     afk,
     backpack: backpackResult.rows,
     role,
-    tasks: taskResult.rows,
     user,
   };
 }
@@ -427,17 +408,6 @@ function buildSnapshot(data, options = {}) {
       description: item.description,
       sellPrice: item.sell_price,
       stats: item.stat_json || {},
-    })),
-    tasks: data.tasks.map((task) => ({
-      taskId: task.task_id,
-      code: task.code,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      progress: task.progress,
-      target: task.target,
-      rewardGold: task.reward_gold,
-      rewardExp: task.reward_exp,
     })),
     afk: {
       status: data.afk.status,
@@ -501,7 +471,6 @@ function buildBootstrapSnapshot(user) {
     },
     role: null,
     serverTime: Date.now(),
-    tasks: [],
   };
 }
 
@@ -549,20 +518,6 @@ async function getSessionSnapshot(guestToken) {
   return buildSnapshot(data, { shouldShowOfflineRewardModal });
 }
 
-async function markFirstAfkTaskCompleted(client, roleId) {
-  await client.query(
-    `
-      UPDATE task
-      SET
-        status = 'completed',
-        progress = target,
-        updated_at = NOW()
-      WHERE role_id = $1 AND code = 'first-afk'
-    `,
-    [roleId],
-  );
-}
-
 async function startAfkForGuest(guestToken, mapKey) {
   const map = getMapConfig(mapKey);
 
@@ -585,7 +540,6 @@ async function startAfkForGuest(guestToken, mapKey) {
 
   await withTransaction(async (client) => {
     await persistAfk(client, data.afk);
-    await markFirstAfkTaskCompleted(client, data.role.role_id);
   });
 
   return getSessionSnapshot(guestToken);

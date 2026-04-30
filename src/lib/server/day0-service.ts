@@ -13,7 +13,6 @@ import {
   mapConfigs,
   MAX_OFFLINE_SECONDS,
   raceConfigs,
-  starterTaskTemplates,
   type ClassKey,
   type MapKey,
   type RaceKey,
@@ -71,18 +70,6 @@ type BackpackRow = {
   stat_json: Record<string, number>;
 };
 
-type TaskRow = {
-  task_id: string;
-  code: string;
-  title: string;
-  description: string;
-  status: "active" | "completed";
-  progress: number;
-  target: number;
-  reward_gold: number;
-  reward_exp: number;
-};
-
 type RewardPreview = {
   seconds: number;
   gold: number;
@@ -103,7 +90,6 @@ type DashboardData = {
   role: RoleRow;
   afk: AfkRow;
   backpack: BackpackRow[];
-  tasks: TaskRow[];
 };
 
 export type Day0SessionSnapshot = {
@@ -149,17 +135,6 @@ export type Day0SessionSnapshot = {
     description: string;
     sellPrice: number;
     stats: Record<string, number>;
-  }>;
-  tasks: Array<{
-    taskId: string;
-    code: string;
-    title: string;
-    description: string;
-    status: "active" | "completed";
-    progress: number;
-    target: number;
-    rewardGold: number;
-    rewardExp: number;
   }>;
   afk: {
     status: "idle" | "active";
@@ -445,7 +420,7 @@ async function requireDashboardData(guestToken: string) {
     throw new Error("角色不存在，请先创建角色。");
   }
 
-  const [afkResult, backpackResult, taskResult] = await Promise.all([
+  const [afkResult, backpackResult] = await Promise.all([
     query<AfkRow>(
       `
         SELECT
@@ -484,24 +459,6 @@ async function requireDashboardData(guestToken: string) {
       `,
       [role.role_id],
     ),
-    query<TaskRow>(
-      `
-        SELECT
-          task_id,
-          code,
-          title,
-          description,
-          status,
-          progress,
-          target,
-          reward_gold,
-          reward_exp
-        FROM task
-        WHERE role_id = $1
-        ORDER BY created_at ASC
-      `,
-      [role.role_id],
-    ),
   ]);
 
   const afk = afkResult.rows[0];
@@ -514,7 +471,6 @@ async function requireDashboardData(guestToken: string) {
     afk,
     backpack: backpackResult.rows,
     role,
-    tasks: taskResult.rows,
     user,
   };
 }
@@ -567,27 +523,16 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       sellPrice: item.sell_price,
       stats: item.stat_json ?? {},
     })),
-    tasks: data.tasks.map((task) => ({
-      taskId: task.task_id,
-      code: task.code,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      progress: task.progress,
-      target: task.target,
-      rewardGold: task.reward_gold,
-      rewardExp: task.reward_exp,
-    })),
-  afk: {
-    status: data.afk.status,
-    mapKey: data.afk.map_key,
-    startedAt: toMillis(data.afk.started_at),
-    lastSettledAt: toMillis(data.afk.last_settled_at),
-    shouldShowOfflineRewardModal: options?.shouldShowOfflineRewardModal ?? false,
-    accruedSeconds: data.afk.accrued_seconds,
-    taskDurationSeconds: AFK_TASK_SECONDS,
-    maxOfflineSeconds: MAX_OFFLINE_SECONDS,
-    mapOptions: mapConfigs,
+    afk: {
+      status: data.afk.status,
+      mapKey: data.afk.map_key,
+      startedAt: toMillis(data.afk.started_at),
+      lastSettledAt: toMillis(data.afk.last_settled_at),
+      shouldShowOfflineRewardModal: options?.shouldShowOfflineRewardModal ?? false,
+      accruedSeconds: data.afk.accrued_seconds,
+      taskDurationSeconds: AFK_TASK_SECONDS,
+      maxOfflineSeconds: MAX_OFFLINE_SECONDS,
+      mapOptions: mapConfigs,
       currentMap: currentMap
         ? {
             key: currentMap.key,
@@ -762,41 +707,6 @@ export async function createRoleForGuest(input: {
       ],
     );
 
-    for (const taskTemplate of starterTaskTemplates) {
-      const isCreateRoleTask = taskTemplate.code === "create-role";
-
-      await client.query(
-        `
-          INSERT INTO task (
-            task_id,
-            role_id,
-            code,
-            title,
-            description,
-            status,
-            progress,
-            target,
-            reward_gold,
-            reward_exp,
-            created_at,
-            updated_at
-          )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-        `,
-        [
-          makeId("task"),
-          roleId,
-          taskTemplate.code,
-          taskTemplate.title,
-          taskTemplate.description,
-          isCreateRoleTask ? "completed" : "active",
-          isCreateRoleTask ? taskTemplate.target : 0,
-          taskTemplate.target,
-          taskTemplate.rewardGold,
-          taskTemplate.rewardExp,
-        ],
-      );
-    }
   });
 
   return getFullSessionSnapshot(input.guestToken);
@@ -845,7 +755,6 @@ export async function getGuestBootstrap(guestToken?: string | null) {
       },
       role: null,
       serverTime: Date.now(),
-      tasks: [],
     };
   }
 
@@ -885,20 +794,6 @@ export async function getFullSessionSnapshot(guestToken: string) {
   return buildSnapshot(data, { shouldShowOfflineRewardModal });
 }
 
-async function markFirstAfkTaskCompleted(client: PoolClient, roleId: string) {
-  await client.query(
-    `
-      UPDATE task
-      SET
-        status = 'completed',
-        progress = target,
-        updated_at = NOW()
-      WHERE role_id = $1 AND code = 'first-afk'
-    `,
-    [roleId],
-  );
-}
-
 export async function startAfk(guestToken: string, mapKey: MapKey) {
   const map = getMapConfig(mapKey);
 
@@ -921,7 +816,6 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 
   await withTransaction(async (client) => {
     await persistAfk(client, data.afk);
-    await markFirstAfkTaskCompleted(client, data.role.role_id);
   });
 
   await syncAfkRedis(data.afk);

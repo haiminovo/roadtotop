@@ -64,26 +64,11 @@ CREATE TABLE IF NOT EXISTS afk (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS task (
-  task_id TEXT PRIMARY KEY,
-  role_id TEXT NOT NULL REFERENCES "role"(role_id) ON DELETE CASCADE,
-  code TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  progress INTEGER NOT NULL DEFAULT 0,
-  target INTEGER NOT NULL DEFAULT 1,
-  reward_gold BIGINT NOT NULL DEFAULT 0,
-  reward_exp BIGINT NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (role_id, code)
-);
-
 CREATE INDEX IF NOT EXISTS idx_role_user_id ON "role" (user_id);
 CREATE INDEX IF NOT EXISTS idx_backpack_role_id ON backpack (role_id);
 CREATE INDEX IF NOT EXISTS idx_afk_role_id ON afk (role_id);
-CREATE INDEX IF NOT EXISTS idx_task_role_id ON task (role_id);
+
+DROP TABLE IF EXISTS task;
 
 DO $$
 BEGIN

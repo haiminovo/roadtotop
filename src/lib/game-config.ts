@@ -1,7 +1,7 @@
 export type RaceKey = "human" | "elf" | "dwarf";
 export type ClassKey = "warrior" | "mage" | "farmer";
 export type MapKey = "palmia-wilds";
-export type PanelKey = "role" | "backpack" | "task" | "afk" | "settings" | "help";
+export type PanelKey = "role" | "backpack" | "afk";
 
 export type Stats = {
   strength: number;
@@ -99,25 +99,6 @@ export const levelTable = Array.from({ length: LEVEL_CAP }, (_, index) => ({
   level: index + 1,
   totalExpRequired: index * EXP_PER_LEVEL,
 }));
-
-export const starterTaskTemplates = [
-  {
-    code: "create-role",
-    title: "启程准备",
-    description: "完成一次角色创建，正式进入伊洛纳的挂机世界。",
-    target: 1,
-    rewardGold: 80,
-    rewardExp: 30,
-  },
-  {
-    code: "first-afk",
-    title: "第一次挂机",
-    description: "选择任意地图开始挂机一次。",
-    target: 1,
-    rewardGold: 120,
-    rewardExp: 40,
-  },
-];
 
 export function getRaceConfig(raceKey: RaceKey) {
   return raceConfigs.find((item) => item.key === raceKey) ?? null;

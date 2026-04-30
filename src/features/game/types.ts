@@ -30,18 +30,6 @@ export type BackpackEntry = {
   stats: Record<string, number>;
 };
 
-export type TaskEntry = {
-  taskId: string;
-  code: string;
-  title: string;
-  description: string;
-  status: "active" | "completed";
-  progress: number;
-  target: number;
-  rewardGold: number;
-  rewardExp: number;
-};
-
 export type SessionSnapshot = {
   serverTime: number;
   account: {
@@ -75,7 +63,6 @@ export type SessionSnapshot = {
     };
   };
   backpack: BackpackEntry[];
-  tasks: TaskEntry[];
   afk: {
     status: "idle" | "active";
     mapKey: MapKey | null;
