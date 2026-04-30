@@ -5,17 +5,20 @@ import {
   afkEncounterChances,
   afkEncounterPool,
   classConfigs,
+  EXP_GROWTH_PER_LEVEL,
   EXP_PER_LEVEL,
   getBodySlotCapacities,
   getBodySlotTypeLabel,
   getClassConfig,
   getCurrentLevelProgress,
+  getExpRequiredForLevel,
   getLevelBaseExp,
   getLevelFromExp,
   getMaxHealth,
   getMapConfig,
   getRaceConfig,
   levelTable,
+  LEVEL_CURVE_VERSION,
   mapConfigs,
   MAX_OFFLINE_SECONDS,
   raceConfigs,
@@ -51,6 +54,7 @@ type RoleRow = {
   class_key: ClassKey;
   level: number;
   exp: number;
+  exp_curve_version: number;
   gold: number;
   aether_crystal: number;
   strength: number;
@@ -454,6 +458,29 @@ function normalizeNumber(value: number) {
 function normalizeSignedNumber(value: number) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
+}
+
+function migrateLegacyRoleExp(role: RoleRow) {
+  if ((role.exp_curve_version ?? 1) >= LEVEL_CURVE_VERSION) {
+    role.level = getLevelFromExp(role.exp);
+    return false;
+  }
+
+  const safeLevel = Math.min(levelTable.length, Math.max(1, Math.floor(role.level)));
+  const safeExp = Math.max(0, Math.floor(role.exp));
+  const legacyBaseExp = (safeLevel - 1) * EXP_PER_LEVEL;
+  const legacyProgress = Math.max(0, safeExp - legacyBaseExp);
+
+  if (safeLevel >= levelTable.length) {
+    role.exp = getLevelBaseExp(levelTable.length) + legacyProgress;
+  } else {
+    const legacyProgressRatio = Math.min(1, legacyProgress / EXP_PER_LEVEL);
+    role.exp = getLevelBaseExp(safeLevel) + Math.round(getExpRequiredForLevel(safeLevel) * legacyProgressRatio);
+  }
+
+  role.level = getLevelFromExp(role.exp);
+  role.exp_curve_version = LEVEL_CURVE_VERSION;
+  return true;
 }
 
 function calculateMarketFee(price: number) {
@@ -1207,9 +1234,10 @@ async function persistRole(client: PoolClient, role: RoleRow) {
       SET
         level = $2,
         exp = $3,
-        gold = $4,
-        aether_crystal = $5,
-        current_health = $6,
+        exp_curve_version = $4,
+        gold = $5,
+        aether_crystal = $6,
+        current_health = $7,
         updated_at = NOW()
       WHERE role_id = $1
     `,
@@ -1217,6 +1245,7 @@ async function persistRole(client: PoolClient, role: RoleRow) {
       role.role_id,
       role.level,
       normalizeNumber(role.exp),
+      role.exp_curve_version ?? LEVEL_CURVE_VERSION,
       normalizeNumber(role.gold),
       normalizeNumber(role.aether_crystal),
       normalizeNumber(role.current_health),
@@ -1549,6 +1578,7 @@ async function findRoleByUserId(userId: string) {
         class_key,
         level,
         exp,
+        exp_curve_version,
         gold,
         aether_crystal,
         strength,
@@ -1563,7 +1593,24 @@ async function findRoleByUserId(userId: string) {
     [userId],
   );
 
-  return result.rows[0] ?? null;
+  const role = result.rows[0] ?? null;
+
+  if (role && migrateLegacyRoleExp(role)) {
+    await query(
+      `
+        UPDATE "role"
+        SET
+          level = $2,
+          exp = $3,
+          exp_curve_version = $4,
+          updated_at = NOW()
+        WHERE role_id = $1
+      `,
+      [role.role_id, role.level, role.exp, role.exp_curve_version],
+    );
+  }
+
+  return role;
 }
 
 async function requireDashboardData(guestToken: string) {
@@ -1985,6 +2032,7 @@ export async function createRoleForGuest(input: {
           class_key,
           level,
           exp,
+          exp_curve_version,
           gold,
           aether_crystal,
           strength,
@@ -1997,7 +2045,7 @@ export async function createRoleForGuest(input: {
           updated_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, 1, 0, 240, 12, $6, $7, $8, $9, $10, $11, NOW(), NOW()
+          $1, $2, $3, $4, $5, 1, 0, $6, 240, 12, $7, $8, $9, $10, $11, $12, NOW(), NOW()
         )
       `,
       [
@@ -2006,6 +2054,7 @@ export async function createRoleForGuest(input: {
         trimmedName,
         race.key,
         roleClass.key,
+        LEVEL_CURVE_VERSION,
         startingStats.strength,
         startingStats.agility,
         startingStats.intelligence,
@@ -2786,6 +2835,8 @@ export function isValidMapKey(value: string): value is MapKey {
 export function getLevelOverview() {
   return {
     expPerLevel: EXP_PER_LEVEL,
+    expGrowthPerLevel: EXP_GROWTH_PER_LEVEL,
+    curveVersion: LEVEL_CURVE_VERSION,
     levelCap: levelTable.length,
     levels: levelTable,
   };

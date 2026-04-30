@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS "role" (
   class_key TEXT NOT NULL,
   level INTEGER NOT NULL DEFAULT 1,
   exp INTEGER NOT NULL DEFAULT 0,
+  exp_curve_version INTEGER NOT NULL DEFAULT 2,
   gold BIGINT NOT NULL DEFAULT 0,
   aether_crystal BIGINT NOT NULL DEFAULT 0,
   strength INTEGER NOT NULL,
@@ -41,6 +42,19 @@ CREATE TABLE IF NOT EXISTS "role" (
 
 ALTER TABLE "role"
 ADD COLUMN IF NOT EXISTS current_health INTEGER;
+
+ALTER TABLE "role"
+ADD COLUMN IF NOT EXISTS exp_curve_version INTEGER;
+
+UPDATE "role"
+SET exp_curve_version = 1
+WHERE exp_curve_version IS NULL;
+
+ALTER TABLE "role"
+ALTER COLUMN exp_curve_version SET DEFAULT 2;
+
+ALTER TABLE "role"
+ALTER COLUMN exp_curve_version SET NOT NULL;
 
 UPDATE "role"
 SET current_health = GREATEST(1, 50 + vitality * 12 + level * 2)

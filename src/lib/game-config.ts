@@ -64,6 +64,8 @@ export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
 export const AFK_TASK_SECONDS = 10;
 export const LEVEL_CAP = 30;
 export const EXP_PER_LEVEL = 100;
+export const EXP_GROWTH_PER_LEVEL = 10;
+export const LEVEL_CURVE_VERSION = 2;
 export const BASE_HEALTH = 50;
 export const HEALTH_PER_VITALITY = 12;
 export const HEALTH_PER_LEVEL = 2;
@@ -207,9 +209,24 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
 ];
 
+export function getExpRequiredForLevel(level: number) {
+  const safeLevel = Math.min(LEVEL_CAP - 1, Math.max(1, Math.floor(level)));
+  return EXP_PER_LEVEL + (safeLevel - 1) * EXP_GROWTH_PER_LEVEL;
+}
+
+export function getLevelBaseExp(level: number) {
+  const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
+  const completedLevels = safeLevel - 1;
+
+  return (
+    completedLevels * EXP_PER_LEVEL
+    + ((completedLevels * Math.max(0, completedLevels - 1)) / 2) * EXP_GROWTH_PER_LEVEL
+  );
+}
+
 export const levelTable = Array.from({ length: LEVEL_CAP }, (_, index) => ({
   level: index + 1,
-  totalExpRequired: index * EXP_PER_LEVEL,
+  totalExpRequired: getLevelBaseExp(index + 1),
 }));
 
 export function getRaceConfig(raceKey: RaceKey) {
@@ -251,13 +268,16 @@ export function getBodySlotTypeLabel(slotType: BodySlotType) {
   }[slotType];
 }
 
-export function getLevelBaseExp(level: number) {
-  const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
-  return (safeLevel - 1) * EXP_PER_LEVEL;
-}
-
 export function getLevelFromExp(exp: number) {
-  return Math.min(LEVEL_CAP, Math.floor(Math.max(0, exp) / EXP_PER_LEVEL) + 1);
+  const safeExp = Math.max(0, Math.floor(exp));
+
+  for (let index = levelTable.length - 1; index >= 0; index -= 1) {
+    if (safeExp >= levelTable[index].totalExpRequired) {
+      return levelTable[index].level;
+    }
+  }
+
+  return 1;
 }
 
 export function getMaxHealth(vitality: number, level: number) {
@@ -271,12 +291,11 @@ export function getMaxHealth(vitality: number, level: number) {
 export function getCurrentLevelProgress(exp: number) {
   const currentLevel = getLevelFromExp(exp);
   const currentBase = getLevelBaseExp(currentLevel);
-  const nextRequirement =
-    currentLevel >= LEVEL_CAP ? currentBase : getLevelBaseExp(currentLevel + 1);
+  const nextLevelExp = currentLevel >= LEVEL_CAP ? 0 : getExpRequiredForLevel(currentLevel);
 
   return {
     currentLevel,
     currentLevelExp: Math.max(0, exp - currentBase),
-    nextLevelExp: currentLevel >= LEVEL_CAP ? 0 : nextRequirement - currentBase,
+    nextLevelExp,
   };
 }

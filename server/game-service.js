@@ -4,6 +4,8 @@ const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
 const AFK_TASK_SECONDS = 10;
 const LEVEL_CAP = 30;
 const EXP_PER_LEVEL = 100;
+const EXP_GROWTH_PER_LEVEL = 10;
+const LEVEL_CURVE_VERSION = 2;
 const BASE_HEALTH = 50;
 const HEALTH_PER_VITALITY = 12;
 const HEALTH_PER_LEVEL = 2;
@@ -182,9 +184,23 @@ const afkEncounterPoolByTier = afkEncounterPool.reduce((accumulator, encounter) 
   legendary: [],
 });
 
+function getExpRequiredForLevel(level) {
+  const safeLevel = Math.min(LEVEL_CAP - 1, Math.max(1, Math.floor(level)));
+  return EXP_PER_LEVEL + (safeLevel - 1) * EXP_GROWTH_PER_LEVEL;
+}
+
+function getLevelBaseExp(level) {
+  const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
+  const completedLevels = safeLevel - 1;
+  return (
+    completedLevels * EXP_PER_LEVEL
+    + ((completedLevels * Math.max(0, completedLevels - 1)) / 2) * EXP_GROWTH_PER_LEVEL
+  );
+}
+
 const levelTable = Array.from({ length: LEVEL_CAP }, (_, index) => ({
   level: index + 1,
-  totalExpRequired: index * EXP_PER_LEVEL,
+  totalExpRequired: getLevelBaseExp(index + 1),
 }));
 
 function toMillis(value) {
@@ -199,6 +215,29 @@ function normalizeNumber(value) {
 function normalizeSignedNumber(value) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
+}
+
+function migrateLegacyRoleExp(role) {
+  if ((role.exp_curve_version || 1) >= LEVEL_CURVE_VERSION) {
+    role.level = getLevelFromExp(role.exp);
+    return false;
+  }
+
+  const safeLevel = Math.min(levelTable.length, Math.max(1, Math.floor(role.level)));
+  const safeExp = Math.max(0, Math.floor(role.exp));
+  const legacyBaseExp = (safeLevel - 1) * EXP_PER_LEVEL;
+  const legacyProgress = Math.max(0, safeExp - legacyBaseExp);
+
+  if (safeLevel >= levelTable.length) {
+    role.exp = getLevelBaseExp(levelTable.length) + legacyProgress;
+  } else {
+    const legacyProgressRatio = Math.min(1, legacyProgress / EXP_PER_LEVEL);
+    role.exp = getLevelBaseExp(safeLevel) + Math.round(getExpRequiredForLevel(safeLevel) * legacyProgressRatio);
+  }
+
+  role.level = getLevelFromExp(role.exp);
+  role.exp_curve_version = LEVEL_CURVE_VERSION;
+  return true;
 }
 
 function calculateMarketFee(price) {
@@ -580,11 +619,6 @@ function makeEncounterId() {
   return `encounter-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function getLevelBaseExp(level) {
-  const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
-  return (safeLevel - 1) * EXP_PER_LEVEL;
-}
-
 function getMaxHealth(vitality, level) {
   return (
     BASE_HEALTH
@@ -765,18 +799,26 @@ function buildEncounterDelta(executions, settledAt) {
 }
 
 function getLevelFromExp(exp) {
-  return Math.min(LEVEL_CAP, Math.floor(Math.max(0, exp) / EXP_PER_LEVEL) + 1);
+  const safeExp = Math.max(0, Math.floor(exp));
+
+  for (let index = levelTable.length - 1; index >= 0; index -= 1) {
+    if (safeExp >= levelTable[index].totalExpRequired) {
+      return levelTable[index].level;
+    }
+  }
+
+  return 1;
 }
 
 function getCurrentLevelProgress(exp) {
   const currentLevel = getLevelFromExp(exp);
-  const currentBase = (currentLevel - 1) * EXP_PER_LEVEL;
-  const nextRequirement = currentLevel >= LEVEL_CAP ? currentBase : currentLevel * EXP_PER_LEVEL;
+  const currentBase = getLevelBaseExp(currentLevel);
+  const nextLevelExp = currentLevel >= LEVEL_CAP ? 0 : getExpRequiredForLevel(currentLevel);
 
   return {
     currentLevel,
     currentLevelExp: Math.max(0, exp - currentBase),
-    nextLevelExp: currentLevel >= LEVEL_CAP ? 0 : nextRequirement - currentBase,
+    nextLevelExp,
   };
 }
 
@@ -987,9 +1029,10 @@ async function persistRole(client, role) {
       SET
         level = $2,
         exp = $3,
-        gold = $4,
-        aether_crystal = $5,
-        current_health = $6,
+        exp_curve_version = $4,
+        gold = $5,
+        aether_crystal = $6,
+        current_health = $7,
         updated_at = NOW()
       WHERE role_id = $1
     `,
@@ -997,6 +1040,7 @@ async function persistRole(client, role) {
       role.role_id,
       role.level,
       normalizeNumber(role.exp),
+      role.exp_curve_version || LEVEL_CURVE_VERSION,
       normalizeNumber(role.gold),
       normalizeNumber(role.aether_crystal),
       normalizeNumber(role.current_health),
@@ -1285,6 +1329,7 @@ async function findRoleByUserId(userId) {
         class_key,
         level,
         exp,
+        exp_curve_version,
         gold,
         aether_crystal,
         strength,
@@ -1299,7 +1344,24 @@ async function findRoleByUserId(userId) {
     [userId],
   );
 
-  return result.rows[0] || null;
+  const role = result.rows[0] || null;
+
+  if (role && migrateLegacyRoleExp(role)) {
+    await query(
+      `
+        UPDATE "role"
+        SET
+          level = $2,
+          exp = $3,
+          exp_curve_version = $4,
+          updated_at = NOW()
+        WHERE role_id = $1
+      `,
+      [role.role_id, role.level, role.exp, role.exp_curve_version],
+    );
+  }
+
+  return role;
 }
 
 async function requireDashboardData(guestToken) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Chat from "@/components/chat";
 import { getMaxHealth, type AfkEncounterReward, type BodySlotType, type ClassKey, type EncounterTier, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
@@ -1456,6 +1456,12 @@ function MainDashboard() {
   const role = snapshot?.role;
   const backpack = snapshot?.backpack ?? EMPTY_BACKPACK;
   const maps = snapshot?.config.maps ?? [];
+  const progressAnimationAnchorRef = useRef(Date.now());
+  const progressMemoryRef = useRef<{ cycleKey: string | null; progress: number }>({
+    cycleKey: null,
+    progress: 0,
+  });
+  const progressFrameRef = useRef<number | null>(null);
   const equippedItems = useMemo(
     () => backpack.filter((item) => item.equipped),
     [backpack],
@@ -1497,25 +1503,70 @@ function MainDashboard() {
   }, [pendingMarketPurchaseListingId, snapshot]);
 
   useEffect(() => {
-    if (!snapshot || snapshot.afk.status !== "active") {
-      setDisplayNow(Date.now());
+    if (!snapshot?.role || snapshot.afk.status !== "active") {
+      if (progressFrameRef.current !== null) {
+        window.cancelAnimationFrame(progressFrameRef.current);
+        progressFrameRef.current = null;
+      }
       return;
     }
 
-    setDisplayNow(Date.now());
+    if (progressFrameRef.current !== null) {
+      return;
+    }
 
-    const timer = window.setInterval(() => {
+    const tick = () => {
       setDisplayNow(Date.now());
-    }, 50);
+      progressFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    progressFrameRef.current = window.requestAnimationFrame(tick);
 
     return () => {
-      window.clearInterval(timer);
+      if (progressFrameRef.current !== null) {
+        window.cancelAnimationFrame(progressFrameRef.current);
+        progressFrameRef.current = null;
+      }
     };
+  }, [snapshot?.afk.status, snapshot?.role, snapshot?.role?.roleId]);
+
+  useEffect(() => {
+    const now = Date.now();
+
+    if (!snapshot || snapshot.afk.status !== "active" || !snapshot.role) {
+      progressAnimationAnchorRef.current = now;
+      progressMemoryRef.current = {
+        cycleKey: null,
+        progress: snapshot?.afk.accruedSeconds ?? 0,
+      };
+      setDisplayNow(now);
+      return;
+    }
+
+    const cycleKey = `${snapshot.role.roleId}:${snapshot.afk.startedAt ?? 0}:${snapshot.afk.lastSettledAt ?? 0}:${snapshot.afk.taskDurationSeconds ?? 0}`;
+    const currentBaseProgress = Math.max(0, snapshot.afk.accruedSeconds ?? 0);
+    const previousProgress = progressMemoryRef.current;
+    const previousDisplayedProgress = previousProgress.cycleKey === cycleKey
+      ? Math.min(
+        snapshot.afk.taskDurationSeconds ?? 0,
+        previousProgress.progress + Math.max(0, now - progressAnimationAnchorRef.current) / 1000,
+      )
+      : 0;
+
+    progressMemoryRef.current = {
+      cycleKey,
+      progress: Math.max(currentBaseProgress, previousDisplayedProgress),
+    };
+    progressAnimationAnchorRef.current = now;
+    setDisplayNow(now);
   }, [
     snapshot,
     snapshot?.afk.accruedSeconds,
     snapshot?.afk.status,
-    snapshot?.serverTime,
+    snapshot?.afk.lastSettledAt,
+    snapshot?.afk.startedAt,
+    snapshot?.afk.taskDurationSeconds,
+    snapshot?.role?.roleId,
   ]);
 
   const selectedItem = backpack.find((item) => item.backpackId === selectedBackpackId);
@@ -1542,12 +1593,30 @@ function MainDashboard() {
   const isGuestUser = snapshot?.account.mode === "guest";
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
-  const taskProgress = snapshot?.afk.status === "active"
-    ? Math.min(
+  const activeTaskCycleKey = snapshot?.afk.status === "active" && snapshot.role
+    ? `${snapshot.role.roleId}:${snapshot.afk.startedAt ?? 0}:${snapshot.afk.lastSettledAt ?? 0}:${taskDuration}`
+    : null;
+  const taskProgress = (() => {
+    const baseProgress = Math.max(0, snapshot?.afk.accruedSeconds ?? 0);
+
+    if (snapshot?.afk.status !== "active" || !activeTaskCycleKey) {
+      progressMemoryRef.current = {
+        cycleKey: null,
+        progress: baseProgress,
+      };
+      return baseProgress;
+    }
+
+    const anchoredProgress = progressMemoryRef.current.cycleKey === activeTaskCycleKey
+      ? progressMemoryRef.current.progress
+      : baseProgress;
+    const estimatedProgress = Math.min(
       taskDuration,
-      (snapshot.afk.accruedSeconds ?? 0) + Math.max(0, displayNow - snapshot.serverTime) / 1000,
-    )
-    : (snapshot?.afk.accruedSeconds ?? 0);
+      anchoredProgress + Math.max(0, displayNow - progressAnimationAnchorRef.current) / 1000,
+    );
+
+    return estimatedProgress;
+  })();
   const taskProgressPercent = taskDuration > 0 ? (taskProgress / taskDuration) * 100 : 0;
   const currentTaskReward = snapshot?.afk.currentMap
     ? {
