@@ -1,7 +1,7 @@
 export type RaceKey = "human" | "elf" | "dwarf";
 export type ClassKey = "warrior" | "mage" | "farmer";
 export type MapKey = "palmia-wilds";
-export type PanelKey = "role" | "backpack" | "afk";
+export type PanelKey = "role" | "backpack" | "afk" | "market";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
 export type BodySlotType = "head" | "hand" | "torso" | "legs" | "feet" | "neck" | "accessory";

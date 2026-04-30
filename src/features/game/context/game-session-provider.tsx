@@ -650,10 +650,75 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:afk:claim");
+      const currentGuestToken = guestToken ?? getStoredGuestToken();
+
+      if (!currentGuestToken) {
+        throw new Error(localizeErrorMessage(locale, "游客会话不存在，请重新登录。"));
+      }
+
+      const payload = await requestJson<{ ok: boolean; snapshot: SessionSnapshot }>("/api/afk/claim", {
+        body: JSON.stringify({ guestToken: currentGuestToken }),
+        method: "POST",
+      });
+
+      handleIncomingSnapshot(payload.snapshot);
+
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+      } else {
+        void connectSocket(currentGuestToken);
+      }
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "领取收益失败。"));
+      throw sendError;
+    }
+  }, [connectSocket, guestToken, handleIncomingSnapshot, locale, sendSocketMessage]);
+
+  const createMarketListing = useCallback(async (backpackId: string, price: number, quantity: number) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:market:create", { backpackId, price, quantity });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "上架商品失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
+  const cancelMarketListing = useCallback(async (listingId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:market:cancel", { listingId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "下架商品失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
+  const dismissMarketSoldNotification = useCallback(async (listingId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:market:sold:dismiss", { listingId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "处理出售通知失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
+  const buyMarketListing = useCallback(async (listingId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:market:buy", { listingId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "购买商品失败。"));
       throw sendError;
     }
   }, [locale, sendSocketMessage]);
@@ -714,10 +779,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     () => ({
       activePanel,
       accountLogin,
+      buyMarketListing,
+      cancelMarketListing,
       chatMessages,
       claimOfflineReward,
+      createMarketListing,
       createRole,
       deleteAccountRole,
+      dismissMarketSoldNotification,
       dismissError,
       dropBackpackItem,
       equipBackpackItem,
@@ -737,10 +806,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     [
       activePanel,
       accountLogin,
+      buyMarketListing,
+      cancelMarketListing,
       chatMessages,
       claimOfflineReward,
+      createMarketListing,
       createRole,
       deleteAccountRole,
+      dismissMarketSoldNotification,
       dismissError,
       dropBackpackItem,
       equipBackpackItem,

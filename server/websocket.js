@@ -10,7 +10,11 @@ const {
 const { closeDatabase, initDatabase } = require("./db");
 const {
   AFK_TASK_SECONDS,
+  buyMarketListingForGuest,
+  cancelMarketListingForGuest,
   claimAfkRewardForGuest,
+  createMarketListingForGuest,
+  dismissMarketSoldNotificationForGuest,
   dropBackpackItemForGuest,
   equipBackpackItemForGuest,
   getSessionSnapshot,
@@ -230,6 +234,44 @@ async function handleBackpackUnequip(connection, session, packet) {
   sendSnapshot(connection, snapshot, "unequip");
 }
 
+async function handleMarketCreate(connection, session, packet) {
+  const backpackId = typeof packet.payload?.backpackId === "string"
+    ? packet.payload.backpackId
+    : "";
+  const price = Number(packet.payload?.price ?? 0);
+  const quantity = Number(packet.payload?.quantity ?? 0);
+  const snapshot = await createMarketListingForGuest(session.guestToken, backpackId, price, quantity);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "market-create");
+}
+
+async function handleMarketCancel(connection, session, packet) {
+  const listingId = typeof packet.payload?.listingId === "string"
+    ? packet.payload.listingId
+    : "";
+  const snapshot = await cancelMarketListingForGuest(session.guestToken, listingId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "market-cancel");
+}
+
+async function handleMarketBuy(connection, session, packet) {
+  const listingId = typeof packet.payload?.listingId === "string"
+    ? packet.payload.listingId
+    : "";
+  const snapshot = await buyMarketListingForGuest(session.guestToken, listingId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "market-buy");
+}
+
+async function handleMarketSoldDismiss(connection, session, packet) {
+  const listingId = typeof packet.payload?.listingId === "string"
+    ? packet.payload.listingId
+    : "";
+  const snapshot = await dismissMarketSoldNotificationForGuest(session.guestToken, listingId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "market-sold-dismiss");
+}
+
 async function handleChatSend(session, packet) {
   const channelKey = typeof packet.payload?.channelKey === "string"
     ? packet.payload.channelKey
@@ -280,6 +322,26 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:backpack:unequip") {
     await handleBackpackUnequip(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:market:create") {
+    await handleMarketCreate(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:market:cancel") {
+    await handleMarketCancel(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:market:buy") {
+    await handleMarketBuy(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:market:sold:dismiss") {
+    await handleMarketSoldDismiss(connection, session, packet);
     return;
   }
 

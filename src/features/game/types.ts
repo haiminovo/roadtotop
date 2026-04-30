@@ -38,6 +38,50 @@ export type BackpackEntry = {
   stats: Record<string, number>;
 };
 
+export type MarketCategoryKey = "equipment";
+export type MarketListingStatus = "active" | "sold" | "cancelled";
+
+export type MarketListingSummary = {
+  listingId: string;
+  itemId: string;
+  categoryKey: MarketCategoryKey;
+  name: string;
+  rarity: "white" | "green" | "blue" | "purple" | "orange";
+  slot: BodySlotType;
+  slotUsage: number;
+  description: string;
+  sellPrice: number;
+  stats: Record<string, number>;
+  price: number;
+  sellerName: string;
+  availableCount: number;
+  createdAt: number;
+  isOwnListing: boolean;
+};
+
+export type MarketOwnListing = {
+  listingId: string;
+  itemId: string;
+  categoryKey: MarketCategoryKey;
+  name: string;
+  rarity: "white" | "green" | "blue" | "purple" | "orange";
+  slot: BodySlotType;
+  slotUsage: number;
+  description: string;
+  sellPrice: number;
+  stats: Record<string, number>;
+  price: number;
+  status: MarketListingStatus;
+  createdAt: number;
+  soldAt: number | null;
+  cancelledAt: number | null;
+  buyerRoleId: string | null;
+  sellerReceiveAmount: number;
+  feeAmount: number;
+  quantity: number;
+  sellerNoticeSeen: boolean;
+};
+
 export type SessionSnapshot = {
   serverTime: number;
   account: {
@@ -111,6 +155,14 @@ export type SessionSnapshot = {
       triggeredAt: number;
     }>;
   };
+  market: {
+    feeRatePercent: number;
+    categoryOptions: Array<{ key: MarketCategoryKey; label: string }>;
+    rarityOptions: Array<"white" | "green" | "blue" | "purple" | "orange">;
+    slotOptions: BodySlotType[];
+    listings: MarketListingSummary[];
+    myListings: MarketOwnListing[];
+  };
 };
 
 export type CreateRoleDraft = {
@@ -135,8 +187,12 @@ export type GameSessionContextValue = {
   accountLogin: (draft: AccountLoginDraft) => Promise<void>;
   chatMessages: ChatMessage[];
   createRole: (draft: CreateRoleDraft) => Promise<void>;
+  createMarketListing: (backpackId: string, price: number, quantity: number) => Promise<void>;
+  cancelMarketListing: (listingId: string) => Promise<void>;
+  dismissMarketSoldNotification: (listingId: string) => Promise<void>;
   deleteAccountRole: () => Promise<void>;
   error: string | null;
+  buyMarketListing: (listingId: string) => Promise<void>;
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
   equipBackpackItem: (backpackId: string) => Promise<void>;

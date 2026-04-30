@@ -83,6 +83,48 @@ CREATE TABLE IF NOT EXISTS backpack (
 ALTER TABLE backpack
 ADD COLUMN IF NOT EXISTS equipped_slot_groups JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+CREATE TABLE IF NOT EXISTS market_listing (
+  listing_id TEXT PRIMARY KEY,
+  seller_role_id TEXT NOT NULL REFERENCES "role"(role_id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL REFERENCES item(item_id) ON DELETE RESTRICT,
+  category_key TEXT NOT NULL DEFAULT 'equipment',
+  price BIGINT NOT NULL CHECK (price > 0),
+  status TEXT NOT NULL DEFAULT 'active',
+  buyer_role_id TEXT REFERENCES "role"(role_id) ON DELETE SET NULL,
+  sold_price BIGINT,
+  fee_amount BIGINT NOT NULL DEFAULT 0,
+  seller_receive_amount BIGINT NOT NULL DEFAULT 0,
+  seller_notice_seen BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sold_at TIMESTAMPTZ,
+  cancelled_at TIMESTAMPTZ
+);
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS category_key TEXT NOT NULL DEFAULT 'equipment';
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS buyer_role_id TEXT REFERENCES "role"(role_id) ON DELETE SET NULL;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS sold_price BIGINT;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS fee_amount BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS seller_receive_amount BIGINT NOT NULL DEFAULT 0;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS seller_notice_seen BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ;
+
+ALTER TABLE market_listing
+ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS afk (
   afk_id TEXT PRIMARY KEY,
   role_id TEXT NOT NULL UNIQUE REFERENCES "role"(role_id) ON DELETE CASCADE,
@@ -131,6 +173,8 @@ CREATE TABLE IF NOT EXISTS chat_logs (
 
 CREATE INDEX IF NOT EXISTS idx_role_user_id ON "role" (user_id);
 CREATE INDEX IF NOT EXISTS idx_backpack_role_id ON backpack (role_id);
+CREATE INDEX IF NOT EXISTS idx_market_listing_status_price ON market_listing (status, item_id, price, created_at);
+CREATE INDEX IF NOT EXISTS idx_market_listing_seller_role_id ON market_listing (seller_role_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_afk_role_id ON afk (role_id);
 CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON chat_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_logs_channel_key ON chat_logs (channel_key, created_at DESC);

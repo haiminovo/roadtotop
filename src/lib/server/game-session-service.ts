@@ -90,6 +90,93 @@ type BackpackRow = {
   stat_json: Record<string, number>;
 };
 
+type MarketListingStatus = "active" | "sold" | "cancelled";
+type MarketCategoryKey = "equipment";
+
+type MarketListingRow = {
+  listing_id: string;
+  seller_role_id: string;
+  seller_name: string;
+  item_id: string;
+  category_key: MarketCategoryKey;
+  price: number;
+  status: MarketListingStatus;
+  buyer_role_id: string | null;
+  sold_price: number | null;
+  fee_amount: number;
+  seller_receive_amount: number;
+  seller_notice_seen: boolean;
+  created_at: Date;
+  updated_at: Date;
+  sold_at: Date | null;
+  cancelled_at: Date | null;
+  name: string;
+  rarity: ItemRarity;
+  slot: BodySlotType;
+  slot_usage: number;
+  description: string;
+  sell_price: number;
+  stat_json: Record<string, number>;
+};
+
+type MarketSummaryRow = MarketListingRow & {
+  available_count: number;
+};
+
+type MarketOwnListingGroupRow = Omit<MarketListingRow, "buyer_role_id" | "fee_amount" | "seller_receive_amount"> & {
+  buyer_role_id: string | null;
+  fee_amount: number;
+  seller_receive_amount: number;
+  seller_notice_seen: boolean;
+  listing_count: number;
+};
+
+type MarketSnapshot = {
+  feeRatePercent: number;
+  categoryOptions: Array<{ key: MarketCategoryKey; label: string }>;
+  rarityOptions: ItemRarity[];
+  slotOptions: BodySlotType[];
+  listings: Array<{
+    listingId: string;
+    itemId: string;
+    categoryKey: MarketCategoryKey;
+    name: string;
+    rarity: ItemRarity;
+    slot: BodySlotType;
+    slotUsage: number;
+    description: string;
+    sellPrice: number;
+    stats: Record<string, number>;
+    price: number;
+    sellerName: string;
+    availableCount: number;
+    createdAt: number;
+    isOwnListing: boolean;
+  }>;
+  myListings: Array<{
+    listingId: string;
+    itemId: string;
+    categoryKey: MarketCategoryKey;
+    name: string;
+    rarity: ItemRarity;
+    slot: BodySlotType;
+    slotUsage: number;
+    description: string;
+    sellPrice: number;
+    stats: Record<string, number>;
+    price: number;
+    status: MarketListingStatus;
+    createdAt: number;
+    soldAt: number | null;
+    cancelledAt: number | null;
+    buyerRoleId: string | null;
+    sellerReceiveAmount: number;
+    feeAmount: number;
+    quantity: number;
+    sellerNoticeSeen: boolean;
+  }>;
+};
+
 type RewardPreview = {
   seconds: number;
   gold: number;
@@ -157,6 +244,7 @@ type DashboardData = {
   role: RoleRow;
   afk: AfkRow;
   backpack: BackpackRow[];
+  market: MarketSnapshot;
 };
 
 export type GameSessionSnapshot = {
@@ -235,6 +323,7 @@ export type GameSessionSnapshot = {
     encounterRates: Record<EncounterTier, number>;
     recentEncounters: AfkEncounterLogEntry[];
   };
+  market: MarketSnapshot;
 };
 
 export type GuestLoginResult = {
@@ -262,6 +351,11 @@ const MAX_RECENT_ENCOUNTERS = 8;
 const MIN_PASSWORD_LENGTH = 6;
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 20;
+const MARKET_FEE_RATE_PERCENT = 10;
+const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }] as const satisfies Array<{
+  key: MarketCategoryKey;
+  label: string;
+}>;
 const itemSeeds: ItemSeed[] = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
@@ -362,6 +456,15 @@ function normalizeSignedNumber(value: number) {
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
 }
 
+function calculateMarketFee(price: number) {
+  const normalizedPrice = normalizeNumber(price);
+  const feeAmount = Math.floor((normalizedPrice * MARKET_FEE_RATE_PERCENT) / 100);
+  return {
+    feeAmount,
+    sellerReceiveAmount: Math.max(0, normalizedPrice - feeAmount),
+  };
+}
+
 function getRarityRank(rarity: string) {
   return {
     white: 1,
@@ -389,6 +492,58 @@ function sortBackpackRows(backpack: BackpackRow[]) {
 
     return left.name.localeCompare(right.name, "zh-CN");
   });
+}
+
+function buildMarketSnapshot(
+  roleId: string | null,
+  activeListings: MarketSummaryRow[],
+  ownListings: MarketOwnListingGroupRow[],
+): MarketSnapshot {
+  return {
+    feeRatePercent: MARKET_FEE_RATE_PERCENT,
+    categoryOptions: [...MARKET_CATEGORY_OPTIONS],
+    rarityOptions: ["white", "green", "blue", "purple", "orange"],
+    slotOptions: ["head", "hand", "torso", "legs", "feet", "neck", "accessory"],
+    listings: activeListings.map((listing) => ({
+      listingId: listing.listing_id,
+      itemId: listing.item_id,
+      categoryKey: listing.category_key,
+      name: listing.name,
+      rarity: listing.rarity,
+      slot: listing.slot,
+      slotUsage: listing.slot_usage,
+      description: listing.description,
+      sellPrice: listing.sell_price,
+      stats: listing.stat_json,
+      price: listing.price,
+      sellerName: listing.seller_name,
+      availableCount: normalizeNumber(listing.available_count),
+      createdAt: toMillis(listing.created_at) ?? Date.now(),
+      isOwnListing: roleId === listing.seller_role_id,
+    })),
+    myListings: ownListings.map((listing) => ({
+      listingId: listing.listing_id,
+      itemId: listing.item_id,
+      categoryKey: listing.category_key,
+      name: listing.name,
+      rarity: listing.rarity,
+      slot: listing.slot,
+      slotUsage: listing.slot_usage,
+      description: listing.description,
+      sellPrice: listing.sell_price,
+      stats: listing.stat_json,
+      price: listing.price,
+      status: listing.status,
+      createdAt: toMillis(listing.created_at) ?? Date.now(),
+      soldAt: toMillis(listing.sold_at),
+      cancelledAt: toMillis(listing.cancelled_at),
+      buyerRoleId: listing.buyer_role_id,
+      sellerReceiveAmount: listing.seller_receive_amount,
+      feeAmount: listing.fee_amount,
+      quantity: normalizeNumber(listing.listing_count),
+      sellerNoticeSeen: Boolean(listing.seller_notice_seen),
+    })),
+  };
 }
 
 function getBackpackEquippedCount(backpackRow: Pick<BackpackRow, "equipped_slot_groups">) {
@@ -1146,6 +1301,180 @@ async function persistBackpackEquipState(client: PoolClient, backpack: BackpackR
   }
 }
 
+async function upsertBackpackItemQuantity(client: PoolClient, roleId: string, itemId: string, quantity: number) {
+  const normalizedQuantity = normalizeNumber(quantity);
+
+  if (normalizedQuantity <= 0) {
+    return;
+  }
+
+  await client.query(
+    `
+      INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, equipped_slot_groups, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, FALSE, '[]'::jsonb, NOW(), NOW())
+      ON CONFLICT (role_id, item_id)
+      DO UPDATE SET
+        quantity = backpack.quantity + EXCLUDED.quantity,
+        updated_at = NOW()
+    `,
+    [makeId("bag"), roleId, itemId, normalizedQuantity],
+  );
+}
+
+async function getMarketActiveSummaryRows() {
+  const result = await query<MarketSummaryRow>(
+    `
+      WITH ranked_listings AS (
+        SELECT
+          market_listing.listing_id,
+          market_listing.seller_role_id,
+          seller_role.name AS seller_name,
+          market_listing.item_id,
+          market_listing.category_key,
+          market_listing.price,
+          market_listing.status,
+          market_listing.buyer_role_id,
+          market_listing.sold_price,
+          market_listing.fee_amount,
+          market_listing.seller_receive_amount,
+          market_listing.created_at,
+          market_listing.updated_at,
+          market_listing.sold_at,
+          market_listing.cancelled_at,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.slot_usage,
+          item.description,
+          item.sell_price,
+          item.stat_json,
+          ROW_NUMBER() OVER (
+            PARTITION BY market_listing.item_id
+            ORDER BY market_listing.price ASC, market_listing.created_at ASC, market_listing.listing_id ASC
+          ) AS row_number,
+          COUNT(*) OVER (PARTITION BY market_listing.item_id) AS available_count
+        FROM market_listing
+        JOIN item ON item.item_id = market_listing.item_id
+        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
+        WHERE market_listing.status = 'active'
+      )
+      SELECT
+        listing_id,
+        seller_role_id,
+        seller_name,
+        item_id,
+        category_key,
+        price,
+        status,
+        buyer_role_id,
+        sold_price,
+        fee_amount,
+        seller_receive_amount,
+        created_at,
+        updated_at,
+        sold_at,
+        cancelled_at,
+        name,
+        rarity,
+        slot,
+        slot_usage,
+        description,
+        sell_price,
+        stat_json,
+        available_count
+      FROM ranked_listings
+      WHERE row_number = 1
+      ORDER BY price ASC, rarity DESC, name ASC
+    `,
+  );
+
+  return result.rows.map((row) => ({
+    ...row,
+    rarity: row.rarity as ItemRarity,
+    slot: row.slot as BodySlotType,
+    category_key: row.category_key as MarketCategoryKey,
+    status: row.status as MarketListingStatus,
+  }));
+}
+
+async function getMarketOwnListingRows(roleId: string) {
+  const result = await query<MarketOwnListingGroupRow>(
+    `
+      SELECT
+        MIN(market_listing.listing_id) AS listing_id,
+        market_listing.seller_role_id,
+        seller_role.name AS seller_name,
+        market_listing.item_id,
+        market_listing.category_key,
+        market_listing.price,
+        market_listing.status,
+        MIN(market_listing.buyer_role_id) AS buyer_role_id,
+        MIN(market_listing.sold_price) AS sold_price,
+        SUM(market_listing.fee_amount) AS fee_amount,
+        SUM(market_listing.seller_receive_amount) AS seller_receive_amount,
+        BOOL_AND(market_listing.seller_notice_seen) AS seller_notice_seen,
+        MIN(market_listing.created_at) AS created_at,
+        MAX(market_listing.updated_at) AS updated_at,
+        MAX(market_listing.sold_at) AS sold_at,
+        MAX(market_listing.cancelled_at) AS cancelled_at,
+        item.name,
+        item.rarity,
+        item.slot,
+        item.slot_usage,
+        item.description,
+        item.sell_price,
+        item.stat_json,
+        COUNT(*)::INTEGER AS listing_count
+      FROM market_listing
+      JOIN item ON item.item_id = market_listing.item_id
+      JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
+      WHERE
+        market_listing.seller_role_id = $1
+        AND NOT (market_listing.status = 'sold' AND market_listing.seller_notice_seen = TRUE)
+      GROUP BY
+        market_listing.seller_role_id,
+        seller_role.name,
+        market_listing.item_id,
+        market_listing.category_key,
+        market_listing.price,
+        market_listing.status,
+        item.name,
+        item.rarity,
+        item.slot,
+        item.slot_usage,
+        item.description,
+        item.sell_price,
+        item.stat_json
+      ORDER BY
+        CASE market_listing.status
+          WHEN 'sold' THEN CASE WHEN BOOL_AND(market_listing.seller_notice_seen) THEN 1 ELSE 0 END
+          WHEN 'active' THEN 2
+          ELSE 3
+        END,
+        COALESCE(MAX(market_listing.sold_at), MIN(market_listing.created_at)) DESC
+      LIMIT 24
+    `,
+    [roleId],
+  );
+
+  return result.rows.map((row) => ({
+    ...row,
+    rarity: row.rarity as ItemRarity,
+    slot: row.slot as BodySlotType,
+    category_key: row.category_key as MarketCategoryKey,
+    status: row.status as MarketListingStatus,
+  }));
+}
+
+async function getMarketSnapshotForRole(roleId: string | null) {
+  const [activeListings, ownListings] = await Promise.all([
+    getMarketActiveSummaryRows(),
+    roleId ? getMarketOwnListingRows(roleId) : Promise.resolve([] as MarketOwnListingGroupRow[]),
+  ]);
+
+  return buildMarketSnapshot(roleId, activeListings, ownListings);
+}
+
 async function syncAfkRedis(afk: AfkRow) {
   const key = `afk:${afk.role_id}`;
 
@@ -1311,10 +1640,12 @@ async function requireDashboardData(guestToken: string) {
     item.equipped = item.equipped_slot_groups.length > 0;
   });
   sortBackpackRows(backpackResult.rows);
+  const market = await getMarketSnapshotForRole(role.role_id);
 
   return {
     afk,
     backpack: backpackResult.rows,
+    market,
     role,
     user,
   };
@@ -1475,6 +1806,7 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       encounterRates: afkEncounterChances,
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
     },
+    market: data.market,
   };
 }
 
@@ -1769,6 +2101,7 @@ export async function getGuestBootstrap(
         encounterRates: afkEncounterChances,
         recentEncounters: [],
       },
+      market: await getMarketSnapshotForRole(null),
       backpack: [],
       config: {
         classes: classConfigs,
@@ -1972,6 +2305,460 @@ export async function dropBackpackItem(guestToken: string, backpackId: string) {
     if (!deleted) {
       throw new Error("物品丢弃失败，请稍后重试。");
     }
+  });
+
+  return getFullSessionSnapshot(guestToken);
+}
+
+export async function createMarketListing(guestToken: string, backpackId: string, price: number, quantity: number) {
+  const normalizedBackpackId = backpackId.trim();
+  const normalizedPrice = normalizeNumber(price);
+  const normalizedQuantity = normalizeNumber(quantity);
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  if (normalizedPrice <= 0) {
+    throw new Error("上架价格必须大于 0。");
+  }
+
+  if (normalizedQuantity <= 0) {
+    throw new Error("上架数量必须大于 0。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要上架的物品不存在。");
+  }
+
+  if (matchedItem.quantity <= (matchedItem.equipped_slot_groups?.length ?? 0)) {
+    throw new Error("这件物品没有可上架的剩余数量。");
+  }
+
+  await withTransaction(async (client) => {
+    const roleResult = await client.query<RoleRow>(
+      `
+        SELECT
+          role_id,
+          user_id,
+          name,
+          race_key,
+          class_key,
+          level,
+          exp,
+          gold,
+          aether_crystal,
+          strength,
+          agility,
+          intelligence,
+          vitality,
+          current_health,
+          avatar_seed
+        FROM "role"
+        WHERE role_id = $1
+        FOR UPDATE
+      `,
+      [data.role.role_id],
+    );
+    const lockedRole = roleResult.rows[0];
+
+    if (!lockedRole) {
+      throw new Error("角色不存在，请先创建角色。");
+    }
+
+    const backpackResult = await client.query<BackpackRow>(
+      `
+        SELECT
+          backpack.backpack_id,
+          backpack.item_id,
+          backpack.quantity,
+          backpack.equipped,
+          backpack.equipped_slot_groups,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.slot_usage,
+          item.description,
+          item.sell_price,
+          item.stat_json
+        FROM backpack
+        JOIN item ON item.item_id = backpack.item_id
+        WHERE backpack.role_id = $1 AND backpack.backpack_id = $2
+        FOR UPDATE
+      `,
+      [lockedRole.role_id, normalizedBackpackId],
+    );
+    const lockedBackpackItem = backpackResult.rows[0];
+
+    if (!lockedBackpackItem) {
+      throw new Error("要上架的物品不存在。");
+    }
+
+    lockedBackpackItem.equipped_slot_groups = normalizeEquippedSlotGroups(lockedBackpackItem.equipped_slot_groups);
+    const sellableQuantity = Math.max(0, lockedBackpackItem.quantity - getBackpackEquippedCount(lockedBackpackItem));
+
+    if (sellableQuantity <= 0) {
+      throw new Error("这件物品没有可上架的剩余数量。");
+    }
+
+    if (normalizedQuantity > sellableQuantity) {
+      throw new Error("上架数量超过了当前可出售数量。");
+    }
+
+    if (lockedBackpackItem.quantity <= normalizedQuantity) {
+      const deleted = await deleteBackpackEntry(client, lockedRole.role_id, lockedBackpackItem.backpack_id);
+
+      if (!deleted) {
+        throw new Error("上架失败，请稍后重试。");
+      }
+    } else {
+      await client.query(
+        `
+          UPDATE backpack
+          SET quantity = quantity - $3, updated_at = NOW()
+          WHERE backpack_id = $1 AND role_id = $2 AND quantity >= $3
+        `,
+        [lockedBackpackItem.backpack_id, lockedRole.role_id, normalizedQuantity],
+      );
+    }
+
+    for (let index = 0; index < normalizedQuantity; index += 1) {
+      await client.query(
+        `
+          INSERT INTO market_listing (
+            listing_id,
+            seller_role_id,
+            item_id,
+            category_key,
+            price,
+            status,
+            fee_amount,
+            seller_receive_amount,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, 'equipment', $4, 'active', 0, 0, NOW(), NOW())
+        `,
+        [makeId("listing"), lockedRole.role_id, lockedBackpackItem.item_id, normalizedPrice],
+      );
+    }
+  });
+
+  return getFullSessionSnapshot(guestToken);
+}
+
+export async function cancelMarketListing(guestToken: string, listingId: string) {
+  const normalizedListingId = listingId.trim();
+
+  if (!normalizedListingId) {
+    throw new Error("缺少市场挂单标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+
+  await withTransaction(async (client) => {
+    const listingResult = await client.query<MarketListingRow>(
+      `
+        SELECT
+          market_listing.listing_id,
+          market_listing.seller_role_id,
+          seller_role.name AS seller_name,
+          market_listing.item_id,
+          market_listing.category_key,
+          market_listing.price,
+          market_listing.status,
+          market_listing.buyer_role_id,
+          market_listing.sold_price,
+          market_listing.fee_amount,
+          market_listing.seller_receive_amount,
+          market_listing.created_at,
+          market_listing.updated_at,
+          market_listing.sold_at,
+          market_listing.cancelled_at,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.slot_usage,
+          item.description,
+          item.sell_price,
+          item.stat_json
+        FROM market_listing
+        JOIN item ON item.item_id = market_listing.item_id
+        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
+        WHERE market_listing.listing_id = $1
+        FOR UPDATE
+      `,
+      [normalizedListingId],
+    );
+    const listing = listingResult.rows[0];
+
+    if (!listing || listing.seller_role_id !== data.role.role_id) {
+      throw new Error("要下架的挂单不存在。");
+    }
+
+    if (listing.status !== "active") {
+      throw new Error("该挂单当前不能下架。");
+    }
+
+    const siblingResult = await client.query<{ listing_count: number }>(
+      `
+        SELECT COUNT(*)::INTEGER AS listing_count
+        FROM market_listing
+        WHERE
+          seller_role_id = $1
+          AND item_id = $2
+          AND price = $3
+          AND status = 'active'
+      `,
+      [data.role.role_id, listing.item_id, listing.price],
+    );
+    const listingCount = normalizeNumber(siblingResult.rows[0]?.listing_count ?? 0);
+
+    await client.query(
+      `
+        UPDATE market_listing
+        SET
+          status = 'cancelled',
+          cancelled_at = NOW(),
+          updated_at = NOW()
+        WHERE
+          seller_role_id = $1
+          AND item_id = $2
+          AND price = $3
+          AND status = 'active'
+      `,
+      [data.role.role_id, listing.item_id, listing.price],
+    );
+
+    await upsertBackpackItemQuantity(client, data.role.role_id, listing.item_id, Math.max(1, listingCount));
+  });
+
+  return getFullSessionSnapshot(guestToken);
+}
+
+export async function dismissMarketSoldNotification(guestToken: string, listingId: string) {
+  const normalizedListingId = listingId.trim();
+
+  if (!normalizedListingId) {
+    throw new Error("缺少市场挂单标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+
+  await withTransaction(async (client) => {
+    const listingResult = await client.query<MarketListingRow>(
+      `
+        SELECT
+          market_listing.listing_id,
+          market_listing.seller_role_id,
+          seller_role.name AS seller_name,
+          market_listing.item_id,
+          market_listing.category_key,
+          market_listing.price,
+          market_listing.status,
+          market_listing.buyer_role_id,
+          market_listing.sold_price,
+          market_listing.fee_amount,
+          market_listing.seller_receive_amount,
+          market_listing.seller_notice_seen,
+          market_listing.created_at,
+          market_listing.updated_at,
+          market_listing.sold_at,
+          market_listing.cancelled_at,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.slot_usage,
+          item.description,
+          item.sell_price,
+          item.stat_json
+        FROM market_listing
+        JOIN item ON item.item_id = market_listing.item_id
+        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
+        WHERE market_listing.listing_id = $1
+        FOR UPDATE
+      `,
+      [normalizedListingId],
+    );
+    const listing = listingResult.rows[0];
+
+    if (!listing || listing.seller_role_id !== data.role.role_id || listing.status !== "sold") {
+      throw new Error("要处理的出售通知不存在。");
+    }
+
+    await client.query(
+      `
+        UPDATE market_listing
+        SET
+          seller_notice_seen = TRUE,
+          updated_at = NOW()
+        WHERE
+          seller_role_id = $1
+          AND item_id = $2
+          AND price = $3
+          AND status = 'sold'
+          AND seller_notice_seen = FALSE
+      `,
+      [data.role.role_id, listing.item_id, listing.price],
+    );
+  });
+
+  return getFullSessionSnapshot(guestToken);
+}
+
+export async function buyMarketListing(guestToken: string, listingId: string) {
+  const normalizedListingId = listingId.trim();
+
+  if (!normalizedListingId) {
+    throw new Error("缺少市场挂单标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+
+  await withTransaction(async (client) => {
+    const listingResult = await client.query<MarketListingRow>(
+      `
+        SELECT
+          market_listing.listing_id,
+          market_listing.seller_role_id,
+          seller_role.name AS seller_name,
+          market_listing.item_id,
+          market_listing.category_key,
+          market_listing.price,
+          market_listing.status,
+          market_listing.buyer_role_id,
+          market_listing.sold_price,
+          market_listing.fee_amount,
+          market_listing.seller_receive_amount,
+          market_listing.created_at,
+          market_listing.updated_at,
+          market_listing.sold_at,
+          market_listing.cancelled_at,
+          item.name,
+          item.rarity,
+          item.slot,
+          item.slot_usage,
+          item.description,
+          item.sell_price,
+          item.stat_json
+        FROM market_listing
+        JOIN item ON item.item_id = market_listing.item_id
+        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
+        WHERE market_listing.listing_id = $1
+        FOR UPDATE
+      `,
+      [normalizedListingId],
+    );
+    const listing = listingResult.rows[0];
+
+    if (!listing || listing.status !== "active") {
+      throw new Error("这件商品已经被买走或下架了。");
+    }
+
+    if (listing.seller_role_id === data.role.role_id) {
+      throw new Error("不能购买自己上架的物品。");
+    }
+
+    const cheapestResult = await client.query<{ listing_id: string }>(
+      `
+        SELECT listing_id
+        FROM market_listing
+        WHERE item_id = $1 AND status = 'active'
+        ORDER BY price ASC, created_at ASC, listing_id ASC
+        LIMIT 1
+      `,
+      [listing.item_id],
+    );
+    const cheapestListingId = cheapestResult.rows[0]?.listing_id ?? null;
+
+    if (cheapestListingId !== listing.listing_id) {
+      throw new Error("当前只能购买这件商品中最便宜的那一件。");
+    }
+
+    const [buyerRoleResult, sellerAfkResult] = await Promise.all([
+      client.query<RoleRow>(
+        `
+          SELECT
+            role_id,
+            user_id,
+            name,
+            race_key,
+            class_key,
+            level,
+            exp,
+            gold,
+            aether_crystal,
+            strength,
+            agility,
+            intelligence,
+            vitality,
+            current_health,
+            avatar_seed
+          FROM "role"
+          WHERE role_id = $1
+          FOR UPDATE
+        `,
+        [data.role.role_id],
+      ),
+      client.query<AfkRow>(
+        `
+          SELECT
+            afk_id,
+            role_id,
+            status,
+            map_key,
+            started_at,
+            last_settled_at,
+            pending_gold,
+            pending_aether_crystal,
+            pending_exp,
+            accrued_seconds,
+            recent_encounters
+          FROM afk
+          WHERE role_id = $1
+          FOR UPDATE
+        `,
+        [listing.seller_role_id],
+      ),
+    ]);
+
+    const buyerRole = buyerRoleResult.rows[0];
+    const sellerAfk = sellerAfkResult.rows[0];
+
+    if (!buyerRole || !sellerAfk) {
+      throw new Error("交易角色不存在，请稍后重试。");
+    }
+
+    if (buyerRole.gold < listing.price) {
+      throw new Error("金币不足，无法购买这件商品。");
+    }
+
+    const { feeAmount, sellerReceiveAmount } = calculateMarketFee(listing.price);
+    buyerRole.gold -= listing.price;
+    sellerAfk.pending_gold += sellerReceiveAmount;
+
+    await persistRole(client, buyerRole);
+    await persistAfk(client, sellerAfk);
+    await upsertBackpackItemQuantity(client, buyerRole.role_id, listing.item_id, 1);
+    await client.query(
+      `
+        UPDATE market_listing
+        SET
+          status = 'sold',
+          buyer_role_id = $2,
+          sold_price = $3,
+          fee_amount = $4,
+          seller_receive_amount = $5,
+          seller_notice_seen = FALSE,
+          sold_at = NOW(),
+          updated_at = NOW()
+        WHERE listing_id = $1 AND status = 'active'
+      `,
+      [listing.listing_id, buyerRole.role_id, listing.price, feeAmount, sellerReceiveAmount],
+    );
   });
 
   return getFullSessionSnapshot(guestToken);

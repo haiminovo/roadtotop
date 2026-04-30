@@ -150,6 +150,10 @@ function formatEncounterTriggeredAt(timestamp: number, locale: SupportedLocale =
   });
 }
 
+function formatMarketListingStatus(status: "active" | "sold" | "cancelled", messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.game.market.status[status];
+}
+
 function formatStatsSummary(
   stats: Record<string, number>,
   locale: SupportedLocale = DEFAULT_LOCALE,
@@ -214,6 +218,7 @@ function panelAccent(panel: PanelKey) {
   return {
     afk: "from-sky-400/60 to-cyan-300/10",
     backpack: "from-violet-400/55 to-indigo-300/10",
+    market: "from-amber-300/60 to-orange-300/10",
     role: "from-emerald-400/55 to-teal-300/10",
   }[panel];
 }
@@ -239,7 +244,7 @@ const EMPTY_BACKPACK: Array<{
 }> = [];
 
 type BackpackItem = typeof EMPTY_BACKPACK[number];
-type ItemActionKey = "drop" | "equip" | "unequip";
+type ItemActionKey = "drop" | "equip" | "unequip" | "sell";
 type PendingItemAction = {
   actionKey: ItemActionKey;
   backpackId: string;
@@ -278,6 +283,10 @@ function getAvailableItemActions(item: BackpackItem, messages: I18nMessages = DE
 
   if (equippedCount > 0) {
     actions.push(getItemActionDefinition("unequip", messages));
+  }
+
+  if (equippedCount === 0 && item.quantity > 0) {
+    actions.push(getItemActionDefinition("sell", messages));
   }
 
   actions.push(getItemActionDefinition("drop", messages));
@@ -367,6 +376,34 @@ function DataPill({
       <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
       <p className="mt-1 text-sm font-semibold leading-5 text-white">{value}</p>
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  onChange,
+  value,
+  children,
+}: {
+  label: string;
+  onChange: React.ChangeEventHandler<HTMLSelectElement>;
+  value: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="rounded-[0.95rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
+      <div className="mt-1 relative">
+        <select
+          className="w-full appearance-none bg-transparent pr-7 text-sm font-semibold text-white outline-none"
+          onChange={onChange}
+          value={value}
+        >
+          {children}
+        </select>
+        <span className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-xs text-slate-400">▾</span>
+      </div>
+    </label>
   );
 }
 
@@ -781,6 +818,7 @@ function CenterPanel({
   backpack,
   currentTaskReward,
   maps,
+  onRequestBuyMarketListing,
   onUnequipItem,
   onSelectItem,
   role,
@@ -801,6 +839,7 @@ function CenterPanel({
     gold: number;
   };
   maps: MapConfig[];
+  onRequestBuyMarketListing: (listingId: string) => void;
   onUnequipItem: (backpackId: string) => void;
   onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
@@ -815,6 +854,9 @@ function CenterPanel({
 }) {
   const { locale, messages } = useI18n();
   const copy = messages.game;
+  const [marketCategoryFilter, setMarketCategoryFilter] = useState<"all" | "equipment">("equipment");
+  const [marketRarityFilter, setMarketRarityFilter] = useState<"all" | "white" | "green" | "blue" | "purple" | "orange">("all");
+  const [marketSlotFilter, setMarketSlotFilter] = useState<"all" | BodySlotType>("all");
   if (!role) {
     return null;
   }
@@ -920,6 +962,103 @@ function CenterPanel({
               ) : null}
             </div>
           </div>
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (activePanel === "market") {
+    const marketListings = snapshot.market.listings.filter((listing) => (
+      (marketCategoryFilter === "all" || listing.categoryKey === marketCategoryFilter)
+      && (marketRarityFilter === "all" || listing.rarity === marketRarityFilter)
+      && (marketSlotFilter === "all" || listing.slot === marketSlotFilter)
+    ));
+
+    return (
+      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="border-b border-white/8 px-4 py-3">
+          <SectionEyebrow>{copy.market.eyebrow}</SectionEyebrow>
+          <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.market.title}</h2>
+              <p className="mt-1 text-sm text-slate-300">{copy.market.summary}</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <FilterSelect
+                label={copy.market.filters.category}
+                onChange={(event) => setMarketCategoryFilter(event.target.value as "all" | "equipment")}
+                value={marketCategoryFilter}
+              >
+                <option value="all">{messages.common.all}</option>
+                {snapshot.market.categoryOptions.map((option) => (
+                  <option key={option.key} value={option.key}>{option.label}</option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                label={copy.market.filters.rarity}
+                onChange={(event) => setMarketRarityFilter(event.target.value as typeof marketRarityFilter)}
+                value={marketRarityFilter}
+              >
+                <option value="all">{messages.common.all}</option>
+                {snapshot.market.rarityOptions.map((rarity) => (
+                  <option key={rarity} value={rarity}>{rarityLabel(rarity, messages)}</option>
+                ))}
+              </FilterSelect>
+              <FilterSelect
+                label={copy.market.filters.slot}
+                onChange={(event) => setMarketSlotFilter(event.target.value as "all" | BodySlotType)}
+                value={marketSlotFilter}
+              >
+                <option value="all">{messages.common.all}</option>
+                {snapshot.market.slotOptions.map((slot) => (
+                  <option key={slot} value={slot}>{slotLabel(slot, messages)}</option>
+                ))}
+              </FilterSelect>
+            </div>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {marketListings.length > 0 ? (
+            <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              {marketListings.map((listing) => (
+                <div key={listing.listingId} className="rounded-[1rem] border border-amber-300/18 bg-[linear-gradient(180deg,rgba(251,191,36,0.08),rgba(15,23,42,0.24))] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-amber-100/70">
+                        {slotLabel(listing.slot, messages)} · {rarityLabel(listing.rarity, messages)}
+                      </p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-1 text-[10px] ${itemAccent(listing.rarity)}`}>
+                      {formatNumber(listing.price, locale)} {copy.market.goldUnit}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeItemDescription(listing.itemId, listing.description, locale)}</p>
+                  <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(listing.stats, locale, messages)}</p>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <DataPill label={copy.market.lowestPrice} value={formatNumber(listing.price, locale)} />
+                    <DataPill label={copy.market.availableCount} value={formatNumber(listing.availableCount, locale)} />
+                  </div>
+                  <p className="mt-3 text-xs text-slate-400">
+                    {formatMessage(copy.market.sellerHint, { sellerName: listing.sellerName })}
+                  </p>
+                  <button
+                    className="mt-4 w-full rounded-[0.95rem] bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={status === "saving" || listing.isOwnListing}
+                    onClick={() => onRequestBuyMarketListing(listing.listingId)}
+                    type="button"
+                  >
+                    {listing.isOwnListing ? copy.market.ownListing : copy.market.buyNow}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-5 text-sm leading-7 text-slate-400">
+              {copy.market.empty}
+            </div>
+          )}
         </div>
       </SectionCard>
     );
@@ -1036,12 +1175,16 @@ function CenterPanel({
 function RightRail({
   activePanel,
   backpack,
+  onCancelMarketListing,
+  onDismissMarketSoldNotification,
   pendingReward,
   selectedItem,
   snapshot,
 }: {
   activePanel: PanelKey;
   backpack: BackpackItem[];
+  onCancelMarketListing: (listingId: string) => void;
+  onDismissMarketSoldNotification: (listingId: string) => void;
   pendingReward: {
     aetherCrystal: number;
     exp: number;
@@ -1123,6 +1266,67 @@ function RightRail({
               )}
             </div>
           </div>
+        ) : activePanel === "market" ? (
+          <div>
+            <SectionEyebrow>{copy.market.myListings}</SectionEyebrow>
+            <div className="mt-3 space-y-3">
+              {snapshot.market.myListings.length > 0 ? snapshot.market.myListings.map((listing) => (
+                <div
+                  key={listing.listingId}
+                  className={[
+                    "rounded-[1rem] border bg-white/[0.035] p-4",
+                    listing.status === "sold"
+                      ? "border-emerald-300/25 bg-emerald-300/[0.06]"
+                      : "border-white/8",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+                        {formatMarketListingStatus(listing.status, messages)} · x{formatNumber(listing.quantity, locale)}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-200">
+                      {formatNumber(listing.price, locale)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(listing.stats, locale, messages)}</p>
+                  {listing.status === "sold" ? (
+                    <>
+                      <p className="mt-2 text-xs text-emerald-200">
+                        {formatMessage(copy.market.soldIncome, {
+                          fee: formatNumber(listing.feeAmount, locale),
+                          received: formatNumber(listing.sellerReceiveAmount, locale),
+                        })}
+                      </p>
+                      <button
+                        className="mt-3 w-full rounded-[0.85rem] border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => onDismissMarketSoldNotification(listing.listingId)}
+                        type="button"
+                      >
+                        {copy.market.dismissSoldNotice}
+                      </button>
+                    </>
+                  ) : null}
+                  {listing.status === "active" ? (
+                    <button
+                      className="mt-3 w-full rounded-[0.85rem] border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition hover:border-amber-200/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={snapshot.market.myListings.length <= 0}
+                      onClick={() => onCancelMarketListing(listing.listingId)}
+                      type="button"
+                    >
+                      {copy.market.cancelListing}
+                    </button>
+                  ) : null}
+                </div>
+              )) : (
+                <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-slate-400">
+                  {copy.market.noOwnListings}
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <div>
             <SectionEyebrow>{copy.dashboard.settlementSummary}</SectionEyebrow>
@@ -1185,9 +1389,13 @@ function MainDashboard() {
   const copy = messages.game;
   const {
     activePanel,
+    buyMarketListing,
+    cancelMarketListing,
     claimOfflineReward,
+    createMarketListing,
     dropBackpackItem,
     deleteAccountRole,
+    dismissMarketSoldNotification,
     dismissError,
     equipBackpackItem,
     error,
@@ -1204,6 +1412,10 @@ function MainDashboard() {
   const [dismissedRewardKey, setDismissedRewardKey] = useState<string | null>(null);
   const [displayNow, setDisplayNow] = useState(() => Date.now());
   const [itemActionBackpackId, setItemActionBackpackId] = useState<string | null>(null);
+  const [marketSellBackpackId, setMarketSellBackpackId] = useState<string | null>(null);
+  const [marketSellPrice, setMarketSellPrice] = useState("");
+  const [marketSellQuantity, setMarketSellQuantity] = useState("1");
+  const [pendingMarketPurchaseListingId, setPendingMarketPurchaseListingId] = useState<string | null>(null);
   const [pendingItemAction, setPendingItemAction] = useState<PendingItemAction>(null);
   const [showDeleteRoleConfirm, setShowDeleteRoleConfirm] = useState(false);
   const [showRegisterAccountModal, setShowRegisterAccountModal] = useState(false);
@@ -1269,10 +1481,20 @@ function MainDashboard() {
       setItemActionBackpackId(null);
     }
 
+    if (marketSellBackpackId && !backpack.some((item) => item.backpackId === marketSellBackpackId)) {
+      setMarketSellBackpackId(null);
+    }
+
     if (pendingItemAction && !backpack.some((item) => item.backpackId === pendingItemAction.backpackId)) {
       setPendingItemAction(null);
     }
-  }, [backpack, itemActionBackpackId, pendingItemAction]);
+  }, [backpack, itemActionBackpackId, marketSellBackpackId, pendingItemAction]);
+
+  useEffect(() => {
+    if (pendingMarketPurchaseListingId && !snapshot?.market.listings.some((listing) => listing.listingId === pendingMarketPurchaseListingId)) {
+      setPendingMarketPurchaseListingId(null);
+    }
+  }, [pendingMarketPurchaseListingId, snapshot]);
 
   useEffect(() => {
     if (!snapshot || snapshot.afk.status !== "active") {
@@ -1298,6 +1520,18 @@ function MainDashboard() {
 
   const selectedItem = backpack.find((item) => item.backpackId === selectedBackpackId);
   const actionItem = backpack.find((item) => item.backpackId === itemActionBackpackId);
+  const marketSellItem = backpack.find((item) => item.backpackId === marketSellBackpackId);
+  const marketListings = snapshot?.market.listings ?? [];
+  const marketSellableQuantity = marketSellItem
+    ? Math.max(0, marketSellItem.quantity - (marketSellItem.equippedCount ?? 0))
+    : 0;
+  const marketReferenceListing = marketSellItem
+    ? marketListings.find((listing) => listing.itemId === marketSellItem.itemId) ?? null
+    : null;
+  const marketReferencePrice = marketReferenceListing?.price ?? null;
+  const marketSellPriceValue = Number(marketSellPrice || 0);
+  const marketPriceDelta = marketReferencePrice === null ? 0 : marketSellPriceValue - marketReferencePrice;
+  const pendingMarketPurchase = snapshot?.market.listings.find((listing) => listing.listingId === pendingMarketPurchaseListingId) ?? null;
   const pendingActionItem = pendingItemAction
     ? backpack.find((item) => item.backpackId === pendingItemAction.backpackId)
     : undefined;
@@ -1330,6 +1564,7 @@ function MainDashboard() {
   const menuItems: Array<{ key: PanelKey; label: string; summary: string; count?: string }> = [
     { key: "afk", label: copy.dashboard.menu.afk.label, summary: copy.dashboard.menu.afk.summary, count: snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
     { key: "backpack", label: copy.dashboard.menu.backpack.label, summary: copy.dashboard.menu.backpack.summary, count: String(backpack.length) },
+    { key: "market", label: copy.dashboard.menu.market.label, summary: copy.dashboard.menu.market.summary, count: String(snapshot.market.listings.length) },
     { key: "role", label: copy.dashboard.menu.role.label, summary: copy.dashboard.menu.role.summary, count: `${messages.common.levelShort}${role.level}` },
   ];
 
@@ -1559,6 +1794,17 @@ function MainDashboard() {
                     return;
                   }
 
+                  if (action.actionKey === "sell") {
+                    setItemActionBackpackId(null);
+                    setMarketSellBackpackId(actionItem.backpackId);
+                    const currentMarketPrice =
+                      snapshot.market.listings.find((listing) => listing.itemId === actionItem.itemId)?.price
+                      ?? null;
+                    setMarketSellPrice(currentMarketPrice ? String(currentMarketPrice) : "");
+                    setMarketSellQuantity("1");
+                    return;
+                  }
+
                   setItemActionBackpackId(null);
                   setPendingItemAction({
                     actionKey: action.actionKey,
@@ -1647,6 +1893,151 @@ function MainDashboard() {
               type="button"
             >
               {copy.dashboard.pendingActionBack}
+            </button>
+          </div>
+        </OverlayModal>
+      ) : null}
+
+      {marketSellItem ? (
+        <OverlayModal>
+          <SectionEyebrow>{copy.market.sellTitle}</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{localizeItemName(marketSellItem.itemId, marketSellItem.name, locale)}</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            {formatMessage(copy.market.sellSummary, {
+              feeRate: snapshot.market.feeRatePercent,
+              itemName: localizeItemName(marketSellItem.itemId, marketSellItem.name, locale),
+            })}
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <DataPill label={messages.common.rarity} value={rarityLabel(marketSellItem.rarity, messages)} />
+            <DataPill label={messages.common.slot} value={slotLabel(marketSellItem.slot, messages)} />
+            <DataPill label={copy.market.sellableQuantity} value={formatNumber(marketSellableQuantity, locale)} />
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-medium text-amber-100">{copy.market.sellPriceLabel}</span>
+              <input
+                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-amber-300"
+                inputMode="numeric"
+                onChange={(event) => setMarketSellPrice(event.target.value.replace(/[^\d]/g, ""))}
+                placeholder={marketReferencePrice === null ? copy.market.sellPricePlaceholderEmpty : copy.market.sellPricePlaceholder}
+                value={marketSellPrice}
+              />
+              <p className="mt-2 text-xs leading-6 text-slate-400">
+                {marketReferencePrice === null
+                  ? copy.market.noMarketQuote
+                  : marketSellPriceValue <= 0
+                    ? formatMessage(copy.market.marketReference, { price: formatNumber(marketReferencePrice, locale) })
+                    : marketPriceDelta === 0
+                      ? formatMessage(copy.market.sameAsMarket, { price: formatNumber(marketReferencePrice, locale) })
+                      : marketPriceDelta > 0
+                        ? formatMessage(copy.market.aboveMarket, {
+                          delta: formatNumber(Math.abs(marketPriceDelta), locale),
+                          price: formatNumber(marketReferencePrice, locale),
+                        })
+                        : formatMessage(copy.market.belowMarket, {
+                          delta: formatNumber(Math.abs(marketPriceDelta), locale),
+                          price: formatNumber(marketReferencePrice, locale),
+                        })}
+              </p>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-amber-100">{copy.market.sellQuantityLabel}</span>
+              <input
+                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-amber-300"
+                inputMode="numeric"
+                onChange={(event) => setMarketSellQuantity(event.target.value.replace(/[^\d]/g, ""))}
+                placeholder={copy.market.sellQuantityPlaceholder}
+                value={marketSellQuantity}
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="text-xs leading-6 text-slate-400">
+                  {formatMessage(copy.market.sellQuantityHint, { quantity: formatNumber(marketSellableQuantity, locale) })}
+                </p>
+                <button
+                  className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:bg-amber-300/18"
+                  onClick={() => setMarketSellQuantity(String(marketSellableQuantity))}
+                  type="button"
+                >
+                  {copy.market.sellAll}
+                </button>
+              </div>
+            </label>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <DataPill label={messages.common.sellPrice} value={formatNumber(marketSellItem.sellPrice, locale)} />
+            <DataPill label={copy.market.feePreview} value={formatNumber(Math.floor((Number(marketSellPrice || 0) * snapshot.market.feeRatePercent) / 100), locale)} />
+            <DataPill label={copy.market.receivePreview} value={formatNumber(Math.max(0, Number(marketSellPrice || 0) - Math.floor((Number(marketSellPrice || 0) * snapshot.market.feeRatePercent) / 100)), locale)} />
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="flex-1 rounded-[1rem] bg-amber-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={
+                status === "saving"
+                || Number(marketSellPrice) <= 0
+                || Number(marketSellQuantity) <= 0
+                || Number(marketSellQuantity) > marketSellableQuantity
+              }
+              onClick={() => {
+                void createMarketListing(marketSellItem.backpackId, Number(marketSellPrice), Number(marketSellQuantity)).then(() => {
+                  setMarketSellBackpackId(null);
+                  setMarketSellPrice("");
+                  setMarketSellQuantity("1");
+                });
+              }}
+              type="button"
+            >
+              {copy.market.confirmSell}
+            </button>
+            <button
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              onClick={() => {
+                setMarketSellBackpackId(null);
+                setMarketSellPrice("");
+                setMarketSellQuantity("1");
+              }}
+              type="button"
+            >
+              {messages.common.cancel}
+            </button>
+          </div>
+        </OverlayModal>
+      ) : null}
+
+      {pendingMarketPurchase ? (
+        <OverlayModal>
+          <SectionEyebrow>{copy.market.buyTitle}</SectionEyebrow>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{localizeItemName(pendingMarketPurchase.itemId, pendingMarketPurchase.name, locale)}</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-300">
+            {formatMessage(copy.market.buySummary, {
+              price: formatNumber(pendingMarketPurchase.price, locale),
+              sellerName: pendingMarketPurchase.sellerName,
+            })}
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <DataPill label={copy.market.lowestPrice} value={formatNumber(pendingMarketPurchase.price, locale)} />
+            <DataPill label={copy.market.availableCount} value={formatNumber(pendingMarketPurchase.availableCount, locale)} />
+            <DataPill label={copy.market.feeRule} value={`${snapshot.market.feeRatePercent}%`} />
+          </div>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="flex-1 rounded-[1rem] bg-emerald-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={status === "saving"}
+              onClick={() => {
+                void buyMarketListing(pendingMarketPurchase.listingId).then(() => {
+                  setPendingMarketPurchaseListingId(null);
+                });
+              }}
+              type="button"
+            >
+              {copy.market.confirmBuy}
+            </button>
+            <button
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              onClick={() => setPendingMarketPurchaseListingId(null)}
+              type="button"
+            >
+              {messages.common.cancel}
             </button>
           </div>
         </OverlayModal>
@@ -1775,6 +2166,9 @@ function MainDashboard() {
               backpack={backpack}
               currentTaskReward={currentTaskReward}
               maps={maps}
+              onRequestBuyMarketListing={(listingId) => {
+                setPendingMarketPurchaseListingId(listingId);
+              }}
               onUnequipItem={(backpackId) => {
                 void unequipBackpackItem(backpackId);
               }}
@@ -1795,6 +2189,12 @@ function MainDashboard() {
           <RightRail
             activePanel={activePanel}
             backpack={backpack}
+            onCancelMarketListing={(listingId) => {
+              void cancelMarketListing(listingId);
+            }}
+            onDismissMarketSoldNotification={(listingId) => {
+              void dismissMarketSoldNotification(listingId);
+            }}
             pendingReward={snapshot.afk.pendingReward}
             selectedItem={selectedItem}
             snapshot={snapshot}
