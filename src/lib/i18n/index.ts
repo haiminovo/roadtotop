@@ -1,10 +1,8 @@
-import { enUS } from "@/lib/i18n/en-us";
 import { zhCN, type AppCopy } from "@/lib/i18n/zh-cn";
 
-export type SupportedLocale = "en-US" | "zh-CN";
+export type SupportedLocale = "zh-CN";
 
 export const messages: Record<SupportedLocale, AppCopy> = {
-  "en-US": enUS,
   "zh-CN": zhCN,
 };
 
@@ -12,10 +10,6 @@ export const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
 
 export function getMessages(locale: SupportedLocale = DEFAULT_LOCALE): AppCopy {
   return messages[locale] ?? messages[DEFAULT_LOCALE];
-}
-
-export function isSupportedLocale(value: string | null | undefined): value is SupportedLocale {
-  return value === "zh-CN" || value === "en-US";
 }
 
 function interpolate(template: string, values: Record<string, string | number>) {

@@ -28,11 +28,6 @@ export const zhCN = {
     currentMap: "当前地图",
     max: "满级",
   },
-  locale: {
-    label: "语言",
-    zhCN: "中文",
-    enUS: "English",
-  },
   chat: {
     channel: "频道聊天",
     currentChannel: "当前频道",
@@ -231,9 +226,9 @@ export const zhCN = {
     itemActions: {
       equip: {
         label: "装备物品",
-        summary: "将这件物品穿戴到对应肢体部位。",
+        summary: "将这件物品穿戴到对应肢体部位，部位已满时会自动替换现有装备。",
         confirmTitle: "确认装备物品",
-        confirmCopy: "装备后会占用对应肢体槽位，若槽位不足则无法穿上。",
+        confirmCopy: "装备后会占用对应肢体槽位，若部位已满则会自动脱下对应部位的现有装备。",
         confirmVerb: "确认装备",
       },
       drop: {

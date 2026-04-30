@@ -395,6 +395,33 @@ function getBackpackEquippedCount(backpackRow: Pick<BackpackRow, "equipped_slot_
   return backpackRow.equipped_slot_groups.length;
 }
 
+function getRoleEffectiveStats(
+  role: Pick<RoleRow, "strength" | "agility" | "intelligence" | "vitality">,
+  backpack: Array<Pick<BackpackRow, "equipped_slot_groups" | "stat_json">> = [],
+) {
+  const nextStats = {
+    strength: normalizeNumber(role.strength),
+    agility: normalizeNumber(role.agility),
+    intelligence: normalizeNumber(role.intelligence),
+    vitality: normalizeNumber(role.vitality),
+  };
+
+  backpack.forEach((item) => {
+    const equippedCount = getBackpackEquippedCount(item);
+
+    if (equippedCount <= 0) {
+      return;
+    }
+
+    nextStats.strength += normalizeNumber(item.stat_json?.strength) * equippedCount;
+    nextStats.agility += normalizeNumber(item.stat_json?.agility) * equippedCount;
+    nextStats.intelligence += normalizeNumber(item.stat_json?.intelligence) * equippedCount;
+    nextStats.vitality += normalizeNumber(item.stat_json?.vitality) * equippedCount;
+  });
+
+  return nextStats;
+}
+
 function normalizeEquippedSlotGroups(value: unknown): string[][] {
   if (!Array.isArray(value)) {
     return [];
@@ -436,6 +463,10 @@ function buildAvailableBodySlotKeys(capacities: BodySlotCapacities, slotType: Bo
   return Array.from({ length: count }, (_, index) => `${slotType}-${index + 1}`);
 }
 
+function getBodySlotIndex(slotKey: string) {
+  return Number(slotKey.split("-")[1]) || 0;
+}
+
 function allocateEquipmentSlots(
   role: Pick<RoleRow, "race_key">,
   backpack: BackpackRow[],
@@ -457,11 +488,62 @@ function allocateEquipmentSlots(
   );
   const freeSlots = candidateSlotKeys.filter((slotKey) => !occupiedSlots.has(slotKey));
 
-  if (freeSlots.length < item.slot_usage) {
+  if (freeSlots.length >= item.slot_usage) {
+    const allocatedSlots = freeSlots.slice(0, item.slot_usage);
+    item.equipped_slot_groups.push(allocatedSlots);
+    item.equipped = item.equipped_slot_groups.length > 0;
+    return allocatedSlots;
+  }
+
+  const releasedSlots = [...freeSlots];
+  const groupsToRelease: Array<{ entry: BackpackRow; group: string[] }> = [];
+  const slotOwners = new Map<string, { entry: BackpackRow; group: string[] }>();
+
+  backpack.forEach((entry) => {
+    entry.equipped_slot_groups.forEach((group) => {
+      if (!group.every((slotKey) => candidateSlotKeys.includes(slotKey))) {
+        return;
+      }
+
+      group.forEach((slotKey) => {
+        slotOwners.set(slotKey, { entry, group });
+      });
+    });
+  });
+
+  const candidateSlotsByPriority = [...candidateSlotKeys].sort((left, right) => getBodySlotIndex(right) - getBodySlotIndex(left));
+  const markedGroups = new Set<string[]>();
+
+  for (const slotKey of candidateSlotsByPriority) {
+    if (releasedSlots.length >= item.slot_usage) {
+      break;
+    }
+
+    const owner = slotOwners.get(slotKey);
+
+    if (!owner || markedGroups.has(owner.group)) {
+      continue;
+    }
+
+    markedGroups.add(owner.group);
+    groupsToRelease.push(owner);
+    releasedSlots.push(...owner.group);
+  }
+
+  if (releasedSlots.length < item.slot_usage) {
     throw new Error("对应肢体部位已经被占满，无法继续装备。");
   }
 
-  const allocatedSlots = freeSlots.slice(0, item.slot_usage);
+  const groupsMarkedForRelease = new Set(groupsToRelease.map((entry) => entry.group));
+  const touchedEntries = new Set(groupsToRelease.map((entry) => entry.entry));
+
+  touchedEntries.forEach((entry) => {
+    entry.equipped_slot_groups = entry.equipped_slot_groups.filter((group) => !groupsMarkedForRelease.has(group));
+    entry.equipped = entry.equipped_slot_groups.length > 0;
+  });
+
+  const availableAfterRelease = candidateSlotKeys.filter((slotKey) => releasedSlots.includes(slotKey));
+  const allocatedSlots = availableAfterRelease.slice(0, item.slot_usage);
   item.equipped_slot_groups.push(allocatedSlots);
   item.equipped = item.equipped_slot_groups.length > 0;
 
@@ -806,12 +888,15 @@ function buildRewardDeltaForExecutions(mapKey: MapKey | null, previousExecutions
   };
 }
 
-function getRoleMaxHealth(role: Pick<RoleRow, "level" | "vitality">) {
-  return getMaxHealth(role.vitality, role.level);
+function getRoleMaxHealth(
+  role: Pick<RoleRow, "level" | "strength" | "agility" | "intelligence" | "vitality">,
+  backpack: Array<Pick<BackpackRow, "equipped_slot_groups" | "stat_json">> = [],
+) {
+  return getMaxHealth(getRoleEffectiveStats(role, backpack).vitality, role.level);
 }
 
-function normalizeRoleHealth(role: RoleRow) {
-  const maxHealth = getRoleMaxHealth(role);
+function normalizeRoleHealth(role: RoleRow, backpack: BackpackRow[] = []) {
+  const maxHealth = getRoleMaxHealth(role, backpack);
   const rawHealth = Number(role.current_health);
   const nextHealth =
     Number.isFinite(rawHealth) && rawHealth > 0
@@ -826,7 +911,7 @@ function normalizeRoleHealth(role: RoleRow) {
   return true;
 }
 
-function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogEntry[]) {
+function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogEntry[], backpack: BackpackRow[] = []) {
   let didMutate = false;
 
   for (const encounter of encounters) {
@@ -839,7 +924,7 @@ function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogE
     didMutate = true;
 
     if (healthDelta > 0) {
-      role.current_health = Math.min(getRoleMaxHealth(role), role.current_health + healthDelta);
+      role.current_health = Math.min(getRoleMaxHealth(role, backpack), role.current_health + healthDelta);
       continue;
     }
 
@@ -852,24 +937,24 @@ function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogE
     const nextLevel = Math.max(1, role.level - 1);
     role.level = nextLevel;
     role.exp = getLevelBaseExp(nextLevel);
-    role.current_health = getRoleMaxHealth(role);
+    role.current_health = getRoleMaxHealth(role, backpack);
   }
 
   return didMutate;
 }
 
-function applyRewardToRole(role: RoleRow, reward: RewardDelta) {
+function applyRewardToRole(role: RoleRow, reward: RewardDelta, backpack: BackpackRow[] = []) {
   if (reward.gold <= 0 && reward.aetherCrystal <= 0 && reward.exp <= 0) {
     return false;
   }
 
   const previousLevel = role.level;
-  const previousMaxHealth = getRoleMaxHealth(role);
+  const previousMaxHealth = getRoleMaxHealth(role, backpack);
   role.gold += reward.gold;
   role.aether_crystal += reward.aetherCrystal;
   role.exp += reward.exp;
   role.level = getLevelFromExp(role.exp);
-  const nextMaxHealth = getRoleMaxHealth(role);
+  const nextMaxHealth = getRoleMaxHealth(role, backpack);
 
   if (role.level > previousLevel) {
     role.current_health = Math.min(
@@ -883,7 +968,7 @@ function applyRewardToRole(role: RoleRow, reward: RewardDelta) {
   return true;
 }
 
-function applyPendingRewardToRole(role: RoleRow, afk: AfkRow) {
+function applyPendingRewardToRole(role: RoleRow, afk: AfkRow, backpack: BackpackRow[] = []) {
   const pendingReward: RewardDelta = {
     aetherCrystal: afk.pending_aether_crystal,
     encounters: [],
@@ -894,7 +979,7 @@ function applyPendingRewardToRole(role: RoleRow, afk: AfkRow) {
     seconds: afk.accrued_seconds,
   };
 
-  return applyRewardToRole(role, pendingReward);
+  return applyRewardToRole(role, pendingReward, backpack);
 }
 
 function settleAfkState(afk: AfkRow, options?: { capSeconds?: number; now?: number }): RewardDelta {
@@ -1263,8 +1348,12 @@ export async function equipBackpackItem(guestToken: string, backpackId: string) 
 
   allocateEquipmentSlots(data.role, data.backpack, matchedItem);
   sortBackpackRows(data.backpack);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
 
   await withTransaction(async (client) => {
+    if (didNormalizeRoleHealth) {
+      await persistRole(client, data.role);
+    }
     await persistBackpackEquipState(client, data.backpack);
   });
 
@@ -1287,8 +1376,12 @@ export async function unequipBackpackItem(guestToken: string, backpackId: string
 
   removeOneEquippedGroup(matchedItem);
   sortBackpackRows(data.backpack);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
 
   await withTransaction(async (client) => {
+    if (didNormalizeRoleHealth) {
+      await persistRole(client, data.role);
+    }
     await persistBackpackEquipState(client, data.backpack);
   });
 
@@ -1300,6 +1393,9 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
   const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
+  const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
+  const maxHealth = getRoleMaxHealth(data.role, data.backpack);
+  const currentHealth = Math.min(maxHealth, normalizeNumber(data.role.current_health));
 
   return {
     serverTime: Date.now(),
@@ -1325,17 +1421,12 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       exp: data.role.exp,
       currentLevelExp: progress.currentLevelExp,
       nextLevelExp: progress.nextLevelExp,
-      currentHealth: data.role.current_health,
-      maxHealth: getRoleMaxHealth(data.role),
+      currentHealth,
+      maxHealth,
       gold: data.role.gold,
       aetherCrystal: data.role.aether_crystal,
       avatarSeed: data.role.avatar_seed,
-      stats: {
-        strength: data.role.strength,
-        agility: data.role.agility,
-        intelligence: data.role.intelligence,
-        vitality: data.role.vitality,
-      },
+      stats: effectiveStats,
       bodySlotCapacities,
       bodySlots,
     },
@@ -1698,7 +1789,7 @@ export async function getFullSessionSnapshot(
   options?: { forceOfflineSettlement?: boolean },
 ) {
   const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline =
@@ -1708,10 +1799,10 @@ export async function getFullSessionSnapshot(
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,
   });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
-  const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
+  const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
 
   if (didAutoSettleOnlineReward) {
     consumePendingReward(data.afk, rewardDelta);
@@ -1767,7 +1858,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 
 export async function stopAfk(guestToken: string) {
   const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
   const rewardDelta = settleAfkState(data.afk, { now });
 
@@ -1775,9 +1866,9 @@ export async function stopAfk(guestToken: string) {
     return buildSnapshot(data);
   }
 
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-  const didApplyReward = applyRewardToRole(data.role, rewardDelta);
+  const didApplyReward = applyRewardToRole(data.role, rewardDelta, data.backpack);
 
   if (didApplyReward) {
     consumePendingReward(data.afk, rewardDelta);
@@ -1803,19 +1894,19 @@ export async function stopAfk(guestToken: string) {
 
 export async function claimAfkReward(guestToken: string) {
   const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
   const rewardDelta = settleAfkState(data.afk, {
     capSeconds: MAX_OFFLINE_SECONDS,
     now,
   });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters);
+  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
 
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
 
-  const didApplyOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta);
+  const didApplyOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
 
   if (didApplyOnlineReward) {
     consumePendingReward(data.afk, rewardDelta);
@@ -1841,7 +1932,7 @@ export async function claimAfkReward(guestToken: string) {
     return buildSnapshot(data);
   }
 
-  const didClaimPendingReward = applyPendingRewardToRole(data.role, data.afk);
+  const didClaimPendingReward = applyPendingRewardToRole(data.role, data.afk, data.backpack);
   data.afk.pending_gold = 0;
   data.afk.pending_aether_crystal = 0;
   data.afk.pending_exp = 0;

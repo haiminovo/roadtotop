@@ -31,22 +31,21 @@ function formatDecimal(value: number, locale: SupportedLocale = DEFAULT_LOCALE) 
   }).format(value);
 }
 
-function formatDuration(seconds: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+function formatDuration(seconds: number) {
   const totalSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const remainingSeconds = totalSeconds % 60;
-  const isEnglish = locale === "en-US";
 
   if (hours > 0) {
-    return isEnglish ? `${hours}h ${minutes}m` : `${hours}小时 ${minutes}分`;
+    return `${hours}小时 ${minutes}分`;
   }
 
   if (minutes > 0) {
-    return isEnglish ? `${minutes}m ${remainingSeconds}s` : `${minutes}分 ${remainingSeconds}秒`;
+    return `${minutes}分 ${remainingSeconds}秒`;
   }
 
-  return isEnglish ? `${remainingSeconds}s` : `${remainingSeconds}秒`;
+  return `${remainingSeconds}秒`;
 }
 
 function formatClock(seconds: number) {
@@ -177,7 +176,6 @@ function statLabel(statKey: string, messages: I18nMessages = DEFAULT_MESSAGES) {
 
 function bodySlotKeyLabel(
   slotKey: string,
-  locale: SupportedLocale = DEFAULT_LOCALE,
   messages: I18nMessages = DEFAULT_MESSAGES,
 ) {
   const [slotType, indexText] = slotKey.split("-");
@@ -188,12 +186,11 @@ function bodySlotKeyLabel(
     return baseLabel;
   }
 
-  return locale === "en-US" ? `${baseLabel} ${index}` : `${baseLabel}${index}`;
+  return `${baseLabel}${index}`;
 }
 
 function formatEquippedGroupSummary(
   groups: string[][] | null | undefined,
-  locale: SupportedLocale = DEFAULT_LOCALE,
   messages: I18nMessages = DEFAULT_MESSAGES,
 ) {
   const safeGroups = Array.isArray(groups) ? groups : [];
@@ -203,7 +200,7 @@ function formatEquippedGroupSummary(
   }
 
   return safeGroups
-    .map((group) => group.map((slotKey) => bodySlotKeyLabel(slotKey, locale, messages)).join(" + "))
+    .map((group) => group.map((slotKey) => bodySlotKeyLabel(slotKey, messages)).join(" + "))
     .join(" / ");
 }
 
@@ -326,21 +323,27 @@ function OverlayModal({
 }
 
 function TopStatusBar({
+  barClassName = "h-3",
+  className = "",
   label,
+  labelClassName = "text-slate-300",
   tone,
   value,
 }: {
+  barClassName?: string;
+  className?: string;
   label: string;
+  labelClassName?: string;
   tone: string;
   value: number;
 }) {
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-slate-300">
+    <div className={className}>
+      <div className={`mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] ${labelClassName}`}>
         <span>{label}</span>
         <span>{Math.max(0, Math.floor(value))}%</span>
       </div>
-      <div className="h-3 overflow-hidden rounded-full bg-slate-950/90">
+      <div className={`${barClassName} overflow-hidden rounded-full bg-slate-950/90`}>
         <div
           className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-75 ease-linear ${tone}`}
           style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
@@ -426,7 +429,7 @@ function ItemTile({
   return (
     <button
       className={[
-        "group relative flex aspect-square flex-col justify-between overflow-hidden rounded-[1rem] border p-3 text-left transition",
+        "group relative flex aspect-square flex-col overflow-hidden rounded-[1rem] border p-3 text-left transition",
         itemAccent(rarity),
         active ? "ring-2 ring-sky-300/60" : "hover:translate-y-[-1px]",
       ].join(" ")}
@@ -435,23 +438,25 @@ function ItemTile({
       type="button"
     >
       {equippedCount > 0 ? (
-        <span className="absolute left-2 top-2 rounded-full border border-emerald-300/30 bg-emerald-300/18 px-2 py-0.5 text-[10px] font-semibold text-emerald-50">
+        <span className="absolute right-2 top-2 rounded-full border border-emerald-300/35 bg-emerald-300/14 px-2 py-0.5 text-[10px] font-semibold leading-none text-emerald-100">
           {messages.game.dashboard.equippedBadge}
         </span>
       ) : null}
-      <span className="text-lg font-semibold">{glyph}</span>
-      <span className="self-end rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <span className="text-lg font-semibold">{glyph}</span>
+        <span className="mt-auto pr-10 text-xs font-medium leading-5 text-white/72">
+          {itemName}
+        </span>
+      </div>
+      <span className="absolute bottom-2 right-2 rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-semibold text-white/90">
         {quantity}
-      </span>
-      <span className="pointer-events-none absolute inset-x-2 bottom-2 truncate text-[10px] text-white/70">
-        {itemName}
       </span>
     </button>
   );
 }
 
 function LandingView() {
-  const { locale, messages, setLocale } = useI18n();
+  const { messages } = useI18n();
   const copy = messages.game;
   const { accountLogin, guestLogin, status } = useGameSession();
   const [loginMode, setLoginMode] = useState<"guest" | "account">("guest");
@@ -479,25 +484,7 @@ function LandingView() {
 
         <SectionCard className="px-6 py-7">
           <SectionEyebrow>{copy.landing.access}</SectionEyebrow>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
-            <div className="mt-4 flex gap-2">
-              <button
-                className={`rounded-full border px-3 py-1 text-xs ${locale === "zh-CN" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
-                onClick={() => setLocale("zh-CN")}
-                type="button"
-              >
-                {messages.locale.zhCN}
-              </button>
-              <button
-                className={`rounded-full border px-3 py-1 text-xs ${locale === "en-US" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
-                onClick={() => setLocale("en-US")}
-                type="button"
-              >
-                {messages.locale.enUS}
-              </button>
-            </div>
-          </div>
+          <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
           <p className="mt-4 text-sm leading-7 text-slate-300">
             {copy.landing.summary}
           </p>
@@ -911,7 +898,7 @@ function CenterPanel({
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {bodySlots.map((slot) => (
                 <div key={slot.key} className="rounded-[0.95rem] border border-white/8 bg-slate-950/35 p-4">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{bodySlotKeyLabel(slot.key, locale, messages)}</p>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{bodySlotKeyLabel(slot.key, messages)}</p>
                   <p className="mt-2 text-sm font-semibold text-white">{slot.item ? localizeItemName(slot.item.itemId, slot.item.name, locale) : copy.dashboard.emptySlot}</p>
                   <p className="mt-1 text-xs text-slate-400">{slot.item ? rarityLabel(slot.item.rarity, messages) : slotLabel(slot.slotType, messages)}</p>
                   {slot.item ? (
@@ -990,8 +977,8 @@ function CenterPanel({
           />
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <DataPill label={copy.dashboard.status} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
-            <DataPill label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress), locale)} />
-            <DataPill label={copy.dashboard.executed} value={formatDuration(taskProgress, locale)} />
+            <DataPill label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
+            <DataPill label={copy.dashboard.executed} value={formatDuration(taskProgress)} />
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
@@ -1099,7 +1086,7 @@ function RightRail({
                   <p className="mt-3 text-xs text-slate-400">
                     {formatMessage(copy.dashboard.equippedSummary, {
                       count: formatNumber(selectedItem.equippedCount ?? 0, locale),
-                      slots: formatEquippedGroupSummary(selectedItem.equippedSlotGroups, locale, messages),
+                      slots: formatEquippedGroupSummary(selectedItem.equippedSlotGroups, messages),
                     })}
                   </p>
                   <p className="mt-3 text-xs text-slate-400">{messages.common.sellPrice} {formatNumber(selectedItem.sellPrice, locale)}</p>
@@ -1126,7 +1113,7 @@ function RightRail({
                 <div key={item.backpackId} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
                   <p className="text-sm font-semibold text-white">{localizeItemName(item.itemId, item.name, locale)}</p>
                   <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-400">{slotLabel(item.slot, messages)}</p>
-                  <p className="mt-2 text-xs leading-6 text-slate-400">{formatEquippedGroupSummary(item.equippedSlotGroups, locale, messages)}</p>
+                  <p className="mt-2 text-xs leading-6 text-slate-400">{formatEquippedGroupSummary(item.equippedSlotGroups, messages)}</p>
                   <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(item.stats, locale, messages)}</p>
                 </div>
               )) : (
@@ -1143,7 +1130,7 @@ function RightRail({
               <DataPill label={copy.dashboard.pendingGold} value={formatNumber(pendingReward.gold, locale)} />
               <DataPill label={copy.dashboard.pendingExp} value={formatNumber(pendingReward.exp, locale)} />
               <DataPill label={copy.dashboard.pendingAether} value={formatNumber(pendingReward.aetherCrystal, locale)} />
-              <DataPill label={copy.dashboard.totalDuration} value={formatDuration(pendingReward.seconds, locale)} />
+              <DataPill label={copy.dashboard.totalDuration} value={formatDuration(pendingReward.seconds)} />
               <DataPill
                 label={copy.dashboard.estimatedHourlyReward}
                 value={formatMessage(copy.dashboard.rewardGoldExp, {
@@ -1194,7 +1181,7 @@ function RightRail({
 }
 
 function MainDashboard() {
-  const { locale, messages, setLocale } = useI18n();
+  const { locale, messages } = useI18n();
   const copy = messages.game;
   const {
     activePanel,
@@ -1542,7 +1529,7 @@ function MainDashboard() {
               </p>
               <p className="mt-3 text-sm leading-7 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
               <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
-              <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, locale, messages) })}</p>
+              <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
             </div>
           </div>
 
@@ -1667,114 +1654,101 @@ function MainDashboard() {
 
       <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-3 overflow-hidden">
         <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(49,62,121,0.95),rgba(12,16,34,0.98))]">
-          <div className="space-y-4 px-4 py-3 md:px-5">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[1rem] border border-white/12 bg-white/[0.05] text-xl font-semibold text-sky-100">
-                  {role.avatarSeed}
+          <div className="px-4 py-3 md:px-5">
+            <div className="flex flex-col gap-3">
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)_auto] xl:items-start">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[0.95rem] border border-white/12 bg-white/[0.05] text-lg font-semibold text-sky-100">
+                    {role.avatarSeed}
+                  </div>
+                  <div className="min-w-0">
+                    <SectionEyebrow>{copy.dashboard.overview}</SectionEyebrow>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <h1 className="text-[1.7rem] font-semibold leading-none tracking-[-0.04em] text-white">{role.name}</h1>
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-sky-100/70">
+                        {messages.common.levelShort}{role.level}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-200/80">
+                      {formatMessage(copy.dashboard.roleMeta, {
+                        className: localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale),
+                        level: role.level,
+                        race: localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale),
+                      })}
+                    </p>
+                    <div className="mt-2.5">
+                      <TopStatusBar
+                        className="max-w-xl"
+                        label={copy.dashboard.lifeBar}
+                        tone="from-rose-500 via-orange-400 to-emerald-300"
+                        value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <SectionEyebrow>{copy.dashboard.overview}</SectionEyebrow>
-                  <h1 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-white">{role.name}</h1>
-                  <p className="mt-1 text-sm text-slate-200/80">
-                    {formatMessage(copy.dashboard.roleMeta, {
-                      className: localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale),
-                      level: role.level,
-                      race: localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale),
-                    })}
-                  </p>
+
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <DataPill className="py-1.5" label={copy.dashboard.gold} value={formatNumber(role.gold, locale)} />
+                  <DataPill className="py-1.5" label={copy.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
+                  <DataPill className="py-1.5" label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
+                  <DataPill className="py-1.5" label={copy.dashboard.pendingRewardShort} value={formatNumber(snapshot.afk.pendingReward.gold, locale)} />
+                  <DataPill className="py-1.5" label={copy.dashboard.executionStatus} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+                  <DataPill className="py-1.5" label={copy.dashboard.accountStatus} value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:w-[308px] xl:grid-cols-2">
+                  {isGuestUser ? (
+                    <button
+                      className="rounded-[0.95rem] border border-emerald-300/30 bg-emerald-300/10 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={status === "saving"}
+                      onClick={() => setShowRegisterAccountModal(true)}
+                      type="button"
+                    >
+                      {copy.dashboard.registerAccount}
+                    </button>
+                  ) : null}
+                  {isAccountUser ? (
+                    <button
+                      className="rounded-[0.95rem] border border-rose-300/30 bg-rose-300/10 px-4 py-2.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={status === "saving"}
+                      onClick={() => setShowDeleteRoleConfirm(true)}
+                      type="button"
+                    >
+                      {copy.dashboard.deleteRole}
+                    </button>
+                  ) : null}
+                  <button
+                    className="rounded-[0.95rem] bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={snapshot.afk.status === "active" || status === "saving"}
+                    onClick={() => {
+                      void startAfk();
+                    }}
+                    type="button"
+                  >
+                    {status === "saving" && snapshot.afk.status === "idle" ? messages.common.submit : copy.dashboard.startAfk}
+                  </button>
+                  <button
+                    className="rounded-[0.95rem] bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={snapshot.afk.status === "idle" || status === "saving"}
+                    onClick={() => {
+                      void stopAfk();
+                    }}
+                    type="button"
+                  >
+                    {status === "saving" && snapshot.afk.status === "active" ? messages.common.submit : copy.dashboard.stopAfk}
+                  </button>
+                  <button
+                    className="col-span-2 rounded-[0.95rem] border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-sky-200/25 sm:col-span-2 xl:col-span-2"
+                    onClick={() => {
+                      void claimOfflineReward();
+                    }}
+                    type="button"
+                  >
+                    {copy.dashboard.claimReward}
+                  </button>
                 </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <DataPill label={copy.dashboard.gold} value={formatNumber(role.gold, locale)} />
-                <DataPill label={copy.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
-                <DataPill label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
-                <DataPill label={copy.dashboard.pendingRewardShort} value={formatNumber(snapshot.afk.pendingReward.gold, locale)} />
-                <DataPill label={copy.dashboard.executionStatus} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
-                <DataPill label={copy.dashboard.levelProgress} value={progressCopy} />
-                <DataPill label={copy.dashboard.accountStatus} value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest} />
-              </div>
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_320px]">
-              <TopStatusBar
-                label={copy.dashboard.levelBar}
-                tone="from-teal-300 via-cyan-300 to-sky-400"
-                value={role.nextLevelExp > 0 ? (role.currentLevelExp / role.nextLevelExp) * 100 : 100}
-              />
-              <TopStatusBar
-                label={copy.dashboard.lifeBar}
-                tone="from-rose-500 via-orange-400 to-emerald-300"
-                value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
-                <div className="flex gap-2">
-                  <button
-                    className={`rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition ${locale === "zh-CN" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
-                    onClick={() => setLocale("zh-CN")}
-                    type="button"
-                  >
-                    {messages.locale.zhCN}
-                  </button>
-                  <button
-                    className={`rounded-[0.95rem] border px-4 py-3 text-sm font-semibold transition ${locale === "en-US" ? "border-sky-300/45 bg-sky-300/12 text-white" : "border-white/10 text-slate-300"}`}
-                    onClick={() => setLocale("en-US")}
-                    type="button"
-                  >
-                    {messages.locale.enUS}
-                  </button>
-                </div>
-                {isGuestUser ? (
-                  <button
-                    className="rounded-[0.95rem] border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={status === "saving"}
-                    onClick={() => setShowRegisterAccountModal(true)}
-                    type="button"
-                  >
-                    {copy.dashboard.registerAccount}
-                  </button>
-                ) : null}
-                {isAccountUser ? (
-                  <button
-                    className="rounded-[0.95rem] border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-300/18 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={status === "saving"}
-                    onClick={() => setShowDeleteRoleConfirm(true)}
-                    type="button"
-                  >
-                    {copy.dashboard.deleteRole}
-                  </button>
-                ) : null}
-                <button
-                  className="rounded-[0.95rem] bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={snapshot.afk.status === "active" || status === "saving"}
-                  onClick={() => {
-                    void startAfk();
-                  }}
-                  type="button"
-                >
-                  {status === "saving" && snapshot.afk.status === "idle" ? messages.common.submit : copy.dashboard.startAfk}
-                </button>
-                <button
-                  className="rounded-[0.95rem] bg-rose-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={snapshot.afk.status === "idle" || status === "saving"}
-                  onClick={() => {
-                    void stopAfk();
-                  }}
-                  type="button"
-                >
-                  {status === "saving" && snapshot.afk.status === "active" ? messages.common.submit : copy.dashboard.stopAfk}
-                </button>
-                <button
-                  className="rounded-[0.95rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white transition hover:border-sky-200/25"
-                  onClick={() => {
-                    void claimOfflineReward();
-                  }}
-                  type="button"
-                >
-                  {copy.dashboard.claimReward}
-                </button>
-              </div>
             </div>
           </div>
         </SectionCard>
@@ -1825,6 +1799,19 @@ function MainDashboard() {
             selectedItem={selectedItem}
             snapshot={snapshot}
           />
+        </div>
+
+        <div className="rounded-[0.95rem] border border-white/6 bg-slate-950/45 px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+            <span>{copy.dashboard.levelBar}</span>
+            <span>{copy.dashboard.levelProgress} {progressCopy}</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-teal-300/65 via-cyan-300/60 to-sky-400/70 transition-[width] duration-75 ease-linear"
+              style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
+            />
+          </div>
         </div>
       </div>
     </main>
