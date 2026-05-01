@@ -42,5 +42,4 @@ export type ChatMessage = {
 export type ChatChannel = {
   key: ChatChannelKey;
   label: string;
-  summary: string;
 };

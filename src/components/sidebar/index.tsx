@@ -42,9 +42,6 @@ export default function Sidebar({ items }: SidebarProps) {
           {copy.eyebrow}
         </p>
         <h2 className="mt-2 text-xl font-semibold text-white">{copy.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          {copy.summary}
-        </p>
       </div>
       <div className="overflow-y-auto">
         {items.map((item) => (

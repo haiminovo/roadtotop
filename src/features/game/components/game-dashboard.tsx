@@ -18,6 +18,17 @@ import { useI18n } from "@/lib/i18n/provider";
 type I18nMessages = ReturnType<typeof getMessages>;
 const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
 const DEFAULT_MESSAGES = getMessages(DEFAULT_LOCALE);
+const BATTLE_ATTACK_DAMAGE_MULTIPLIER = 2;
+const BATTLE_SPELL_DAMAGE_MULTIPLIER = 2.5;
+const BATTLE_PLAYER_GUARD_HEAL_RATIO = 0.18;
+const BATTLE_ENEMY_GUARD_HEAL_RATIO = 0.08;
+const BATTLE_PLAYER_GUARD_REDUCTION_RATIO = 0.45;
+const BATTLE_ENEMY_GUARD_REDUCTION_RATIO = 0.35;
+const BATTLE_PLAYER_GUARD_COOLDOWN_TURNS = 2;
+const BATTLE_ENEMY_GUARD_COOLDOWN_TURNS = 3;
+const BATTLE_SPELL_HIGH_INTELLIGENCE_THRESHOLD = 12;
+const BATTLE_HIGH_INTELLIGENCE_SPELL_CHANCE = 0.7;
+const BATTLE_DEFAULT_SPELL_CHANCE = 0.35;
 
 function formatNumber(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
   return new Intl.NumberFormat(locale).format(Math.max(0, Math.floor(value)));
@@ -62,6 +73,10 @@ function formatPercent(current: number, total: number, messages: I18nMessages = 
   return `${Math.min(100, Math.floor((current / total) * 100))}%`;
 }
 
+function formatPercentValue(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(Math.max(0, value * 100))}%`;
+}
+
 function localizeRaceLabel(raceKey: string, fallback: string, locale: SupportedLocale) {
   return getRaceCopy(locale, raceKey)?.label ?? fallback;
 }
@@ -80,10 +95,6 @@ function localizeClassSummary(classKey: string, fallback: string, locale: Suppor
 
 function localizeMapLabel(mapKey: string, fallback: string, locale: SupportedLocale) {
   return getMapCopy(locale, mapKey)?.label ?? fallback;
-}
-
-function localizeMapSummary(mapKey: string, fallback: string, locale: SupportedLocale) {
-  return getMapCopy(locale, mapKey)?.summary ?? fallback;
 }
 
 function localizeItemName(itemId: string, fallback: string, locale: SupportedLocale) {
@@ -116,6 +127,31 @@ function formatStatsSummary(
   return entries
     .map(([key, value]) => `${statLabel(key, messages)} +${formatNumber(value, locale)}`)
     .join(" · ");
+}
+
+function calculateBattlePhysicalDamagePreview(strength: number) {
+  return Math.max(1, Math.round(Math.max(0, Number(strength) || 0) * BATTLE_ATTACK_DAMAGE_MULTIPLIER));
+}
+
+function calculateBattleSpellDamagePreview(intelligence: number) {
+  return Math.max(1, Math.round(Math.max(0, Number(intelligence) || 0) * BATTLE_SPELL_DAMAGE_MULTIPLIER));
+}
+
+function calculateBattleGuardHealPreview(maxHealth: number, side: "player" | "enemy") {
+  const safeHealth = Math.max(0, Number(maxHealth) || 0);
+  return side === "player"
+    ? Math.max(10, Math.round(safeHealth * BATTLE_PLAYER_GUARD_HEAL_RATIO))
+    : Math.max(8, Math.round(safeHealth * BATTLE_ENEMY_GUARD_HEAL_RATIO));
+}
+
+function calculateBattleGuardReductionPreview(side: "player" | "enemy") {
+  return side === "player" ? BATTLE_PLAYER_GUARD_REDUCTION_RATIO : BATTLE_ENEMY_GUARD_REDUCTION_RATIO;
+}
+
+function calculateBattleSpellChancePreview(intelligence: number) {
+  return intelligence >= BATTLE_SPELL_HIGH_INTELLIGENCE_THRESHOLD
+    ? BATTLE_HIGH_INTELLIGENCE_SPELL_CHANCE
+    : BATTLE_DEFAULT_SPELL_CHANCE;
 }
 
 function slotLabel(slot: string, messages: I18nMessages = DEFAULT_MESSAGES) {
@@ -329,6 +365,126 @@ function DataPill({
   );
 }
 
+function InlineStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[0.85rem] border border-white/8 bg-white/[0.03] px-3 py-2">
+      <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</span>
+      <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function SkillSlot({
+  badge,
+  body,
+  meta,
+  status,
+  toneClassName,
+  title,
+}: {
+  badge: React.ReactNode;
+  body: React.ReactNode;
+  meta: React.ReactNode;
+  status: React.ReactNode;
+  title: React.ReactNode;
+  toneClassName: string;
+}) {
+  return (
+    <div className="group relative min-w-0">
+      <div className={`flex min-h-[4.5rem] flex-col items-center justify-center rounded-[0.95rem] border px-2 py-2 text-center transition ${toneClassName}`}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950/40 text-[11px] font-semibold text-white">
+          {badge}
+        </div>
+        <p className="mt-1 text-[10px] font-semibold tracking-[0.08em] text-white">{title}</p>
+        <p className="mt-0.5 text-[10px] leading-4 text-slate-300">{status}</p>
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-[calc(100%+0.45rem)] z-20 hidden w-56 -translate-x-1/2 rounded-[0.95rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.38)] group-hover:block">
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <p className="mt-1 text-[11px] text-slate-400">{meta}</p>
+        <p className="mt-2 text-xs leading-6 text-slate-300">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function BattleSkillSlots({
+  combatant,
+  side,
+}: {
+  combatant: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["afk"]["battle"] extends infer TBattle
+    ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
+      ? TPlayer | TEnemy
+      : never
+    : never;
+  side: "player" | "enemy";
+}) {
+  const { locale, messages } = useI18n();
+  const copy = messages.game.dashboard;
+  const attackDamage = calculateBattlePhysicalDamagePreview(combatant.stats.strength);
+  const spellDamage = calculateBattleSpellDamagePreview(combatant.stats.intelligence);
+  const guardHeal = calculateBattleGuardHealPreview(combatant.maxHealth, side);
+  const guardReduction = calculateBattleGuardReductionPreview(side);
+  const spellChance = calculateBattleSpellChancePreview(combatant.stats.intelligence);
+  const guardRemaining = side === "player" ? copy.skillUnlimited : formatNumber(combatant.skillUsesRemaining.guard, locale);
+  const spellRemaining = side === "player" ? copy.skillUnlimited : formatNumber(combatant.skillUsesRemaining.spell, locale);
+  const spellStatus = side === "player"
+    ? formatMessage(copy.skillChanceValue, { chance: formatPercentValue(spellChance, locale) })
+    : formatMessage(copy.skillRemainingValue, { count: spellRemaining });
+  const attackStatus = formatMessage(copy.skillDamageShortValue, { amount: formatNumber(attackDamage, locale) });
+  const guardStatusText = combatant.defenseTurns > 0 ? copy.skillActive : copy.skillReady;
+
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-2">
+        <SkillSlot
+          badge="ATK"
+          body={formatMessage(copy.skillAttackDetail, {
+            agility: formatPercentValue(Math.max(0, Math.min(0.75, combatant.stats.agility / 50)), locale),
+            damage: formatNumber(attackDamage, locale),
+            strength: formatNumber(combatant.stats.strength, locale),
+          })}
+          meta={copy.skillAttackMeta}
+          status={attackStatus}
+          title={copy.skillAttackShort}
+          toneClassName="border-white/10 bg-slate-950/30 hover:border-sky-300/30"
+        />
+        <SkillSlot
+          badge="SP"
+          body={formatMessage(copy.skillSpellDetail, {
+            chance: formatPercentValue(spellChance, locale),
+            damage: formatNumber(spellDamage, locale),
+            intelligence: formatNumber(combatant.stats.intelligence, locale),
+            remaining: spellRemaining,
+          })}
+          meta={copy.skillSpellMeta}
+          status={spellStatus}
+          title={copy.skillSpellShort}
+          toneClassName="border-fuchsia-300/18 bg-fuchsia-300/[0.08] hover:border-fuchsia-300/35"
+        />
+        <SkillSlot
+          badge="DEF"
+          body={formatMessage(copy.skillGuardDetail, {
+            cooldown: formatNumber(side === "player" ? BATTLE_PLAYER_GUARD_COOLDOWN_TURNS : BATTLE_ENEMY_GUARD_COOLDOWN_TURNS, locale),
+            heal: formatNumber(guardHeal, locale),
+            reduction: formatPercentValue(guardReduction, locale),
+            remaining: guardRemaining,
+          })}
+          meta={copy.skillGuardMeta}
+          status={guardStatusText}
+          title={copy.skillGuardShort}
+          toneClassName="border-amber-300/18 bg-amber-300/[0.08] hover:border-amber-300/35"
+        />
+      </div>
+    </div>
+  );
+}
+
 function FilterSelect({
   label,
   onChange,
@@ -362,13 +518,11 @@ function RailButton({
   count,
   label,
   onClick,
-  summary,
 }: {
   active: boolean;
   count?: string;
   label: string;
   onClick: () => void;
-  summary: string;
 }) {
   return (
     <button
@@ -389,7 +543,6 @@ function RailButton({
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-xs leading-6 text-slate-400">{summary}</p>
     </button>
   );
 }
@@ -472,9 +625,6 @@ function LandingView() {
         <SectionCard className="px-6 py-7">
           <SectionEyebrow>{copy.landing.access}</SectionEyebrow>
           <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
-          <p className="mt-4 text-sm leading-7 text-slate-300">
-            {copy.landing.summary}
-          </p>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <button
@@ -584,7 +734,6 @@ function CreateRoleView() {
         <SectionCard className="px-6 py-7 md:px-8">
           <SectionEyebrow>{copy.createRole.setup}</SectionEyebrow>
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">{copy.createRole.title}</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-300">{copy.createRole.summary}</p>
 
           <label className="mt-8 block">
             <span className="text-sm font-medium text-sky-100">{copy.createRole.roleName}</span>
@@ -813,17 +962,16 @@ function CenterPanel({
 
   if (activePanel === "backpack") {
     return (
-      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="border-b border-white/8 px-4 py-3">
-          <SectionEyebrow>{copy.dashboard.inventory}</SectionEyebrow>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.backpackTitle}</h2>
-              <p className="mt-1 text-sm text-slate-300">{copy.dashboard.backpackSummary}</p>
-            </div>
-            <div className="flex gap-2">
-              <DataPill label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
-              <DataPill
+        <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+          <div className="border-b border-white/8 px-4 py-3">
+            <SectionEyebrow>{copy.dashboard.inventory}</SectionEyebrow>
+            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.backpackTitle}</h2>
+              </div>
+              <div className="flex gap-2">
+                <DataPill label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
+                <DataPill
                 label={copy.dashboard.equippedCount}
                 value={formatNumber(backpack.reduce((total, item) => total + (item.equippedCount ?? 0), 0), locale)}
               />
@@ -931,7 +1079,6 @@ function CenterPanel({
           <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.market.title}</h2>
-              <p className="mt-1 text-sm text-slate-300">{copy.market.summary}</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
               <FilterSelect
@@ -1025,31 +1172,29 @@ function CenterPanel({
 
   return (
     <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="border-b border-white/8 px-4 py-3">
+      <div className="border-b border-white/8 px-4 py-2.5">
         <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
         <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.afkTitle}</h2>
-            <p className="mt-1 text-sm text-slate-300">{copy.dashboard.afkSummaryText}</p>
+            <h2 className="text-[1.35rem] font-semibold tracking-[-0.04em] text-white">{copy.dashboard.afkTitle}</h2>
           </div>
           <div className="flex gap-2">
             <DataPill label={copy.dashboard.cycle} value={formatClock(taskDuration)} />
             <DataPill
               label={copy.dashboard.currentRound}
-              value={activeBattle ? copy.dashboard.battlePausedHint : `${formatClock(taskProgress)} / ${formatClock(taskDuration)}`}
+              value={activeBattle ? copy.dashboard.battlePausedShort : `${formatClock(taskProgress)} / ${formatClock(taskDuration)}`}
             />
           </div>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-4">
+      <div className="grid min-h-0 flex-1 gap-2 overflow-hidden p-3 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-3">
           {activeBattle ? (
             <div>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xl font-semibold text-white">{copy.dashboard.battleTitle}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-300">{copy.dashboard.battleSummary}</p>
+                  <p className="text-lg font-semibold text-white">{copy.dashboard.battleTitle}</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <DataPill label={copy.dashboard.battleStatus} value={battleStatusCopy} />
@@ -1057,11 +1202,11 @@ function CenterPanel({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                <div className="rounded-[1rem] border border-emerald-300/20 bg-emerald-300/8 p-4">
+              <div className="mt-3 grid gap-2 xl:grid-cols-2">
+                <div className="rounded-[1rem] border border-emerald-300/20 bg-emerald-300/8 p-3">
                   <SectionEyebrow>{copy.dashboard.selfInfo}</SectionEyebrow>
-                  <p className="mt-2 text-lg font-semibold text-white">{activeBattle.player.name}</p>
-                  <div className="mt-3">
+                  <p className="mt-1.5 text-base font-semibold text-white">{activeBattle.player.name}</p>
+                  <div className="mt-2.5">
                     <TopStatusBar
                       label={copy.dashboard.lifeBar}
                       tone="from-emerald-400 via-cyan-300 to-sky-300"
@@ -1069,7 +1214,7 @@ function CenterPanel({
                       value={(activeBattle.player.currentHealth / Math.max(1, activeBattle.player.maxHealth)) * 100}
                     />
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2.5">
                     <TopStatusBar
                       barClassName="h-2.5"
                       label={copy.dashboard.actionBar}
@@ -1077,17 +1222,15 @@ function CenterPanel({
                       value={activeBattle.player.actionBar}
                     />
                   </div>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <DataPill label={copy.dashboard.currentHealth} value={`${formatNumber(activeBattle.player.currentHealth, locale)} / ${formatNumber(activeBattle.player.maxHealth, locale)}`} />
-                    <DataPill label={copy.dashboard.defenseActive} value={activeBattle.player.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+                  <div className="mt-3">
+                    <BattleSkillSlots combatant={activeBattle.player} side="player" />
                   </div>
                 </div>
 
-                <div className="rounded-[1rem] border border-rose-300/20 bg-rose-300/8 p-4">
+                <div className="rounded-[1rem] border border-rose-300/20 bg-rose-300/8 p-3">
                   <SectionEyebrow>{copy.dashboard.enemyInfo}</SectionEyebrow>
-                  <p className="mt-2 text-lg font-semibold text-white">{activeBattle.enemy.name}</p>
-                  <p className="mt-1 text-sm text-slate-300">{activeBattle.enemy.summary}</p>
-                  <div className="mt-3">
+                  <p className="mt-1.5 text-base font-semibold text-white">{activeBattle.enemy.name}</p>
+                  <div className="mt-2.5">
                     <TopStatusBar
                       label={copy.dashboard.lifeBar}
                       tone="from-rose-500 via-orange-400 to-amber-300"
@@ -1095,7 +1238,7 @@ function CenterPanel({
                       value={(activeBattle.enemy.currentHealth / Math.max(1, activeBattle.enemy.maxHealth)) * 100}
                     />
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-2.5">
                     <TopStatusBar
                       barClassName="h-2.5"
                       label={copy.dashboard.actionBar}
@@ -1103,13 +1246,12 @@ function CenterPanel({
                       value={activeBattle.enemy.actionBar}
                     />
                   </div>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <DataPill label={copy.dashboard.enemyLevel} value={formatNumber(activeBattle.enemy.level, locale)} />
                     <DataPill label={copy.dashboard.defenseActive} value={activeBattle.enemy.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <DataPill label={copy.dashboard.skillGuard} value={formatNumber(activeBattle.enemy.skillUsesRemaining.guard, locale)} />
-                    <DataPill label={copy.dashboard.skillSpell} value={formatNumber(activeBattle.enemy.skillUsesRemaining.spell, locale)} />
+                  <div className="mt-3">
+                    <BattleSkillSlots combatant={activeBattle.enemy} side="enemy" />
                   </div>
                 </div>
               </div>
@@ -1121,8 +1263,7 @@ function CenterPanel({
                 <div key={map.key}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xl font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-300">{localizeMapSummary(map.key, map.summary, locale)}</p>
+                      <p className="text-lg font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
                     </div>
                     <button
                       className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300"
@@ -1132,7 +1273,7 @@ function CenterPanel({
                       {copy.dashboard.currentMapButton}
                     </button>
                   </div>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     <DataPill label={copy.dashboard.goldPerMinute} value={formatDecimal(map.goldPerMinute, locale)} />
                     <DataPill label={copy.dashboard.aetherPerMinute} value={formatDecimal(map.aetherPerMinute, locale)} />
                     <DataPill label={copy.dashboard.expPerMinute} value={formatDecimal(map.expPerMinute, locale)} />
@@ -1142,21 +1283,21 @@ function CenterPanel({
           )}
         </div>
 
-        <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
+        <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-3">
           <TopStatusBar
             label={copy.dashboard.executionProgress}
             tone="from-sky-400 via-cyan-300 to-emerald-300"
             value={activeBattle ? 0 : taskProgressPercent}
           />
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <DataPill label={copy.dashboard.status} value={activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
-            <DataPill label={copy.dashboard.remaining} value={activeBattle ? copy.dashboard.battlePausedHint : formatDuration(Math.max(0, taskDuration - taskProgress))} />
-            <DataPill label={copy.dashboard.executed} value={activeBattle ? formatNumber(activeBattle.turnCount, locale) : formatDuration(taskProgress)} />
+          <div className="mt-3 grid gap-2">
+            <InlineStat label={copy.dashboard.status} value={activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+            <InlineStat label={copy.dashboard.remaining} value={activeBattle ? copy.dashboard.battlePausedShort : formatDuration(Math.max(0, taskDuration - taskProgress))} />
+            <InlineStat label={copy.dashboard.executed} value={activeBattle ? formatNumber(activeBattle.turnCount, locale) : formatDuration(taskProgress)} />
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <DataPill label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
-            <DataPill label={copy.dashboard.roundAether} value={formatNumber(currentTaskReward.aetherCrystal, locale)} />
-            <DataPill label={copy.dashboard.roundExp} value={formatNumber(currentTaskReward.exp, locale)} />
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            <InlineStat label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
+            <InlineStat label={copy.dashboard.roundAether} value={formatNumber(currentTaskReward.aetherCrystal, locale)} />
+            <InlineStat label={copy.dashboard.roundExp} value={formatNumber(currentTaskReward.exp, locale)} />
           </div>
         </div>
 
@@ -1585,21 +1726,15 @@ function MainDashboard() {
       gold: Math.floor((snapshot.afk.currentMap.goldPerMinute * taskDuration) / 60),
     }
     : { aetherCrystal: 0, exp: 0, gold: 0 };
-  const afkStatusLabel = activeBattle
-    ? messages.common.fighting
-    : snapshot?.afk.status === "active"
-      ? messages.common.active
-      : messages.common.idle;
-
   if (!snapshot || !role) {
     return null;
   }
 
-  const menuItems: Array<{ key: PanelKey; label: string; summary: string; count?: string }> = [
-    { key: "afk", label: copy.dashboard.menu.afk.label, summary: copy.dashboard.menu.afk.summary, count: activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
-    { key: "backpack", label: copy.dashboard.menu.backpack.label, summary: copy.dashboard.menu.backpack.summary, count: String(backpack.length) },
-    { key: "market", label: copy.dashboard.menu.market.label, summary: copy.dashboard.menu.market.summary, count: String(snapshot.market.listings.length) },
-    { key: "role", label: copy.dashboard.menu.role.label, summary: copy.dashboard.menu.role.summary, count: `${messages.common.levelShort}${role.level}` },
+  const menuItems: Array<{ key: PanelKey; label: string; count?: string }> = [
+    { key: "afk", label: copy.dashboard.menu.afk.label, count: activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
+    { key: "backpack", label: copy.dashboard.menu.backpack.label, count: String(backpack.length) },
+    { key: "market", label: copy.dashboard.menu.market.label, count: String(snapshot.market.listings.length) },
+    { key: "role", label: copy.dashboard.menu.role.label, count: `${messages.common.levelShort}${role.level}` },
   ];
 
   const handleSelectBackpackItem = (backpackId: string) => {
@@ -2112,12 +2247,10 @@ function MainDashboard() {
                   </div>
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
                   <DataPill className="py-1.5" label={copy.dashboard.gold} value={formatNumber(role.gold, locale)} />
                   <DataPill className="py-1.5" label={copy.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
-                  <DataPill className="py-1.5" label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
-                  <DataPill className="py-1.5" label={copy.dashboard.pendingRewardShort} value={formatNumber(snapshot.afk.pendingReward.gold, locale)} />
-                  <DataPill className="py-1.5" label={copy.dashboard.executionStatus} value={afkStatusLabel} />
+                  <DataPill className="py-1.5" label={copy.dashboard.exp} value={formatNumber(role.exp, locale)} />
                   <DataPill className="py-1.5" label={copy.dashboard.accountStatus} value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest} />
                 </div>
 
@@ -2178,7 +2311,7 @@ function MainDashboard() {
           </div>
         </SectionCard>
 
-        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[200px_minmax(0,1.35fr)_280px]">
+        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[184px_minmax(0,1.45fr)_252px]">
           <SectionCard className="min-h-0 p-3">
             <div className="space-y-3">
               {menuItems.map((item) => (
@@ -2188,13 +2321,12 @@ function MainDashboard() {
                   count={item.count}
                   label={item.label}
                   onClick={() => setActivePanel(item.key)}
-                  summary={item.summary}
                 />
               ))}
             </div>
           </SectionCard>
 
-          <div className="grid min-h-0 gap-3 xl:grid-rows-[minmax(0,1fr)_240px]">
+          <div className="grid min-h-0 gap-3 xl:grid-rows-[minmax(0,1fr)_220px]">
             <CenterPanel
               activePanel={activePanel}
               backpack={backpack}

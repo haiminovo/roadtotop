@@ -360,9 +360,6 @@ export default function Chat() {
                 {copy.event}
               </button>
             </div>
-            <p className="text-[11px] text-slate-500">
-              {activeTab === "chat" ? activeChannelMeta?.summary ?? copy.mergedSummary : copy.eventSummary}
-            </p>
           </div>
           {activeTab === "chat" ? (
             <div className="flex items-center gap-2">

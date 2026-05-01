@@ -108,17 +108,14 @@ export function useChatSocket() {
     {
       key: "world",
       label: i18n.chat.channels.world.label,
-      summary: i18n.chat.channels.world.summary,
     },
     {
       key: "trade",
       label: i18n.chat.channels.trade.label,
-      summary: i18n.chat.channels.trade.summary,
     },
     {
       key: "tavern",
       label: i18n.chat.channels.tavern.label,
-      summary: i18n.chat.channels.tavern.summary,
     },
   ], [i18n]);
 
