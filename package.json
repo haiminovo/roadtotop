@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently -k -s first \"pnpm dev:web\" \"pnpm dev:ws\"",
     "dev:web": "next dev --turbopack",
-    "dev:ws": "node server/start-websocket.js",
+    "dev:ws": "node --watch server/start-websocket.js",
     "db:init": "node server/init-db.js",
     "build": "next build",
     "start": "next start",

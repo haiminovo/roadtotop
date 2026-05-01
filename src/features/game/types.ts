@@ -22,6 +22,64 @@ export type RewardPreview = {
   exp: number;
 };
 
+export type BattleLogEntry = {
+  id: string;
+  text: string;
+  timestamp: number;
+  type: string;
+};
+
+export type BattleSnapshot = {
+  battleId: string;
+  active: boolean;
+  status: "active" | "finished";
+  turnCount: number;
+  winner: "player" | "enemy" | null;
+  outcome: null | {
+    loser: string | null;
+    summary: string;
+    winner: string | null;
+  };
+  player: {
+    actionBar: number;
+    currentHealth: number;
+    maxHealth: number;
+    defenseTurns: number;
+    name: string;
+    skillUsesRemaining: {
+      guard: number;
+      spell: number;
+    };
+    stats: {
+      strength: number;
+      agility: number;
+      intelligence: number;
+      vitality: number;
+    };
+  };
+  enemy: {
+    key: string;
+    level: number;
+    name: string;
+    summary: string;
+    actionBar: number;
+    currentHealth: number;
+    maxHealth: number;
+    defenseTurns: number;
+    skillUsesRemaining: {
+      guard: number;
+      spell: number;
+    };
+    stats: {
+      strength: number;
+      agility: number;
+      intelligence: number;
+      vitality: number;
+    };
+  };
+  logs: BattleLogEntry[];
+};
+
 export type BackpackEntry = {
   backpackId: string;
   itemId: string;
@@ -143,6 +201,7 @@ export type SessionSnapshot = {
     mapOptions: MapConfig[];
     currentMap: MapConfig | null;
     pendingReward: RewardPreview;
+    battle: BattleSnapshot | null;
     estimatedHourlyReward: RewardPreview;
     encounterRates: Record<EncounterTier, number>;
     recentEncounters: Array<{

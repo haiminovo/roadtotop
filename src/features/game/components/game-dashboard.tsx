@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Chat from "@/components/chat";
-import { getMaxHealth, type AfkEncounterReward, type BodySlotType, type ClassKey, type EncounterTier, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
+import { getMaxHealth, type BodySlotType, type ClassKey, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
 import {
   formatMessage,
   getClassCopy,
-  getEncounterCopy,
   getItemCopy,
   getMapCopy,
   getMessages,
@@ -63,10 +62,6 @@ function formatPercent(current: number, total: number, messages: I18nMessages = 
   return `${Math.min(100, Math.floor((current / total) * 100))}%`;
 }
 
-function formatEncounterRate(rate: number) {
-  return `${(Math.max(0, rate) * 100).toFixed(3).replace(/\.?0+$/, "")}%`;
-}
-
 function localizeRaceLabel(raceKey: string, fallback: string, locale: SupportedLocale) {
   return getRaceCopy(locale, raceKey)?.label ?? fallback;
 }
@@ -99,55 +94,8 @@ function localizeItemDescription(itemId: string, fallback: string, locale: Suppo
   return getItemCopy(locale, itemId)?.description ?? fallback;
 }
 
-function localizeEncounterTitle(encounterKey: string, fallback: string, locale: SupportedLocale) {
-  return getEncounterCopy(locale, encounterKey)?.title ?? fallback;
-}
-
-function localizeEncounterDescription(encounterKey: string, fallback: string, locale: SupportedLocale) {
-  return getEncounterCopy(locale, encounterKey)?.description ?? fallback;
-}
-
-function formatEncounterReward(
-  reward: AfkEncounterReward,
-  locale: SupportedLocale = DEFAULT_LOCALE,
-  messages: I18nMessages = DEFAULT_MESSAGES,
-) {
-  const segments = [
-    reward.gold > 0 ? `${messages.game.dashboard.gold} ${formatNumber(reward.gold, locale)}` : null,
-    reward.exp > 0 ? `${messages.game.dashboard.exp} ${formatNumber(reward.exp, locale)}` : null,
-    reward.aetherCrystal > 0 ? `${messages.game.dashboard.aetherCrystal} ${formatNumber(reward.aetherCrystal, locale)}` : null,
-    reward.healthDelta
-      ? `${messages.game.dashboard.currentHealth} ${reward.healthDelta > 0 ? "+" : "-"}${formatNumber(Math.abs(reward.healthDelta), locale)}`
-      : null,
-    ...(reward.items ?? []).map((item) => `${localizeItemName(item.itemId, item.name ?? item.itemId, locale)} x${formatNumber(item.quantity, locale)}`),
-  ].filter(Boolean);
-
-  return segments.length > 0 ? segments.join(" / ") : messages.common.empty;
-}
-
 function rarityLabel(rarity: string, messages: I18nMessages = DEFAULT_MESSAGES) {
   return messages.rarity[rarity as keyof I18nMessages["rarity"]] ?? rarity;
-}
-
-function encounterTierLabel(tier: EncounterTier, messages: I18nMessages = DEFAULT_MESSAGES) {
-  return messages.encounterTier[tier];
-}
-
-function encounterTierAccent(tier: EncounterTier) {
-  return {
-    common: "border-sky-300/25 bg-sky-300/10 text-sky-100",
-    rare: "border-amber-300/25 bg-amber-300/10 text-amber-100",
-    legendary: "border-rose-300/25 bg-rose-300/12 text-rose-100",
-  }[tier];
-}
-
-function formatEncounterTriggeredAt(timestamp: number, locale: SupportedLocale = DEFAULT_LOCALE) {
-  return new Date(timestamp).toLocaleString(locale, {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  });
 }
 
 function formatMarketListingStatus(status: "active" | "sold" | "cancelled", messages: I18nMessages = DEFAULT_MESSAGES) {
@@ -336,6 +284,7 @@ function TopStatusBar({
   className = "",
   label,
   labelClassName = "text-slate-300",
+  valueLabel,
   tone,
   value,
 }: {
@@ -343,6 +292,7 @@ function TopStatusBar({
   className?: string;
   label: string;
   labelClassName?: string;
+  valueLabel?: React.ReactNode;
   tone: string;
   value: number;
 }) {
@@ -350,7 +300,7 @@ function TopStatusBar({
     <div className={className}>
       <div className={`mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] ${labelClassName}`}>
         <span>{label}</span>
-        <span>{Math.max(0, Math.floor(value))}%</span>
+        <span>{valueLabel ?? `${Math.max(0, Math.floor(value))}%`}</span>
       </div>
       <div className={`${barClassName} overflow-hidden rounded-full bg-slate-950/90`}>
         <div
@@ -1064,6 +1014,15 @@ function CenterPanel({
     );
   }
 
+  const activeBattle = snapshot.afk.battle?.active ? snapshot.afk.battle : null;
+  const battleStatusCopy = activeBattle
+    ? copy.dashboard.battleOngoing
+    : snapshot.afk.battle?.winner === "player"
+      ? copy.dashboard.battleVictory
+      : snapshot.afk.battle?.winner === "enemy"
+        ? copy.dashboard.battleDefeat
+        : messages.common.idle;
+
   return (
     <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-white/8 px-4 py-3">
@@ -1075,49 +1034,124 @@ function CenterPanel({
           </div>
           <div className="flex gap-2">
             <DataPill label={copy.dashboard.cycle} value={formatClock(taskDuration)} />
-            <DataPill label={copy.dashboard.currentRound} value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
+            <DataPill
+              label={copy.dashboard.currentRound}
+              value={activeBattle ? copy.dashboard.battlePausedHint : `${formatClock(taskProgress)} / ${formatClock(taskDuration)}`}
+            />
           </div>
         </div>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-4">
-          {maps
-            .filter((map) => map.key === selectedMapKey)
-            .map((map) => (
-              <div key={map.key}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xl font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-300">{localizeMapSummary(map.key, map.summary, locale)}</p>
-                  </div>
-                  <button
-                    className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300"
-                    onClick={() => selectMap(map.key)}
-                    type="button"
-                  >
-                    {copy.dashboard.currentMapButton}
-                  </button>
+          {activeBattle ? (
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xl font-semibold text-white">{copy.dashboard.battleTitle}</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-300">{copy.dashboard.battleSummary}</p>
                 </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  <DataPill label={copy.dashboard.goldPerMinute} value={formatDecimal(map.goldPerMinute, locale)} />
-                  <DataPill label={copy.dashboard.aetherPerMinute} value={formatDecimal(map.aetherPerMinute, locale)} />
-                  <DataPill label={copy.dashboard.expPerMinute} value={formatDecimal(map.expPerMinute, locale)} />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <DataPill label={copy.dashboard.battleStatus} value={battleStatusCopy} />
+                  <DataPill label={copy.dashboard.battleTurns} value={formatNumber(activeBattle.turnCount, locale)} />
                 </div>
               </div>
-            ))}
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <div className="rounded-[1rem] border border-emerald-300/20 bg-emerald-300/8 p-4">
+                  <SectionEyebrow>{copy.dashboard.selfInfo}</SectionEyebrow>
+                  <p className="mt-2 text-lg font-semibold text-white">{activeBattle.player.name}</p>
+                  <div className="mt-3">
+                    <TopStatusBar
+                      label={copy.dashboard.lifeBar}
+                      tone="from-emerald-400 via-cyan-300 to-sky-300"
+                      valueLabel={`${formatNumber(activeBattle.player.currentHealth, locale)} / ${formatNumber(activeBattle.player.maxHealth, locale)}`}
+                      value={(activeBattle.player.currentHealth / Math.max(1, activeBattle.player.maxHealth)) * 100}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <TopStatusBar
+                      barClassName="h-2.5"
+                      label={copy.dashboard.actionBar}
+                      tone="from-sky-400 via-cyan-300 to-teal-300"
+                      value={activeBattle.player.actionBar}
+                    />
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <DataPill label={copy.dashboard.currentHealth} value={`${formatNumber(activeBattle.player.currentHealth, locale)} / ${formatNumber(activeBattle.player.maxHealth, locale)}`} />
+                    <DataPill label={copy.dashboard.defenseActive} value={activeBattle.player.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+                  </div>
+                </div>
+
+                <div className="rounded-[1rem] border border-rose-300/20 bg-rose-300/8 p-4">
+                  <SectionEyebrow>{copy.dashboard.enemyInfo}</SectionEyebrow>
+                  <p className="mt-2 text-lg font-semibold text-white">{activeBattle.enemy.name}</p>
+                  <p className="mt-1 text-sm text-slate-300">{activeBattle.enemy.summary}</p>
+                  <div className="mt-3">
+                    <TopStatusBar
+                      label={copy.dashboard.lifeBar}
+                      tone="from-rose-500 via-orange-400 to-amber-300"
+                      valueLabel={`${formatNumber(activeBattle.enemy.currentHealth, locale)} / ${formatNumber(activeBattle.enemy.maxHealth, locale)}`}
+                      value={(activeBattle.enemy.currentHealth / Math.max(1, activeBattle.enemy.maxHealth)) * 100}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <TopStatusBar
+                      barClassName="h-2.5"
+                      label={copy.dashboard.actionBar}
+                      tone="from-amber-300 via-orange-300 to-rose-300"
+                      value={activeBattle.enemy.actionBar}
+                    />
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <DataPill label={copy.dashboard.enemyLevel} value={formatNumber(activeBattle.enemy.level, locale)} />
+                    <DataPill label={copy.dashboard.defenseActive} value={activeBattle.enemy.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <DataPill label={copy.dashboard.skillGuard} value={formatNumber(activeBattle.enemy.skillUsesRemaining.guard, locale)} />
+                    <DataPill label={copy.dashboard.skillSpell} value={formatNumber(activeBattle.enemy.skillUsesRemaining.spell, locale)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            maps
+              .filter((map) => map.key === selectedMapKey)
+              .map((map) => (
+                <div key={map.key}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xl font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-300">{localizeMapSummary(map.key, map.summary, locale)}</p>
+                    </div>
+                    <button
+                      className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300"
+                      onClick={() => selectMap(map.key)}
+                      type="button"
+                    >
+                      {copy.dashboard.currentMapButton}
+                    </button>
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <DataPill label={copy.dashboard.goldPerMinute} value={formatDecimal(map.goldPerMinute, locale)} />
+                    <DataPill label={copy.dashboard.aetherPerMinute} value={formatDecimal(map.aetherPerMinute, locale)} />
+                    <DataPill label={copy.dashboard.expPerMinute} value={formatDecimal(map.expPerMinute, locale)} />
+                  </div>
+                </div>
+              ))
+          )}
         </div>
 
         <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
           <TopStatusBar
             label={copy.dashboard.executionProgress}
             tone="from-sky-400 via-cyan-300 to-emerald-300"
-            value={taskProgressPercent}
+            value={activeBattle ? 0 : taskProgressPercent}
           />
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <DataPill label={copy.dashboard.status} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
-            <DataPill label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
-            <DataPill label={copy.dashboard.executed} value={formatDuration(taskProgress)} />
+            <DataPill label={copy.dashboard.status} value={activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+            <DataPill label={copy.dashboard.remaining} value={activeBattle ? copy.dashboard.battlePausedHint : formatDuration(Math.max(0, taskDuration - taskProgress))} />
+            <DataPill label={copy.dashboard.executed} value={activeBattle ? formatNumber(activeBattle.turnCount, locale) : formatDuration(taskProgress)} />
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
@@ -1126,47 +1160,6 @@ function CenterPanel({
           </div>
         </div>
 
-        <div className="rounded-[1rem] border border-amber-300/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.1),rgba(15,23,42,0.18))] p-4 xl:col-span-2">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <SectionEyebrow>{copy.dashboard.encounterLogEyebrow}</SectionEyebrow>
-              <h3 className="mt-2 text-xl font-semibold text-white">{copy.dashboard.encounterLogTitle}</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-300">
-                {copy.dashboard.encounterLogSummary}
-              </p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              <DataPill label={messages.encounterTier.common} value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
-              <DataPill label={messages.encounterTier.rare} value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
-              <DataPill label={messages.encounterTier.legendary} value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {snapshot.afk.recentEncounters.length > 0 ? snapshot.afk.recentEncounters.slice(0, 4).map((encounter) => (
-              <div
-                key={encounter.id}
-                className="rounded-[1rem] border border-white/8 bg-slate-950/30 p-4 shadow-[0_12px_30px_rgba(0,0,0,0.14)]"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-base font-semibold text-white">{localizeEncounterTitle(encounter.key, encounter.title, locale)}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt, locale)}</p>
-                  </div>
-                  <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
-                    {encounterTierLabel(encounter.tier, messages)}
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{localizeEncounterDescription(encounter.key, encounter.description, locale)}</p>
-                <p className="mt-3 text-xs leading-6 text-amber-100/90">{formatEncounterReward(encounter.reward, locale, messages)}</p>
-              </div>
-            )) : (
-              <div className="rounded-[1rem] border border-dashed border-white/10 bg-slate-950/20 p-4 text-sm leading-6 text-slate-400 lg:col-span-2">
-                {copy.dashboard.encounterEmpty}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </SectionCard>
   );
@@ -1342,40 +1335,6 @@ function RightRail({
                   gold: formatNumber(snapshot.afk.estimatedHourlyReward.gold, locale),
                 })}
               />
-            </div>
-
-            <SectionEyebrow>
-              <span className="mt-6 block">{copy.dashboard.encounterRates}</span>
-            </SectionEyebrow>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
-              <DataPill label={messages.encounterTier.common} value={formatEncounterRate(snapshot.afk.encounterRates.common)} />
-              <DataPill label={messages.encounterTier.rare} value={formatEncounterRate(snapshot.afk.encounterRates.rare)} />
-              <DataPill label={messages.encounterTier.legendary} value={formatEncounterRate(snapshot.afk.encounterRates.legendary)} />
-            </div>
-
-            <SectionEyebrow>
-              <span className="mt-6 block">{copy.dashboard.recentEncounters}</span>
-            </SectionEyebrow>
-            <div className="mt-3 space-y-3">
-              {snapshot.afk.recentEncounters.length > 0 ? snapshot.afk.recentEncounters.slice(0, 5).map((encounter) => (
-                <div key={encounter.id} className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{localizeEncounterTitle(encounter.key, encounter.title, locale)}</p>
-                      <p className="mt-1 text-xs text-slate-400">{formatEncounterTriggeredAt(encounter.triggeredAt, locale)}</p>
-                    </div>
-                    <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${encounterTierAccent(encounter.tier)}`}>
-                      {encounterTierLabel(encounter.tier, messages)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{localizeEncounterDescription(encounter.key, encounter.description, locale)}</p>
-                  <p className="mt-3 text-xs leading-6 text-sky-100/80">{formatEncounterReward(encounter.reward, locale, messages)}</p>
-                </div>
-              )) : (
-                <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-slate-400">
-                  {copy.dashboard.encounterRatesHint}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1593,13 +1552,14 @@ function MainDashboard() {
   const isGuestUser = snapshot?.account.mode === "guest";
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
+  const activeBattle = snapshot?.afk.battle?.active ? snapshot.afk.battle : null;
   const activeTaskCycleKey = snapshot?.afk.status === "active" && snapshot.role
     ? `${snapshot.role.roleId}:${snapshot.afk.startedAt ?? 0}:${snapshot.afk.lastSettledAt ?? 0}:${taskDuration}`
     : null;
   const taskProgress = (() => {
     const baseProgress = Math.max(0, snapshot?.afk.accruedSeconds ?? 0);
 
-    if (snapshot?.afk.status !== "active" || !activeTaskCycleKey) {
+    if (snapshot?.afk.status !== "active" || !activeTaskCycleKey || activeBattle) {
       progressMemoryRef.current = {
         cycleKey: null,
         progress: baseProgress,
@@ -1625,13 +1585,18 @@ function MainDashboard() {
       gold: Math.floor((snapshot.afk.currentMap.goldPerMinute * taskDuration) / 60),
     }
     : { aetherCrystal: 0, exp: 0, gold: 0 };
+  const afkStatusLabel = activeBattle
+    ? messages.common.fighting
+    : snapshot?.afk.status === "active"
+      ? messages.common.active
+      : messages.common.idle;
 
   if (!snapshot || !role) {
     return null;
   }
 
   const menuItems: Array<{ key: PanelKey; label: string; summary: string; count?: string }> = [
-    { key: "afk", label: copy.dashboard.menu.afk.label, summary: copy.dashboard.menu.afk.summary, count: snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
+    { key: "afk", label: copy.dashboard.menu.afk.label, summary: copy.dashboard.menu.afk.summary, count: activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
     { key: "backpack", label: copy.dashboard.menu.backpack.label, summary: copy.dashboard.menu.backpack.summary, count: String(backpack.length) },
     { key: "market", label: copy.dashboard.menu.market.label, summary: copy.dashboard.menu.market.summary, count: String(snapshot.market.listings.length) },
     { key: "role", label: copy.dashboard.menu.role.label, summary: copy.dashboard.menu.role.summary, count: `${messages.common.levelShort}${role.level}` },
@@ -2112,7 +2077,7 @@ function MainDashboard() {
         </OverlayModal>
       ) : null}
 
-      <div className="mx-auto flex h-full max-w-[1600px] flex-col gap-3 overflow-hidden">
+      <div className="mx-auto flex h-full max-w-[1760px] flex-col gap-3 overflow-hidden">
         <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(49,62,121,0.95),rgba(12,16,34,0.98))]">
           <div className="px-4 py-3 md:px-5">
             <div className="flex flex-col gap-3">
@@ -2152,7 +2117,7 @@ function MainDashboard() {
                   <DataPill className="py-1.5" label={copy.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
                   <DataPill className="py-1.5" label={copy.dashboard.currentHealth} value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`} />
                   <DataPill className="py-1.5" label={copy.dashboard.pendingRewardShort} value={formatNumber(snapshot.afk.pendingReward.gold, locale)} />
-                  <DataPill className="py-1.5" label={copy.dashboard.executionStatus} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+                  <DataPill className="py-1.5" label={copy.dashboard.executionStatus} value={afkStatusLabel} />
                   <DataPill className="py-1.5" label={copy.dashboard.accountStatus} value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest} />
                 </div>
 
@@ -2189,7 +2154,7 @@ function MainDashboard() {
                   </button>
                   <button
                     className="rounded-[0.95rem] bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={snapshot.afk.status === "idle" || status === "saving"}
+                    disabled={snapshot.afk.status === "idle" || status === "saving" || Boolean(activeBattle)}
                     onClick={() => {
                       void stopAfk();
                     }}
@@ -2213,7 +2178,7 @@ function MainDashboard() {
           </div>
         </SectionCard>
 
-        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[220px_minmax(0,1fr)_320px]">
+        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[200px_minmax(0,1.35fr)_280px]">
           <SectionCard className="min-h-0 p-3">
             <div className="space-y-3">
               {menuItems.map((item) => (

@@ -102,7 +102,7 @@ function buildProgressSnapshot(snapshot, progressSeconds) {
     serverTime: Date.now(),
     afk: {
       ...snapshot.afk,
-      accruedSeconds: progressSeconds,
+      accruedSeconds: snapshot.afk.battle?.active ? snapshot.afk.accruedSeconds : progressSeconds,
     },
   };
 }
@@ -375,6 +375,14 @@ async function pushProgressUpdate(connection, session) {
   const snapshot = session.snapshot;
 
   if (!snapshot?.role || snapshot.afk.status !== "active") {
+    return;
+  }
+
+  if (snapshot.afk.battle?.active) {
+    const nextSnapshot = await getSessionSnapshot(session.guestToken);
+    session.snapshot = nextSnapshot;
+    session.lastProgressSecond = nextSnapshot.afk.accruedSeconds;
+    sendSnapshot(connection, nextSnapshot, "battle");
     return;
   }
 

@@ -20,8 +20,52 @@ const DEFAULT_BODY_SLOT_CAPACITIES = {
 };
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
+const MAX_RECENT_BATTLE_LOGS = 16;
 const MARKET_FEE_RATE_PERCENT = 10;
 const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }];
+const BATTLE_TRIGGER_CHANCE = 0.2;
+const ACTION_BAR_TARGET = 100;
+const PLAYER_HEAL_RATIO = 0.18;
+const PLAYER_GUARD_RATIO = 0.45;
+const ENEMY_HEAL_RATIO = 0.08;
+const ENEMY_GUARD_RATIO = 0.35;
+const SPELL_BASE_CHANCE = 0.7;
+const INTELLIGENCE_SPELL_BONUS_THRESHOLD = 12;
+const EXECUTION_REWARD_TICK_SECONDS = 1;
+const PLAYER_GUARD_HEALTH_THRESHOLD = 0.3;
+const ENEMY_GUARD_HEALTH_THRESHOLD = 0.18;
+const PLAYER_GUARD_COOLDOWN_TURNS = 2;
+const ENEMY_GUARD_COOLDOWN_TURNS = 3;
+const battleEnemyTemplates = [
+  {
+    key: "stray-wolf",
+    name: "荒原孤狼",
+    summary: "敏捷高、出手快，喜欢趁空档撕咬。",
+    skillCaps: { guard: 1, spell: 0 },
+    statWeights: { agility: 1.15, intelligence: 0.45, strength: 0.9, vitality: 0.85 },
+  },
+  {
+    key: "bandit-scout",
+    name: "流匪斥候",
+    summary: "动作灵活，偶尔会抓时机用投刃压血线。",
+    skillCaps: { guard: 1, spell: 2 },
+    statWeights: { agility: 1.05, intelligence: 0.65, strength: 0.95, vitality: 0.9 },
+  },
+  {
+    key: "ruin-mage",
+    name: "遗迹术士",
+    summary: "智力偏高，擅长在残血时用法术收尾。",
+    skillCaps: { guard: 1, spell: 3 },
+    statWeights: { agility: 0.75, intelligence: 1.25, strength: 0.55, vitality: 0.95 },
+  },
+  {
+    key: "stonehide-boar",
+    name: "石皮野猪",
+    summary: "血厚皮硬，撞击前摇慢但很难被秒掉。",
+    skillCaps: { guard: 1, spell: 0 },
+    statWeights: { agility: 0.65, intelligence: 0.25, strength: 1, vitality: 1.15 },
+  },
+];
 const itemSeeds = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
@@ -698,6 +742,563 @@ function normalizeEncounterLog(value) {
     .slice(0, MAX_RECENT_ENCOUNTERS);
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeBattleLog(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      if (typeof entry.id !== "string" || typeof entry.text !== "string") {
+        return null;
+      }
+
+      return {
+        id: entry.id,
+        text: entry.text,
+        timestamp: normalizeNumber(entry.timestamp),
+        type: typeof entry.type === "string" ? entry.type : "system",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, MAX_RECENT_BATTLE_LOGS);
+}
+
+function makeBattleLogId() {
+  return `battle-log-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function makeBattleId() {
+  return `battle-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function calculatePhysicalDamage(strength) {
+  return Math.max(1, Math.round(normalizeNumber(strength) * 2));
+}
+
+function calculateSpellDamage(intelligence) {
+  return Math.max(1, Math.round(normalizeNumber(intelligence) * 2.5));
+}
+
+function calculateDamageReduction(vitality) {
+  return clamp(normalizeNumber(vitality) / 20, 0, 0.85);
+}
+
+function calculateDodgeChance(agility) {
+  return clamp(normalizeNumber(agility) / 50, 0, 0.75);
+}
+
+function buildBattleCombatant({
+  currentHealth,
+  intelligence,
+  label,
+  maxHealth,
+  name,
+  side,
+  skillUsesRemaining,
+  stats,
+}) {
+  return {
+    actionBar: 0,
+    currentHealth: normalizeNumber(currentHealth),
+    defenseTurns: 0,
+    guardCooldownTurns: 0,
+    intelligence,
+    label,
+    maxHealth: normalizeNumber(maxHealth),
+    name,
+    side,
+    skillUsesRemaining: {
+      guard: normalizeNumber(skillUsesRemaining?.guard),
+      spell: normalizeNumber(skillUsesRemaining?.spell),
+    },
+    stats: {
+      strength: normalizeNumber(stats.strength),
+      agility: normalizeNumber(stats.agility),
+      intelligence: normalizeNumber(stats.intelligence),
+      vitality: normalizeNumber(stats.vitality),
+    },
+  };
+}
+
+function getPlayerBattleProfile(role, backpack = []) {
+  const stats = getRoleEffectiveStats(role, backpack);
+  const maxHealth = getRoleMaxHealth(role, backpack);
+
+  return {
+    currentHealth: clamp(normalizeNumber(role.current_health), 1, maxHealth),
+    label: "我方",
+    maxHealth,
+    name: role.name,
+    stats,
+  };
+}
+
+function scaleEnemyStat(baseValue, multiplier, variance = 0.12) {
+  const scaled = baseValue * multiplier;
+  const offset = 1 - variance + Math.random() * variance * 2;
+  return Math.max(4, Math.round(scaled * offset));
+}
+
+function createEnemyProfile(role, backpack = [], mapKey = null) {
+  const playerProfile = getPlayerBattleProfile(role, backpack);
+  const template = battleEnemyTemplates[Math.floor(Math.random() * battleEnemyTemplates.length)] || battleEnemyTemplates[0];
+  const map = getMapConfig(mapKey);
+  const mapLevelBonus = map ? 1 : 0;
+  const level = Math.max(1, normalizeNumber(role.level) + (Math.random() < 0.35 ? 1 : 0) + mapLevelBonus);
+  const stats = {
+    strength: scaleEnemyStat(playerProfile.stats.strength, template.statWeights.strength),
+    agility: scaleEnemyStat(playerProfile.stats.agility, template.statWeights.agility),
+    intelligence: scaleEnemyStat(playerProfile.stats.intelligence, template.statWeights.intelligence),
+    vitality: scaleEnemyStat(playerProfile.stats.vitality, template.statWeights.vitality),
+  };
+  const maxHealth = Math.max(30, stats.vitality * 10);
+
+  return {
+    key: template.key,
+    level,
+    name: template.name,
+    summary: template.summary,
+    skillCaps: {
+      guard: normalizeNumber(template.skillCaps?.guard),
+      spell: normalizeNumber(template.skillCaps?.spell),
+    },
+    currentHealth: maxHealth,
+    maxHealth,
+    stats,
+  };
+}
+
+function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.now()) {
+  const player = getPlayerBattleProfile(role, backpack);
+  const enemy = createEnemyProfile(role, backpack, mapKey);
+  const battleId = makeBattleId();
+
+  return {
+    active: true,
+    battleId,
+    enemy,
+    lastResolvedAt: startedAt,
+    logs: normalizeBattleLog([
+      {
+        id: makeBattleLogId(),
+        text: `${enemy.name} 闯入挂机路线，自动战斗开始。`,
+        timestamp: startedAt,
+        type: "system",
+      },
+    ]),
+    outcome: null,
+    player: buildBattleCombatant({
+      currentHealth: player.currentHealth,
+      intelligence: player.stats.intelligence,
+      label: "我方",
+      maxHealth: player.maxHealth,
+      name: player.name,
+      side: "player",
+      skillUsesRemaining: {
+        guard: 0,
+        spell: 0,
+      },
+      stats: player.stats,
+    }),
+    status: "active",
+    turnCount: 0,
+    winner: null,
+    enemyCombatant: buildBattleCombatant({
+      currentHealth: enemy.currentHealth,
+      intelligence: enemy.stats.intelligence,
+      label: "敌方",
+      maxHealth: enemy.maxHealth,
+      name: enemy.name,
+      side: "enemy",
+      skillUsesRemaining: enemy.skillCaps,
+      stats: enemy.stats,
+    }),
+  };
+}
+
+function normalizeBattleState(value) {
+  if (!value || typeof value !== "object") {
+    return { active: false, logs: [] };
+  }
+
+  const playerStats = value.player?.stats && typeof value.player.stats === "object" ? value.player.stats : {};
+  const enemyStats = value.enemyCombatant?.stats && typeof value.enemyCombatant.stats === "object" ? value.enemyCombatant.stats : {};
+  const enemy = value.enemy && typeof value.enemy === "object" ? value.enemy : {};
+
+  return {
+    active: Boolean(value.active),
+    battleId: typeof value.battleId === "string" ? value.battleId : null,
+    enemy: {
+      key: typeof enemy.key === "string" ? enemy.key : "unknown-enemy",
+      level: normalizeNumber(enemy.level),
+      name: typeof enemy.name === "string" ? enemy.name : "未知敌人",
+      summary: typeof enemy.summary === "string" ? enemy.summary : "",
+      skillCaps: {
+        guard: normalizeNumber(enemy.skillCaps?.guard),
+        spell: normalizeNumber(enemy.skillCaps?.spell),
+      },
+      currentHealth: normalizeNumber(enemy.currentHealth),
+      maxHealth: normalizeNumber(enemy.maxHealth),
+      stats: {
+        strength: normalizeNumber(enemy.stats?.strength),
+        agility: normalizeNumber(enemy.stats?.agility),
+        intelligence: normalizeNumber(enemy.stats?.intelligence),
+        vitality: normalizeNumber(enemy.stats?.vitality),
+      },
+    },
+    enemyCombatant: {
+      actionBar: normalizeNumber(value.enemyCombatant?.actionBar),
+      currentHealth: normalizeNumber(value.enemyCombatant?.currentHealth),
+      defenseTurns: normalizeNumber(value.enemyCombatant?.defenseTurns),
+      guardCooldownTurns: normalizeNumber(value.enemyCombatant?.guardCooldownTurns),
+      intelligence: normalizeNumber(value.enemyCombatant?.intelligence),
+      label: typeof value.enemyCombatant?.label === "string" ? value.enemyCombatant.label : "敌方",
+      maxHealth: normalizeNumber(value.enemyCombatant?.maxHealth),
+      name: typeof value.enemyCombatant?.name === "string" ? value.enemyCombatant.name : "未知敌人",
+      side: "enemy",
+      skillUsesRemaining: {
+        guard: normalizeNumber(value.enemyCombatant?.skillUsesRemaining?.guard),
+        spell: normalizeNumber(value.enemyCombatant?.skillUsesRemaining?.spell),
+      },
+      stats: {
+        strength: normalizeNumber(enemyStats.strength),
+        agility: normalizeNumber(enemyStats.agility),
+        intelligence: normalizeNumber(enemyStats.intelligence),
+        vitality: normalizeNumber(enemyStats.vitality),
+      },
+    },
+    lastResolvedAt: normalizeNumber(value.lastResolvedAt),
+    logs: normalizeBattleLog(value.logs),
+    outcome: value.outcome && typeof value.outcome === "object"
+      ? {
+        loser: typeof value.outcome.loser === "string" ? value.outcome.loser : null,
+        summary: typeof value.outcome.summary === "string" ? value.outcome.summary : "",
+        winner: typeof value.outcome.winner === "string" ? value.outcome.winner : null,
+      }
+      : null,
+    player: {
+      actionBar: normalizeNumber(value.player?.actionBar),
+      currentHealth: normalizeNumber(value.player?.currentHealth),
+      defenseTurns: normalizeNumber(value.player?.defenseTurns),
+      guardCooldownTurns: normalizeNumber(value.player?.guardCooldownTurns),
+      intelligence: normalizeNumber(value.player?.intelligence),
+      label: typeof value.player?.label === "string" ? value.player.label : "我方",
+      maxHealth: normalizeNumber(value.player?.maxHealth),
+      name: typeof value.player?.name === "string" ? value.player.name : "我方",
+      side: "player",
+      skillUsesRemaining: {
+        guard: normalizeNumber(value.player?.skillUsesRemaining?.guard),
+        spell: normalizeNumber(value.player?.skillUsesRemaining?.spell),
+      },
+      stats: {
+        strength: normalizeNumber(playerStats.strength),
+        agility: normalizeNumber(playerStats.agility),
+        intelligence: normalizeNumber(playerStats.intelligence),
+        vitality: normalizeNumber(playerStats.vitality),
+      },
+    },
+    status: value.status === "finished" ? "finished" : "active",
+    turnCount: normalizeNumber(value.turnCount),
+    winner: value.winner === "player" || value.winner === "enemy" ? value.winner : null,
+  };
+}
+
+function isBattleActive(battleState) {
+  return Boolean(battleState?.active && battleState?.status === "active");
+}
+
+function addBattleLog(battleState, text, type = "system", timestamp = Date.now()) {
+  battleState.logs = [
+    {
+      id: makeBattleLogId(),
+      text,
+      timestamp,
+      type,
+    },
+    ...normalizeBattleLog(battleState.logs),
+  ].slice(0, MAX_RECENT_BATTLE_LOGS);
+}
+
+function getBattleCombatantBySide(battleState, side) {
+  return side === "player" ? battleState.player : battleState.enemyCombatant;
+}
+
+function getOpponentSide(side) {
+  return side === "player" ? "enemy" : "player";
+}
+
+function maybeConsumeDefense(combatant) {
+  if (combatant.defenseTurns > 0) {
+    combatant.defenseTurns = Math.max(0, combatant.defenseTurns - 1);
+  }
+}
+
+function decideBattleAction(actor, target) {
+  const actorHealthRatio = actor.maxHealth > 0 ? actor.currentHealth / actor.maxHealth : 0;
+  const targetHealthRatio = target.maxHealth > 0 ? target.currentHealth / target.maxHealth : 0;
+  const guardThreshold = actor.side === "player" ? PLAYER_GUARD_HEALTH_THRESHOLD : ENEMY_GUARD_HEALTH_THRESHOLD;
+  const canUseGuard = actor.side === "player" || actor.skillUsesRemaining.guard > 0;
+  const canUseSpell = actor.side === "player" || actor.skillUsesRemaining.spell > 0;
+
+  if (actorHealthRatio < guardThreshold && actor.guardCooldownTurns <= 0 && canUseGuard) {
+    return {
+      action: "guard",
+      amount: actor.side === "player"
+        ? Math.max(10, Math.round(actor.maxHealth * PLAYER_HEAL_RATIO))
+        : Math.max(8, Math.round(actor.maxHealth * ENEMY_HEAL_RATIO)),
+      guardRatio: actor.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO,
+    };
+  }
+
+  if (targetHealthRatio < 0.2 && canUseSpell) {
+    return {
+      action: "spell",
+      damage: calculateSpellDamage(actor.stats.intelligence),
+    };
+  }
+
+  const spellChance = actor.stats.intelligence >= INTELLIGENCE_SPELL_BONUS_THRESHOLD ? SPELL_BASE_CHANCE : 0.35;
+
+  if (canUseSpell && Math.random() < spellChance) {
+    return {
+      action: "spell",
+      damage: calculateSpellDamage(actor.stats.intelligence),
+    };
+  }
+
+  return {
+    action: "attack",
+    damage: calculatePhysicalDamage(actor.stats.strength),
+  };
+}
+
+function applyBattleDamage(attacker, defender, battleAction) {
+  if (Math.random() < calculateDodgeChance(defender.stats.agility)) {
+    return {
+      didDodge: true,
+      damage: 0,
+    };
+  }
+
+  const reductionRate = calculateDamageReduction(defender.stats.vitality) + (
+    defender.defenseTurns > 0
+      ? (defender.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)
+      : 0
+  );
+  const damage = Math.max(1, Math.round(battleAction.damage * (1 - clamp(reductionRate, 0, 0.9))));
+
+  defender.currentHealth = Math.max(0, defender.currentHealth - damage);
+  return {
+    didDodge: false,
+    damage,
+  };
+}
+
+function resolveBattleAction(battleState, actingSide, timestamp) {
+  const actor = getBattleCombatantBySide(battleState, actingSide);
+  const defender = getBattleCombatantBySide(battleState, getOpponentSide(actingSide));
+
+  if (actor.currentHealth <= 0 || defender.currentHealth <= 0) {
+    return;
+  }
+
+  actor.actionBar = 0;
+  battleState.turnCount += 1;
+  actor.guardCooldownTurns = Math.max(0, actor.guardCooldownTurns - 1);
+
+  const decision = decideBattleAction(actor, defender);
+
+  if (decision.action === "guard") {
+    actor.currentHealth = Math.min(actor.maxHealth, actor.currentHealth + decision.amount);
+    actor.defenseTurns = 1;
+    actor.guardCooldownTurns = actor.side === "player" ? PLAYER_GUARD_COOLDOWN_TURNS : ENEMY_GUARD_COOLDOWN_TURNS;
+    if (actor.side === "enemy") {
+      actor.skillUsesRemaining.guard = Math.max(0, actor.skillUsesRemaining.guard - 1);
+    }
+    addBattleLog(
+      battleState,
+      `${actor.name} 进入防御姿态并恢复了 ${decision.amount} 点生命。`,
+      "guard",
+      timestamp,
+    );
+    maybeConsumeDefense(defender);
+    return;
+  }
+
+  const damageResult = applyBattleDamage(actor, defender, {
+    damage: decision.damage,
+  });
+
+  if (decision.action === "spell" && actor.side === "enemy") {
+    actor.skillUsesRemaining.spell = Math.max(0, actor.skillUsesRemaining.spell - 1);
+  }
+
+  if (damageResult.didDodge) {
+    addBattleLog(
+      battleState,
+      `${actor.name}${decision.action === "spell" ? " 施放法术" : " 发动普攻"}，但被 ${defender.name} 闪避了。`,
+      "dodge",
+      timestamp,
+    );
+  } else {
+    addBattleLog(
+      battleState,
+      `${actor.name}${decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害。`,
+      decision.action,
+      timestamp,
+    );
+  }
+
+  maybeConsumeDefense(actor);
+  maybeConsumeDefense(defender);
+
+  if (defender.currentHealth <= 0) {
+    battleState.active = false;
+    battleState.status = "finished";
+    battleState.winner = actingSide;
+    battleState.outcome = {
+      loser: defender.side,
+      summary: `${actor.name} 击败了 ${defender.name}。`,
+      winner: actingSide,
+    };
+    addBattleLog(
+      battleState,
+      battleState.outcome.summary,
+      "result",
+      timestamp,
+    );
+  }
+}
+
+function syncBattleStateToRole(role, battleState, backpack = []) {
+  if (!battleState?.player) {
+    return false;
+  }
+
+  const maxHealth = getRoleMaxHealth(role, backpack);
+  const nextHealth = clamp(normalizeNumber(battleState.player.currentHealth), 0, maxHealth);
+
+  if (nextHealth === normalizeNumber(role.current_health)) {
+    return false;
+  }
+
+  role.current_health = nextHealth;
+  return true;
+}
+
+function handleBattleOutcome(role, battleState, backpack = []) {
+  if (!battleState?.outcome || battleState.outcome.winner !== "enemy") {
+    return false;
+  }
+
+  const nextLevel = Math.max(1, normalizeNumber(role.level) - 1);
+  role.level = nextLevel;
+  role.exp = getLevelBaseExp(nextLevel);
+  role.current_health = getRoleMaxHealth(role, backpack);
+  battleState.player.currentHealth = role.current_health;
+  addBattleLog(
+    battleState,
+    `${role.name} 在战斗中倒下，等级下降 1 级并重整状态。`,
+    "penalty",
+    Date.now(),
+  );
+  return true;
+}
+
+function resolveBattleProgress(role, afk, backpack = [], options = {}) {
+  const now = options.now || Date.now();
+  const battleState = normalizeBattleState(afk.battle_state);
+
+  if (!isBattleActive(battleState)) {
+    afk.battle_state = battleState;
+    return {
+      battleStarted: false,
+      battleState,
+      didMutateAfk: false,
+      didMutateRole: false,
+      finished: false,
+    };
+  }
+
+  const lastResolvedAt = battleState.lastResolvedAt || now;
+  const elapsedSeconds = Math.max(0, Math.floor((now - lastResolvedAt) / 1000));
+
+  if (elapsedSeconds <= 0) {
+    afk.battle_state = battleState;
+    return {
+      battleStarted: false,
+      battleState,
+      didMutateAfk: false,
+      didMutateRole: false,
+      finished: false,
+    };
+  }
+
+  let didMutateRole = false;
+
+  for (let second = 0; second < elapsedSeconds; second += 1) {
+    if (!isBattleActive(battleState)) {
+      break;
+    }
+
+    const timestamp = lastResolvedAt + (second + 1) * 1000;
+    battleState.player.actionBar = Math.min(ACTION_BAR_TARGET, battleState.player.actionBar + battleState.player.stats.agility);
+    battleState.enemyCombatant.actionBar = Math.min(ACTION_BAR_TARGET, battleState.enemyCombatant.actionBar + battleState.enemyCombatant.stats.agility);
+
+    while (
+      isBattleActive(battleState)
+      && (battleState.player.actionBar >= ACTION_BAR_TARGET || battleState.enemyCombatant.actionBar >= ACTION_BAR_TARGET)
+    ) {
+      if (
+        battleState.player.actionBar >= ACTION_BAR_TARGET
+        && battleState.enemyCombatant.actionBar >= ACTION_BAR_TARGET
+      ) {
+        const playerActsFirst = battleState.player.stats.agility >= battleState.enemyCombatant.stats.agility;
+        resolveBattleAction(battleState, playerActsFirst ? "player" : "enemy", timestamp);
+
+        if (isBattleActive(battleState)) {
+          resolveBattleAction(battleState, playerActsFirst ? "enemy" : "player", timestamp);
+        }
+        continue;
+      }
+
+      if (battleState.player.actionBar >= ACTION_BAR_TARGET) {
+        resolveBattleAction(battleState, "player", timestamp);
+        continue;
+      }
+
+      resolveBattleAction(battleState, "enemy", timestamp);
+    }
+  }
+
+  battleState.lastResolvedAt = lastResolvedAt + elapsedSeconds * 1000;
+  didMutateRole = syncBattleStateToRole(role, battleState, backpack) || didMutateRole;
+
+  if (!isBattleActive(battleState) && battleState.outcome?.winner === "enemy") {
+    didMutateRole = handleBattleOutcome(role, battleState, backpack) || didMutateRole;
+  }
+
+  battleState.enemy.currentHealth = battleState.enemyCombatant.currentHealth;
+  afk.battle_state = battleState;
+
+  return {
+    battleStarted: false,
+    battleState,
+    didMutateAfk: true,
+    didMutateRole,
+    finished: !isBattleActive(battleState),
+  };
+}
+
 function pickRandomEncounter(tier) {
   const pool = afkEncounterPoolByTier[tier];
 
@@ -866,18 +1467,20 @@ function buildRewardForSeconds(mapKey, seconds) {
   };
 }
 
-function buildRewardDeltaForExecutions(mapKey, previousExecutions, nextExecutions) {
-  const previousReward = buildRewardForSeconds(mapKey, previousExecutions * AFK_TASK_SECONDS);
-  const nextReward = buildRewardForSeconds(mapKey, nextExecutions * AFK_TASK_SECONDS);
-
+function createSimulationSummary() {
   return {
-    aetherCrystal: Math.max(0, nextReward.aetherCrystal - previousReward.aetherCrystal),
-    encounters: [],
-    exp: Math.max(0, nextReward.exp - previousReward.exp),
+    battleStarted: false,
+    didMutateAfk: false,
+    didMutateBackpack: false,
+    didMutateRole: false,
     itemDrops: [],
-    executions: Math.max(0, nextExecutions - previousExecutions),
-    gold: Math.max(0, nextReward.gold - previousReward.gold),
   };
+}
+
+function addRewardToPending(afk, reward) {
+  afk.pending_gold += reward.gold;
+  afk.pending_aether_crystal += reward.aetherCrystal;
+  afk.pending_exp += reward.exp;
 }
 
 function getRoleMaxHealth(role, backpack = []) {
@@ -967,49 +1570,105 @@ function applyPendingRewardToRole(role, afk, backpack = []) {
   }, backpack);
 }
 
-function settleAfkState(afk, options = {}) {
-  const now = options.now || Date.now();
-  const emptyReward = { aetherCrystal: 0, encounters: [], exp: 0, itemDrops: [], executions: 0, gold: 0 };
+function maybeStartBattle(data, timestamp, summary) {
+  if (isBattleActive(data.afk.battle_state) || Math.random() >= BATTLE_TRIGGER_CHANCE) {
+    return false;
+  }
 
-  if (afk.status !== "active" || !afk.map_key || !afk.last_settled_at) {
-    return emptyReward;
+  data.afk.battle_state = createBattleState(data.role, data.backpack, data.afk.map_key, timestamp);
+  summary.battleStarted = true;
+  summary.didMutateAfk = true;
+  summary.didMutateRole = syncBattleStateToRole(data.role, data.afk.battle_state, data.backpack) || summary.didMutateRole;
+  return true;
+}
+
+function resolveAfkExecution(data, timestamp, options, summary) {
+  const baseReward = buildRewardForSeconds(data.afk.map_key, AFK_TASK_SECONDS);
+  const encounterDelta = buildEncounterDelta(1, timestamp);
+  const rewardDelta = {
+    aetherCrystal: baseReward.aetherCrystal + encounterDelta.aetherCrystal,
+    encounters: encounterDelta.encounters,
+    exp: baseReward.exp + encounterDelta.exp,
+    itemDrops: encounterDelta.itemDrops,
+    executions: 1,
+    gold: baseReward.gold + encounterDelta.gold,
+  };
+
+  addRewardToPending(data.afk, rewardDelta);
+  data.afk.recent_encounters = [
+    ...encounterDelta.encounters.slice().reverse(),
+    ...normalizeEncounterLog(data.afk.recent_encounters),
+  ].slice(0, MAX_RECENT_ENCOUNTERS);
+
+  summary.didMutateAfk = true;
+  summary.didMutateRole = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack) || summary.didMutateRole;
+  summary.didMutateBackpack = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops) || summary.didMutateBackpack;
+  summary.itemDrops.push(...rewardDelta.itemDrops);
+
+  if (options.autoApplyReward) {
+    summary.didMutateRole = applyRewardToRole(data.role, rewardDelta, data.backpack) || summary.didMutateRole;
+    consumePendingReward(data.afk, rewardDelta);
+  }
+
+  maybeStartBattle(data, timestamp, summary);
+}
+
+function settleAfkState(data, options = {}) {
+  const now = options.now || Date.now();
+  const summary = createSimulationSummary();
+
+  if (data.afk.status !== "active" || !data.afk.map_key || !data.afk.last_settled_at) {
+    return summary;
   }
 
   const elapsedSeconds = Math.max(
     0,
-    Math.floor((now - new Date(afk.last_settled_at).getTime()) / 1000),
+    Math.floor((now - new Date(data.afk.last_settled_at).getTime()) / 1000),
   );
 
   if (elapsedSeconds <= 0) {
-    return emptyReward;
+    return summary;
   }
 
   const grantedSeconds = options.capSeconds === undefined
     ? elapsedSeconds
     : Math.min(elapsedSeconds, Math.max(0, options.capSeconds));
-  const previousTotalSeconds = Math.max(0, afk.accrued_seconds);
-  const nextTotalSeconds = previousTotalSeconds + grantedSeconds;
-  const previousExecutions = Math.floor(previousTotalSeconds / AFK_TASK_SECONDS);
-  const nextExecutions = Math.floor(nextTotalSeconds / AFK_TASK_SECONDS);
-  const rewardDelta = buildRewardDeltaForExecutions(afk.map_key, previousExecutions, nextExecutions);
-  const encounterDelta = buildEncounterDelta(rewardDelta.executions, now);
 
-  rewardDelta.gold += encounterDelta.gold;
-  rewardDelta.aetherCrystal += encounterDelta.aetherCrystal;
-  rewardDelta.exp += encounterDelta.exp;
-  rewardDelta.encounters = encounterDelta.encounters;
-  rewardDelta.itemDrops = encounterDelta.itemDrops;
-  afk.pending_gold += rewardDelta.gold;
-  afk.pending_aether_crystal += rewardDelta.aetherCrystal;
-  afk.pending_exp += rewardDelta.exp;
-  afk.recent_encounters = [
-    ...encounterDelta.encounters.slice().reverse(),
-    ...normalizeEncounterLog(afk.recent_encounters),
-  ].slice(0, MAX_RECENT_ENCOUNTERS);
-  afk.accrued_seconds = nextTotalSeconds % AFK_TASK_SECONDS;
-  afk.last_settled_at = new Date(now);
+  if (grantedSeconds <= 0) {
+    return summary;
+  }
 
-  return rewardDelta;
+  let simulatedTimestamp = new Date(data.afk.last_settled_at).getTime();
+
+  for (let second = 0; second < grantedSeconds; second += 1) {
+    simulatedTimestamp += 1000;
+
+    if (isBattleActive(data.afk.battle_state)) {
+      const battleProgress = resolveBattleProgress(data.role, data.afk, data.backpack, { now: simulatedTimestamp });
+      summary.didMutateAfk = battleProgress.didMutateAfk || summary.didMutateAfk;
+      summary.didMutateRole = battleProgress.didMutateRole || summary.didMutateRole;
+      continue;
+    }
+
+    data.afk.accrued_seconds = normalizeNumber(data.afk.accrued_seconds) + EXECUTION_REWARD_TICK_SECONDS;
+    summary.didMutateAfk = true;
+
+    if (data.afk.accrued_seconds < AFK_TASK_SECONDS) {
+      continue;
+    }
+
+    data.afk.accrued_seconds = 0;
+    resolveAfkExecution(data, simulatedTimestamp, options, summary);
+  }
+
+  data.afk.last_settled_at = new Date(now);
+
+  if (data.afk.battle_state && typeof data.afk.battle_state === "object") {
+    data.afk.battle_state.lastResolvedAt = now;
+    summary.didMutateAfk = true;
+  }
+
+  return summary;
 }
 
 function consumePendingReward(afk, reward) {
@@ -1062,6 +1721,7 @@ async function persistAfk(client, afk) {
         pending_exp = $8,
         accrued_seconds = $9,
         recent_encounters = $10::jsonb,
+        battle_state = $11::jsonb,
         updated_at = NOW()
       WHERE afk_id = $1
     `,
@@ -1076,6 +1736,7 @@ async function persistAfk(client, afk) {
       normalizeNumber(afk.pending_exp),
       normalizeNumber(afk.accrued_seconds),
       JSON.stringify(normalizeEncounterLog(afk.recent_encounters)),
+      JSON.stringify(normalizeBattleState(afk.battle_state)),
     ],
   );
 }
@@ -1086,21 +1747,43 @@ async function persistBackpackItemRewards(client, roleId, itemDrops) {
   }
 
   const itemDropsById = itemDrops.reduce((accumulator, itemDrop) => {
-    accumulator.set(itemDrop.itemId, (accumulator.get(itemDrop.itemId) || 0) + itemDrop.quantity);
+    const current = accumulator.get(itemDrop.itemId);
+
+    if (current) {
+      current.quantity += itemDrop.quantity;
+      return accumulator;
+    }
+
+    accumulator.set(itemDrop.itemId, {
+      backpackId: itemDrop.backpackId || `bag-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      quantity: itemDrop.quantity,
+    });
     return accumulator;
   }, new Map());
 
-  for (const [itemId, quantity] of itemDropsById.entries()) {
+  for (const [itemId, entry] of itemDropsById.entries()) {
+    const updated = await client.query(
+      `
+        UPDATE backpack
+        SET
+          quantity = backpack.quantity + $3,
+          updated_at = NOW()
+        WHERE role_id = $1 AND item_id = $2
+        RETURNING backpack_id
+      `,
+      [roleId, itemId, entry.quantity],
+    );
+
+    if (updated.rowCount > 0) {
+      continue;
+    }
+
     await client.query(
       `
         INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, equipped_slot_groups, created_at, updated_at)
         VALUES ($1, $2, $3, $4, FALSE, '[]'::jsonb, NOW(), NOW())
-        ON CONFLICT (role_id, item_id)
-        DO UPDATE SET
-          quantity = backpack.quantity + EXCLUDED.quantity,
-          updated_at = NOW()
       `,
-      [`bag-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, roleId, itemId, quantity],
+      [entry.backpackId, roleId, itemId, entry.quantity],
     );
   }
 }
@@ -1388,10 +2071,11 @@ async function requireDashboardData(guestToken) {
           started_at,
           last_settled_at,
           pending_gold,
-          pending_aether_crystal,
-          pending_exp,
-          accrued_seconds,
-          recent_encounters
+        pending_aether_crystal,
+        pending_exp,
+        accrued_seconds,
+        recent_encounters,
+        battle_state
         FROM afk
         WHERE role_id = $1
       `,
@@ -1428,6 +2112,7 @@ async function requireDashboardData(guestToken) {
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
+  afk.battle_state = normalizeBattleState(afk.battle_state);
   backpackResult.rows.forEach((item) => {
     const itemSeed = itemSeedById.get(item.item_id);
     if (itemSeed) {
@@ -1456,7 +2141,10 @@ function buildSnapshot(data, options = {}) {
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
   const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
   const maxHealth = getRoleMaxHealth(data.role, data.backpack);
-  const currentHealth = Math.min(maxHealth, normalizeNumber(data.role.current_health));
+  const battleState = normalizeBattleState(data.afk.battle_state);
+  const currentHealth = isBattleActive(battleState)
+    ? clamp(normalizeNumber(battleState.player.currentHealth), 0, maxHealth)
+    : Math.min(maxHealth, normalizeNumber(data.role.current_health));
 
   return {
     serverTime: Date.now(),
@@ -1523,6 +2211,36 @@ function buildSnapshot(data, options = {}) {
         aetherCrystal: data.afk.pending_aether_crystal,
         exp: data.afk.pending_exp,
       },
+      battle: battleState.battleId ? {
+        battleId: battleState.battleId,
+        active: isBattleActive(battleState),
+        status: battleState.status,
+        turnCount: battleState.turnCount,
+        winner: battleState.winner,
+        outcome: battleState.outcome,
+        player: {
+          actionBar: battleState.player.actionBar,
+          currentHealth,
+          maxHealth,
+          defenseTurns: battleState.player.defenseTurns,
+          skillUsesRemaining: battleState.player.skillUsesRemaining,
+          stats: battleState.player.stats,
+          name: battleState.player.name,
+        },
+        enemy: {
+          key: battleState.enemy.key,
+          level: battleState.enemy.level,
+          name: battleState.enemy.name,
+          summary: battleState.enemy.summary,
+          actionBar: battleState.enemyCombatant.actionBar,
+          currentHealth: battleState.enemyCombatant.currentHealth,
+          maxHealth: battleState.enemyCombatant.maxHealth,
+          defenseTurns: battleState.enemyCombatant.defenseTurns,
+          skillUsesRemaining: battleState.enemyCombatant.skillUsesRemaining,
+          stats: battleState.enemyCombatant.stats,
+        },
+        logs: battleState.logs,
+      } : null,
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
       encounterRates: afkEncounterChances,
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
@@ -1557,6 +2275,7 @@ function buildBootstrapSnapshot(user, market) {
         aetherCrystal: 0,
         exp: 0,
       },
+      battle: null,
       estimatedHourlyReward: {
         seconds: 3600,
         gold: 0,
@@ -1597,18 +2316,11 @@ async function getSessionSnapshot(guestToken) {
   const now = Date.now();
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
-  const rewardDelta = settleAfkState(data.afk, {
+  const simulation = settleAfkState(data, {
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,
+    autoApplyReward: !wasOffline,
   });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-
-  const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didAutoSettleOnlineReward) {
-    consumePendingReward(data.afk, rewardDelta);
-  }
 
   const shouldShowOfflineRewardModal =
     wasOffline &&
@@ -1616,13 +2328,16 @@ async function getSessionSnapshot(guestToken) {
 
   await withTransaction(async (client) => {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didAutoSettleOnlineReward) {
+    if (didNormalizeRoleHealth || simulation.didMutateRole) {
       await persistRole(client, data.role);
     }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+    if (simulation.itemDrops.length > 0) {
+      await persistBackpackItemRewards(client, data.role.role_id, simulation.itemDrops);
     }
     await persistAfk(client, data.afk);
+    if (simulation.didMutateBackpack) {
+      await persistBackpackEquipState(client, data.backpack);
+    }
   });
 
   data.role.level = getLevelFromExp(data.role.exp);
@@ -1638,7 +2353,7 @@ async function startAfkForGuest(guestToken, mapKey) {
 
   const data = await requireDashboardData(guestToken);
   const now = Date.now();
-  settleAfkState(data.afk, { now });
+  settleAfkState(data, { now, autoApplyReward: true });
 
   if (data.afk.status === "active") {
     throw new Error("当前已经处于挂机中，请先停止。");
@@ -1648,6 +2363,7 @@ async function startAfkForGuest(guestToken, mapKey) {
   data.afk.map_key = mapKey;
   data.afk.started_at = new Date(now);
   data.afk.last_settled_at = new Date(now);
+  data.afk.battle_state = normalizeBattleState(data.afk.battle_state);
 
   await withTransaction(async (client) => {
     await persistAfk(client, data.afk);
@@ -1660,18 +2376,14 @@ async function stopAfkForGuest(guestToken) {
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
-  const rewardDelta = settleAfkState(data.afk, { now });
+  const simulation = settleAfkState(data, { now, autoApplyReward: true });
 
   if (data.afk.status === "idle") {
     return buildSnapshot(data);
   }
 
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-  const didApplyReward = applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didApplyReward) {
-    consumePendingReward(data.afk, rewardDelta);
+  if (isBattleActive(data.afk.battle_state)) {
+    throw new Error("战斗进行中，暂时不能停止挂机。");
   }
 
   data.afk.status = "idle";
@@ -1679,13 +2391,16 @@ async function stopAfkForGuest(guestToken) {
   discardCurrentTaskProgress(data.afk);
 
   await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyReward) {
+    if (didNormalizeRoleHealth || simulation.didMutateRole) {
       await persistRole(client, data.role);
     }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+    if (simulation.itemDrops.length > 0) {
+      await persistBackpackItemRewards(client, data.role.role_id, simulation.itemDrops);
     }
     await persistAfk(client, data.afk);
+    if (simulation.didMutateBackpack) {
+      await persistBackpackEquipState(client, data.backpack);
+    }
   });
 
   return getSessionSnapshot(guestToken);
@@ -1695,36 +2410,29 @@ async function claimAfkRewardForGuest(guestToken) {
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
-  const rewardDelta = settleAfkState(data.afk, {
+  const simulation = settleAfkState(data, {
     capSeconds: MAX_OFFLINE_SECONDS,
     now,
+    autoApplyReward: false,
   });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-
-  const lastSeenAt = new Date(data.user.last_seen_at).getTime();
-  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
-
-  const didApplyOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didApplyOnlineReward) {
-    consumePendingReward(data.afk, rewardDelta);
-  }
 
   if (
     data.afk.pending_gold <= 0 &&
     data.afk.pending_aether_crystal <= 0 &&
     data.afk.pending_exp <= 0
   ) {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didApplyEncounterItems) {
+    if (didNormalizeRoleHealth || simulation.didMutateRole || simulation.didMutateBackpack || simulation.didMutateAfk) {
       await withTransaction(async (client) => {
-        if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward) {
+        if (didNormalizeRoleHealth || simulation.didMutateRole) {
           await persistRole(client, data.role);
         }
-        if (didApplyEncounterItems) {
-          await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+        if (simulation.itemDrops.length > 0) {
+          await persistBackpackItemRewards(client, data.role.role_id, simulation.itemDrops);
         }
         await persistAfk(client, data.afk);
+        if (simulation.didMutateBackpack) {
+          await persistBackpackEquipState(client, data.backpack);
+        }
       });
     }
     return buildSnapshot(data);
@@ -1737,13 +2445,16 @@ async function claimAfkRewardForGuest(guestToken) {
   data.afk.last_settled_at = new Date(now);
 
   await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didClaimPendingReward) {
+    if (didNormalizeRoleHealth || simulation.didMutateRole || didClaimPendingReward) {
       await persistRole(client, data.role);
     }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
+    if (simulation.itemDrops.length > 0) {
+      await persistBackpackItemRewards(client, data.role.role_id, simulation.itemDrops);
     }
     await persistAfk(client, data.afk);
+    if (simulation.didMutateBackpack) {
+      await persistBackpackEquipState(client, data.backpack);
+    }
   });
 
   return getSessionSnapshot(guestToken);
