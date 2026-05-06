@@ -1,6 +1,6 @@
 export type RaceKey = "human" | "elf" | "dwarf";
 export type ClassKey = "warrior" | "mage" | "farmer";
-export type MapKey = "palmia-wilds";
+export type MapKey = string;
 export type PanelKey = "role" | "backpack" | "afk" | "market";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
@@ -55,6 +55,7 @@ export type AfkEncounterReward = {
 export type AfkEncounterConfig = {
   key: string;
   tier: EncounterTier;
+  mapKeys?: MapKey[];
   title: string;
   description: string;
   reward: AfkEncounterReward;
@@ -135,6 +136,14 @@ export const mapConfigs: MapConfig[] = [
     aetherPerMinute: 0.25,
     expPerMinute: 10,
   },
+  {
+    key: "moonfall-ruins",
+    label: "月陨遗迹",
+    summary: "更危险的废墟地带，奖励更高，也会出现更强的敌人与稀有奇遇。",
+    goldPerMinute: 42,
+    aetherPerMinute: 0.7,
+    expPerMinute: 22,
+  },
 ];
 
 export const afkEncounterChances: Record<EncounterTier, number> = {
@@ -146,6 +155,7 @@ export const afkEncounterChances: Record<EncounterTier, number> = {
 export const afkEncounterPool: AfkEncounterConfig[] = [
   {
     key: "wanderer-cache",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "拾荒者的暗袋",
     description: "你在枯树根下翻出一只旧布袋，却被藏着的铁夹划伤了手，好在还能顺走一点物资。",
@@ -153,6 +163,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "mossy-altar",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "长苔石坛",
     description: "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
@@ -160,6 +171,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "merchant-clue",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "流商的线索",
     description: "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
@@ -167,6 +179,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "windfall-fruit",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "风落浆果",
     description: "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
@@ -174,6 +187,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "crystal-burrow",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "隐晶兽巢",
     description: "灌木后藏着一处被废弃的兽巢，残留的晶刺划破了你的护具，但你也捡到了完整结晶。",
@@ -181,6 +195,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "forgotten-caravan",
+    mapKeys: ["palmia-wilds"],
     tier: "rare",
     title: "失落商队",
     description: "你在旧车辙旁找到半埋的补给箱，却也顺手赶跑了几只扑上来的鬣犬。",
@@ -188,6 +203,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "moonlit-guidance",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "月影指引",
     description: "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
@@ -195,6 +211,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "dragonbone-relic",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "龙骨遗辉",
     description: "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
@@ -202,6 +219,7 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
   },
   {
     key: "starlight-vault",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "星辉秘匣",
     description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",

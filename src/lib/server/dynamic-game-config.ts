@@ -26,30 +26,68 @@ import { getDynamicGameConfig, type BattleEnemyTemplate, type DynamicGameConfig,
 export type RuntimeItemSeed = DynamicGameConfig["itemCatalog"][number];
 
 type RuntimeGameConfig = DynamicGameConfig & {
-  afkEncounterPoolByTier: Record<EncounterTier, AfkEncounterConfig[]>;
+  afkEncounterPoolByMapAndTier: Record<string, Record<EncounterTier, AfkEncounterConfig[]>>;
+  battleEnemyTemplatesByMap: Record<string, BattleEnemyTemplate[]>;
   itemSeedById: Map<string, RuntimeItemSeed>;
 };
 
 let cachedRuntimeConfig: RuntimeGameConfig | null = null;
 
-function buildAfkEncounterPoolByTier(pool: AfkEncounterConfig[]) {
-  return pool.reduce<Record<EncounterTier, AfkEncounterConfig[]>>(
-    (accumulator, encounter) => {
-      accumulator[encounter.tier].push(encounter);
-      return accumulator;
-    },
-    {
-      common: [],
-      rare: [],
-      legendary: [],
-    },
-  );
+function createEncounterTierBucket() {
+  return {
+    common: [],
+    legendary: [],
+    rare: [],
+  } satisfies Record<EncounterTier, AfkEncounterConfig[]>;
+}
+
+function buildAfkEncounterPoolByMapAndTier(pool: AfkEncounterConfig[], mapConfigs: MapConfig[]) {
+  const allMapKeys = mapConfigs.map((map) => map.key);
+  const buckets = Object.fromEntries(
+    allMapKeys.map((mapKey) => [mapKey, createEncounterTierBucket()]),
+  ) as Record<string, Record<EncounterTier, AfkEncounterConfig[]>>;
+
+  for (const encounter of pool) {
+    const targetMapKeys = encounter.mapKeys?.length ? encounter.mapKeys : allMapKeys;
+
+    for (const mapKey of targetMapKeys) {
+      if (!buckets[mapKey]) {
+        buckets[mapKey] = createEncounterTierBucket();
+      }
+
+      buckets[mapKey][encounter.tier].push(encounter);
+    }
+  }
+
+  return buckets;
+}
+
+function buildBattleEnemyTemplatesByMap(templates: BattleEnemyTemplate[], mapConfigs: MapConfig[]) {
+  const allMapKeys = mapConfigs.map((map) => map.key);
+  const buckets = Object.fromEntries(
+    allMapKeys.map((mapKey) => [mapKey, []]),
+  ) as Record<string, BattleEnemyTemplate[]>;
+
+  for (const template of templates) {
+    const targetMapKeys = template.mapKeys?.length ? template.mapKeys : allMapKeys;
+
+    for (const mapKey of targetMapKeys) {
+      if (!buckets[mapKey]) {
+        buckets[mapKey] = [];
+      }
+
+      buckets[mapKey].push(template);
+    }
+  }
+
+  return buckets;
 }
 
 function buildRuntimeConfig(source: DynamicGameConfig): RuntimeGameConfig {
   return {
     ...source,
-    afkEncounterPoolByTier: buildAfkEncounterPoolByTier(source.afkEncounterPool),
+    afkEncounterPoolByMapAndTier: buildAfkEncounterPoolByMapAndTier(source.afkEncounterPool, source.mapConfigs),
+    battleEnemyTemplatesByMap: buildBattleEnemyTemplatesByMap(source.battleEnemyTemplates, source.mapConfigs),
     itemSeedById: new Map(source.itemCatalog.map((item) => [item.itemId, item])),
   };
 }
@@ -87,12 +125,16 @@ export async function getAfkEncounterPool(): Promise<AfkEncounterConfig[]> {
   return (await loadRuntimeGameConfig()).afkEncounterPool;
 }
 
-export async function getAfkEncounterPoolByTier() {
-  return (await loadRuntimeGameConfig()).afkEncounterPoolByTier;
+export async function getAfkEncounterPoolByMapAndTier() {
+  return (await loadRuntimeGameConfig()).afkEncounterPoolByMapAndTier;
 }
 
 export async function getBattleEnemyTemplates(): Promise<BattleEnemyTemplate[]> {
   return (await loadRuntimeGameConfig()).battleEnemyTemplates;
+}
+
+export async function getBattleEnemyTemplatesByMap() {
+  return (await loadRuntimeGameConfig()).battleEnemyTemplatesByMap;
 }
 
 export async function getItemCatalog(): Promise<RuntimeItemSeed[]> {

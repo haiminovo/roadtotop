@@ -37,6 +37,7 @@ type ConfigRow = {
 
 export type BattleEnemyTemplate = {
   key: string;
+  mapKeys?: string[];
   name: string;
   summary: string;
   skillCaps: {
@@ -142,6 +143,7 @@ const DEFAULT_AFK_ENCOUNTER_CHANCES: Record<EncounterTier, number> = {
 const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   {
     key: "wanderer-cache",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "拾荒者的暗袋",
     description: "你在枯树根下翻出一只旧布袋，却被藏着的铁夹划伤了手，好在还能顺走一点物资。",
@@ -149,6 +151,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "mossy-altar",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "长苔石坛",
     description: "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
@@ -156,6 +159,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "merchant-clue",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "流商的线索",
     description: "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
@@ -163,6 +167,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "windfall-fruit",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "风落浆果",
     description: "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
@@ -170,6 +175,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "crystal-burrow",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "隐晶兽巢",
     description: "灌木后藏着一处被废弃的兽巢，残留的晶刺划破了你的护具，但你也捡到了完整结晶。",
@@ -177,6 +183,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "forgotten-caravan",
+    mapKeys: ["palmia-wilds"],
     tier: "rare",
     title: "失落商队",
     description: "你在旧车辙旁找到半埋的补给箱，却也顺手赶跑了几只扑上来的鬣犬。",
@@ -184,6 +191,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "moonlit-guidance",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "月影指引",
     description: "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
@@ -191,6 +199,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "dragonbone-relic",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "龙骨遗辉",
     description: "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
@@ -198,6 +207,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
   },
   {
     key: "starlight-vault",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "星辉秘匣",
     description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
@@ -208,6 +218,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL: AfkEncounterConfig[] = [
 const DEFAULT_BATTLE_ENEMIES: BattleEnemyTemplate[] = [
   {
     key: "stray-wolf",
+    mapKeys: ["palmia-wilds"],
     name: "荒原孤狼",
     summary: "敏捷高、出手快，喜欢趁空档撕咬。",
     skillCaps: { guard: 1, spell: 0 },
@@ -215,6 +226,7 @@ const DEFAULT_BATTLE_ENEMIES: BattleEnemyTemplate[] = [
   },
   {
     key: "bandit-scout",
+    mapKeys: ["palmia-wilds"],
     name: "流匪斥候",
     summary: "动作灵活，偶尔会抓时机用投刃压血线。",
     skillCaps: { guard: 1, spell: 2 },
@@ -222,6 +234,7 @@ const DEFAULT_BATTLE_ENEMIES: BattleEnemyTemplate[] = [
   },
   {
     key: "ruin-mage",
+    mapKeys: ["moonfall-ruins"],
     name: "遗迹术士",
     summary: "智力偏高，擅长在残血时用法术收尾。",
     skillCaps: { guard: 1, spell: 3 },
@@ -229,10 +242,19 @@ const DEFAULT_BATTLE_ENEMIES: BattleEnemyTemplate[] = [
   },
   {
     key: "stonehide-boar",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     name: "石皮野猪",
     summary: "血厚皮硬，撞击前摇慢但很难被秒掉。",
     skillCaps: { guard: 1, spell: 0 },
     statWeights: { agility: 0.65, intelligence: 0.25, strength: 1, vitality: 1.15 },
+  },
+  {
+    key: "moonshard-sentinel",
+    mapKeys: ["moonfall-ruins"],
+    name: "月碎守卫",
+    summary: "驻守在遗迹深处的残损傀儡，会用晶片爆发压制血线。",
+    skillCaps: { guard: 2, spell: 2 },
+    statWeights: { agility: 0.9, intelligence: 1.1, strength: 1.05, vitality: 1.2 },
   },
 ];
 
@@ -346,6 +368,18 @@ function normalizeBodySlotAdjustments(value: unknown) {
   }
 
   return result;
+}
+
+function normalizeMapKeys(value: unknown) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((entry) => asString(entry).trim())
+    .filter(Boolean);
+
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
 }
 
 function normalizeStats(value: unknown) {
@@ -644,6 +678,20 @@ export function validateAdminGameConfig(input: {
         enemyKeys.add(key);
       }
 
+      if (enemy?.mapKeys !== undefined) {
+        if (!Array.isArray(enemy.mapKeys) || enemy.mapKeys.length === 0) {
+          push("mapKeys 必须是非空数组。");
+        } else {
+          enemy.mapKeys.forEach((mapKey, mapIndex) => {
+            const validatedMapKey = validateRequiredString(mapKey, `mapKeys[${mapIndex + 1}]`, push);
+
+            if (validatedMapKey && !mapKeys.has(validatedMapKey)) {
+              push(`mapKeys[${mapIndex + 1}] "${validatedMapKey}" 不存在于地图配置。`);
+            }
+          });
+        }
+      }
+
       const skillCaps = asObject(enemy?.skillCaps);
 
       if (!skillCaps) {
@@ -680,6 +728,20 @@ export function validateAdminGameConfig(input: {
         }
 
         encounterKeys.add(key);
+      }
+
+      if (encounter?.mapKeys !== undefined) {
+        if (!Array.isArray(encounter.mapKeys) || encounter.mapKeys.length === 0) {
+          push("mapKeys 必须是非空数组。");
+        } else {
+          encounter.mapKeys.forEach((mapKey, mapIndex) => {
+            const validatedMapKey = validateRequiredString(mapKey, `mapKeys[${mapIndex + 1}]`, push);
+
+            if (validatedMapKey && !mapKeys.has(validatedMapKey)) {
+              push(`mapKeys[${mapIndex + 1}] "${validatedMapKey}" 不存在于地图配置。`);
+            }
+          });
+        }
       }
 
       if (!isKnownEncounterTier(encounter?.tier)) {
@@ -906,6 +968,7 @@ function normalizeEncounters(value: unknown): AfkEncounterConfig[] {
       return {
         key: asString(source.key).trim(),
         tier: asEncounterTier(source.tier),
+        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
         title: asString(source.title),
         description: asString(source.description),
         reward: normalizeEncounterReward(source.reward),
@@ -933,6 +996,7 @@ function normalizeBattleEnemies(value: unknown): BattleEnemyTemplate[] {
 
       return {
         key: asString(source.key).trim(),
+        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
         name: asString(source.name),
         summary: asString(source.summary),
         skillCaps: {

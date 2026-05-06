@@ -70,6 +70,14 @@ const DEFAULT_MAP_CONFIGS = [
     aetherPerMinute: 0.25,
     expPerMinute: 10,
   },
+  {
+    key: "moonfall-ruins",
+    label: "月陨遗迹",
+    summary: "更危险的废墟地带，奖励更高，也会出现更强的敌人与稀有奇遇。",
+    goldPerMinute: 42,
+    aetherPerMinute: 0.7,
+    expPerMinute: 22,
+  },
 ];
 
 const DEFAULT_AFK_ENCOUNTER_CHANCES = {
@@ -81,6 +89,7 @@ const DEFAULT_AFK_ENCOUNTER_CHANCES = {
 const DEFAULT_AFK_ENCOUNTER_POOL = [
   {
     key: "wanderer-cache",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "拾荒者的暗袋",
     description: "你在枯树根下翻出一只旧布袋，却被藏着的铁夹划伤了手，好在还能顺走一点物资。",
@@ -88,6 +97,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "mossy-altar",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "长苔石坛",
     description: "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
@@ -95,6 +105,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "merchant-clue",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "流商的线索",
     description: "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
@@ -102,6 +113,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "windfall-fruit",
+    mapKeys: ["palmia-wilds"],
     tier: "common",
     title: "风落浆果",
     description: "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
@@ -109,6 +121,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "crystal-burrow",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "隐晶兽巢",
     description: "灌木后藏着一处被废弃的兽巢，残留的晶刺划破了你的护具，但你也捡到了完整结晶。",
@@ -116,6 +129,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "forgotten-caravan",
+    mapKeys: ["palmia-wilds"],
     tier: "rare",
     title: "失落商队",
     description: "你在旧车辙旁找到半埋的补给箱，却也顺手赶跑了几只扑上来的鬣犬。",
@@ -123,6 +137,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "moonlit-guidance",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     tier: "rare",
     title: "月影指引",
     description: "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
@@ -130,6 +145,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "dragonbone-relic",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "龙骨遗辉",
     description: "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
@@ -137,6 +153,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
   },
   {
     key: "starlight-vault",
+    mapKeys: ["moonfall-ruins"],
     tier: "legendary",
     title: "星辉秘匣",
     description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
@@ -147,6 +164,7 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
 const DEFAULT_BATTLE_ENEMIES = [
   {
     key: "stray-wolf",
+    mapKeys: ["palmia-wilds"],
     name: "荒原孤狼",
     summary: "敏捷高、出手快，喜欢趁空档撕咬。",
     skillCaps: { guard: 1, spell: 0 },
@@ -154,6 +172,7 @@ const DEFAULT_BATTLE_ENEMIES = [
   },
   {
     key: "bandit-scout",
+    mapKeys: ["palmia-wilds"],
     name: "流匪斥候",
     summary: "动作灵活，偶尔会抓时机用投刃压血线。",
     skillCaps: { guard: 1, spell: 2 },
@@ -161,6 +180,7 @@ const DEFAULT_BATTLE_ENEMIES = [
   },
   {
     key: "ruin-mage",
+    mapKeys: ["moonfall-ruins"],
     name: "遗迹术士",
     summary: "智力偏高，擅长在残血时用法术收尾。",
     skillCaps: { guard: 1, spell: 3 },
@@ -168,10 +188,19 @@ const DEFAULT_BATTLE_ENEMIES = [
   },
   {
     key: "stonehide-boar",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
     name: "石皮野猪",
     summary: "血厚皮硬，撞击前摇慢但很难被秒掉。",
     skillCaps: { guard: 1, spell: 0 },
     statWeights: { agility: 0.65, intelligence: 0.25, strength: 1, vitality: 1.15 },
+  },
+  {
+    key: "moonshard-sentinel",
+    mapKeys: ["moonfall-ruins"],
+    name: "月碎守卫",
+    summary: "驻守在遗迹深处的残损傀儡，会用晶片爆发压制血线。",
+    skillCaps: { guard: 2, spell: 2 },
+    statWeights: { agility: 0.9, intelligence: 1.1, strength: 1.05, vitality: 1.2 },
   },
 ];
 
@@ -256,6 +285,18 @@ function asRarity(value) {
 
 function asEncounterTier(value) {
   return value === "common" || value === "rare" || value === "legendary" ? value : "common";
+}
+
+function normalizeMapKeys(value) {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((entry) => asString(entry).trim())
+    .filter(Boolean);
+
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
 }
 
 function normalizeBodySlotAdjustments(value) {
@@ -425,6 +466,7 @@ function normalizeEncounters(value) {
       return {
         key: asString(source.key).trim(),
         tier: asEncounterTier(source.tier),
+        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
         title: asString(source.title),
         description: asString(source.description),
         reward: normalizeEncounterReward(source.reward),
@@ -452,6 +494,7 @@ function normalizeBattleEnemies(value) {
 
       return {
         key: asString(source.key).trim(),
+        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
         name: asString(source.name),
         summary: asString(source.summary),
         skillCaps: {
@@ -508,15 +551,54 @@ function normalizeSystemBalance(value) {
   };
 }
 
-function buildAfkEncounterPoolByTier(pool) {
-  return pool.reduce((accumulator, encounter) => {
-    accumulator[encounter.tier].push(encounter);
-    return accumulator;
-  }, {
+function createEncounterTierBucket() {
+  return {
     common: [],
     rare: [],
     legendary: [],
-  });
+  };
+}
+
+function buildAfkEncounterPoolByMapAndTier(pool, mapConfigs) {
+  const allMapKeys = mapConfigs.map((map) => map.key);
+  const buckets = Object.fromEntries(
+    allMapKeys.map((mapKey) => [mapKey, createEncounterTierBucket()]),
+  );
+
+  for (const encounter of pool) {
+    const targetMapKeys = encounter.mapKeys?.length ? encounter.mapKeys : allMapKeys;
+
+    for (const mapKey of targetMapKeys) {
+      if (!buckets[mapKey]) {
+        buckets[mapKey] = createEncounterTierBucket();
+      }
+
+      buckets[mapKey][encounter.tier].push(encounter);
+    }
+  }
+
+  return buckets;
+}
+
+function buildBattleEnemyTemplatesByMap(templates, mapConfigs) {
+  const allMapKeys = mapConfigs.map((map) => map.key);
+  const buckets = Object.fromEntries(
+    allMapKeys.map((mapKey) => [mapKey, []]),
+  );
+
+  for (const template of templates) {
+    const targetMapKeys = template.mapKeys?.length ? template.mapKeys : allMapKeys;
+
+    for (const mapKey of targetMapKeys) {
+      if (!buckets[mapKey]) {
+        buckets[mapKey] = [];
+      }
+
+      buckets[mapKey].push(template);
+    }
+  }
+
+  return buckets;
 }
 
 function buildRuntimeConfig(source) {
@@ -525,7 +607,8 @@ function buildRuntimeConfig(source) {
 
   return {
     ...source,
-    afkEncounterPoolByTier: buildAfkEncounterPoolByTier(afkEncounterPool),
+    afkEncounterPoolByMapAndTier: buildAfkEncounterPoolByMapAndTier(afkEncounterPool, source.mapConfigs),
+    battleEnemyTemplatesByMap: buildBattleEnemyTemplatesByMap(source.battleEnemyTemplates, source.mapConfigs),
     itemSeedById: new Map(itemCatalog.map((item) => [item.itemId, item])),
   };
 }

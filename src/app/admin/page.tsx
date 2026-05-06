@@ -311,6 +311,7 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
     case "battleEnemyTemplates":
       return {
         key: "new-enemy",
+        mapKeys: ["palmia-wilds"],
         name: "新怪物",
         skillCaps: { guard: 0, spell: 0 },
         statWeights: { agility: 1, intelligence: 1, strength: 1, vitality: 1 },
@@ -320,6 +321,7 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
       return {
         description: "",
         key: "new-encounter",
+        mapKeys: ["palmia-wilds"],
         reward: {
           aetherCrystal: 0,
           exp: 0,
@@ -1192,7 +1194,7 @@ export default function AdminPage() {
               </div>
             ) : null}
 
-            {activeSection !== "roles" && activeSection !== "reference" ? (
+            {activeSection !== "accounts" && activeSection !== "roles" && activeSection !== "reference" ? (
               <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
                 <div className="border-b border-slate-200 px-5 py-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

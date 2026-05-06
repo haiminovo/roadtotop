@@ -368,18 +368,7 @@ const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }] as const
 let itemSeeds: ItemSeed[] = [];
 let itemSeedById = new Map<string, ItemSeed>();
 let afkEncounterChances = defaultAfkEncounterChances;
-let afkEncounterPool = defaultAfkEncounterPool;
-let afkEncounterPoolByTier = afkEncounterPool.reduce<Record<EncounterTier, AfkEncounterConfig[]>>(
-  (accumulator, encounter) => {
-    accumulator[encounter.tier].push(encounter);
-    return accumulator;
-  },
-  {
-    common: [],
-    rare: [],
-    legendary: [],
-  },
-);
+let afkEncounterPoolByMapAndTier: Record<string, Record<EncounterTier, AfkEncounterConfig[]>> = {};
 let classConfigs: ClassConfig[] = defaultClassConfigs;
 let mapConfigs: MapConfig[] = defaultMapConfigs;
 let raceConfigs: RaceConfig[] = defaultRaceConfigs;
@@ -387,8 +376,9 @@ let raceConfigs: RaceConfig[] = defaultRaceConfigs;
 applyRuntimeConfig({
   afkEncounterChances: defaultAfkEncounterChances,
   afkEncounterPool: defaultAfkEncounterPool,
-  afkEncounterPoolByTier,
+  afkEncounterPoolByMapAndTier: {},
   battleEnemyTemplates: [],
+  battleEnemyTemplatesByMap: {},
   classConfigs: defaultClassConfigs,
   itemCatalog: [] as RuntimeItemSeed[],
   itemSeedById: new Map<string, RuntimeItemSeed>(),
@@ -418,8 +408,7 @@ function applyRuntimeConfig(config: Awaited<ReturnType<typeof refreshRuntimeGame
   itemSeeds = config.itemCatalog as ItemSeed[];
   itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
   afkEncounterChances = config.afkEncounterChances;
-  afkEncounterPool = config.afkEncounterPool;
-  afkEncounterPoolByTier = config.afkEncounterPoolByTier;
+  afkEncounterPoolByMapAndTier = config.afkEncounterPoolByMapAndTier;
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
   raceConfigs = config.raceConfigs;
@@ -988,8 +977,10 @@ function normalizeEncounterLog(value: unknown): AfkEncounterLogEntry[] {
   return entries.slice(0, MAX_RECENT_ENCOUNTERS);
 }
 
-function pickRandomEncounter(tier: EncounterTier) {
-  const pool = afkEncounterPoolByTier[tier];
+function pickRandomEncounter(tier: EncounterTier, mapKey: string | null) {
+  const pool = mapKey
+    ? afkEncounterPoolByMapAndTier[mapKey]?.[tier] ?? []
+    : afkEncounterPoolByMapAndTier[mapConfigs[0]?.key ?? ""]?.[tier] ?? [];
 
   if (pool.length === 0) {
     return null;
@@ -1014,7 +1005,7 @@ function resolveEncounterTierByRoll(roll: number): EncounterTier | null {
   return null;
 }
 
-function buildEncounterDelta(executions: number, settledAt: number) {
+function buildEncounterDelta(executions: number, settledAt: number, mapKey: string | null) {
   const delta: Pick<RewardDelta, "aetherCrystal" | "encounters" | "exp" | "gold" | "itemDrops"> = {
     aetherCrystal: 0,
     encounters: [],
@@ -1030,7 +1021,7 @@ function buildEncounterDelta(executions: number, settledAt: number) {
       continue;
     }
 
-    const encounter = pickRandomEncounter(tier);
+    const encounter = pickRandomEncounter(tier, mapKey);
 
     if (!encounter) {
       continue;
@@ -1253,7 +1244,7 @@ function settleAfkState(afk: AfkRow, options?: { capSeconds?: number; now?: numb
   const previousExecutions = Math.floor(previousTotalSeconds / AFK_TASK_SECONDS);
   const nextExecutions = Math.floor(nextTotalSeconds / AFK_TASK_SECONDS);
   const rewardDelta = buildRewardDeltaForExecutions(afk.map_key, previousExecutions, nextExecutions);
-  const encounterDelta = buildEncounterDelta(rewardDelta.executions, now);
+  const encounterDelta = buildEncounterDelta(rewardDelta.executions, now, afk.map_key);
 
   rewardDelta.gold += encounterDelta.gold;
   rewardDelta.aetherCrystal += encounterDelta.aetherCrystal;

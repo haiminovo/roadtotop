@@ -1,7 +1,6 @@
 const { query, withTransaction } = require("./db");
 const {
   DEFAULT_AFK_ENCOUNTER_CHANCES,
-  DEFAULT_BATTLE_ENEMIES,
   DEFAULT_CLASS_CONFIGS,
   DEFAULT_ITEM_CATALOG,
   DEFAULT_LEVEL_TABLE,
@@ -47,18 +46,14 @@ let PLAYER_GUARD_HEALTH_THRESHOLD = DEFAULT_SYSTEM_BALANCE.playerGuardHealthThre
 let ENEMY_GUARD_HEALTH_THRESHOLD = DEFAULT_SYSTEM_BALANCE.enemyGuardHealthThreshold;
 let PLAYER_GUARD_COOLDOWN_TURNS = DEFAULT_SYSTEM_BALANCE.playerGuardCooldownTurns;
 let ENEMY_GUARD_COOLDOWN_TURNS = DEFAULT_SYSTEM_BALANCE.enemyGuardCooldownTurns;
-let battleEnemyTemplates = DEFAULT_BATTLE_ENEMIES;
+let battleEnemyTemplatesByMap = {};
 let itemSeeds = DEFAULT_ITEM_CATALOG;
 let itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
 let raceConfigs = DEFAULT_RACE_CONFIGS;
 let classConfigs = DEFAULT_CLASS_CONFIGS;
 let mapConfigs = DEFAULT_MAP_CONFIGS;
 let afkEncounterChances = DEFAULT_AFK_ENCOUNTER_CHANCES;
-let afkEncounterPoolByTier = {
-  common: [],
-  rare: [],
-  legendary: [],
-};
+let afkEncounterPoolByMapAndTier = {};
 
 function applyRuntimeConfig(config) {
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
@@ -75,14 +70,14 @@ function applyRuntimeConfig(config) {
   ENEMY_GUARD_HEALTH_THRESHOLD = config.systemBalance.enemyGuardHealthThreshold;
   PLAYER_GUARD_COOLDOWN_TURNS = config.systemBalance.playerGuardCooldownTurns;
   ENEMY_GUARD_COOLDOWN_TURNS = config.systemBalance.enemyGuardCooldownTurns;
-  battleEnemyTemplates = config.battleEnemyTemplates;
+  battleEnemyTemplatesByMap = config.battleEnemyTemplatesByMap || {};
   itemSeeds = config.itemCatalog;
   itemSeedById = config.itemSeedById;
   raceConfigs = config.raceConfigs;
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
   afkEncounterChances = config.afkEncounterChances;
-  afkEncounterPoolByTier = config.afkEncounterPoolByTier;
+  afkEncounterPoolByMapAndTier = config.afkEncounterPoolByMapAndTier || {};
 }
 
 async function ensureRuntimeGameConfig() {
@@ -706,9 +701,21 @@ function scaleEnemyStat(baseValue, multiplier, variance = 0.12) {
   return Math.max(4, Math.round(scaled * offset));
 }
 
+function getBattleEnemyPoolForMap(mapKey = null) {
+  if (mapKey && battleEnemyTemplatesByMap[mapKey]?.length) {
+    return battleEnemyTemplatesByMap[mapKey];
+  }
+
+  return battleEnemyTemplatesByMap[mapConfigs[0]?.key] || [];
+}
+
 function createEnemyProfile(role, backpack = [], mapKey = null) {
   const playerProfile = getPlayerBattleProfile(role, backpack);
-  const template = battleEnemyTemplates[Math.floor(Math.random() * battleEnemyTemplates.length)] || battleEnemyTemplates[0];
+  const templatePool = getBattleEnemyPoolForMap(mapKey);
+  const template = templatePool[Math.floor(Math.random() * templatePool.length)] || templatePool[0];
+  if (!template) {
+    throw new Error("当前地图未配置可用怪物模板。");
+  }
   const map = getMapConfig(mapKey);
   const mapLevelBonus = map ? 1 : 0;
   const level = Math.max(1, normalizeNumber(role.level) + (Math.random() < 0.35 ? 1 : 0) + mapLevelBonus);
@@ -1157,8 +1164,10 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   };
 }
 
-function pickRandomEncounter(tier) {
-  const pool = afkEncounterPoolByTier[tier];
+function pickRandomEncounter(tier, mapKey = null) {
+  const pool = mapKey
+    ? afkEncounterPoolByMapAndTier[mapKey]?.[tier]
+    : afkEncounterPoolByMapAndTier[mapConfigs[0]?.key]?.[tier];
 
   if (!pool || pool.length === 0) {
     return null;
@@ -1183,7 +1192,7 @@ function resolveEncounterTierByRoll(roll) {
   return null;
 }
 
-function buildEncounterDelta(executions, settledAt) {
+function buildEncounterDelta(executions, settledAt, mapKey = null) {
   const delta = {
     aetherCrystal: 0,
     encounters: [],
@@ -1199,7 +1208,7 @@ function buildEncounterDelta(executions, settledAt) {
       continue;
     }
 
-    const encounter = pickRandomEncounter(tier);
+    const encounter = pickRandomEncounter(tier, mapKey);
 
     if (!encounter) {
       continue;
@@ -1442,7 +1451,7 @@ function maybeStartBattle(data, timestamp, summary) {
 
 function resolveAfkExecution(data, timestamp, options, summary) {
   const baseReward = buildRewardForSeconds(data.afk.map_key, AFK_TASK_SECONDS);
-  const encounterDelta = buildEncounterDelta(1, timestamp);
+  const encounterDelta = buildEncounterDelta(1, timestamp, data.afk.map_key);
   const rewardDelta = {
     aetherCrystal: baseReward.aetherCrystal + encounterDelta.aetherCrystal,
     encounters: encounterDelta.encounters,
