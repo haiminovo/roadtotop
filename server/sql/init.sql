@@ -82,6 +82,14 @@ CREATE TABLE IF NOT EXISTS item (
 ALTER TABLE item
 ADD COLUMN IF NOT EXISTS slot_usage INTEGER NOT NULL DEFAULT 1;
 
+CREATE TABLE IF NOT EXISTS game_config (
+  config_key TEXT PRIMARY KEY,
+  config_type TEXT NOT NULL,
+  value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS backpack (
   backpack_id TEXT PRIMARY KEY,
   role_id TEXT NOT NULL REFERENCES "role"(role_id) ON DELETE CASCADE,
@@ -437,6 +445,213 @@ ON CONFLICT (item_id) DO UPDATE SET
   sell_price = EXCLUDED.sell_price,
   stat_json = EXCLUDED.stat_json,
   updated_at = NOW();
+
+INSERT INTO game_config (config_key, config_type, value, updated_at)
+VALUES
+  (
+    'races',
+    'list',
+    '[
+      {
+        "key": "human",
+        "label": "人类",
+        "summary": "四维均衡，最适合当前版本的万能开荒模版。",
+        "stats": { "strength": 5, "agility": 5, "intelligence": 5, "vitality": 5 },
+        "bodySlotAdjustments": {}
+      },
+      {
+        "key": "elf",
+        "label": "精灵",
+        "summary": "速度和法感更高，挂机效率偏灵巧与法术。",
+        "stats": { "strength": 3, "agility": 7, "intelligence": 7, "vitality": 3 },
+        "bodySlotAdjustments": { "accessory": 1 }
+      },
+      {
+        "key": "dwarf",
+        "label": "矮人",
+        "summary": "更硬更稳，适合站桩和长期刷图。",
+        "stats": { "strength": 7, "agility": 3, "intelligence": 3, "vitality": 7 },
+        "bodySlotAdjustments": { "accessory": -1 }
+      }
+    ]'::jsonb,
+    NOW()
+  ),
+  (
+    'classes',
+    'list',
+    '[
+      {
+        "key": "warrior",
+        "label": "战士",
+        "summary": "近战起步快，初始金币与白装最实用。",
+        "starterItemId": "rusty-blade",
+        "stats": { "strength": 4, "agility": 2, "intelligence": 0, "vitality": 3 }
+      },
+      {
+        "key": "mage",
+        "label": "法师",
+        "summary": "智力成长高，预计收益里的经验占比更高。",
+        "starterItemId": "oak-staff",
+        "stats": { "strength": 0, "agility": 2, "intelligence": 5, "vitality": 2 }
+      },
+      {
+        "key": "farmer",
+        "label": "农民",
+        "summary": "务实稳定，适合当前版本的挂机与资源周转。",
+        "starterItemId": "field-hoe",
+        "stats": { "strength": 2, "agility": 2, "intelligence": 1, "vitality": 4 }
+      }
+    ]'::jsonb,
+    NOW()
+  ),
+  (
+    'maps',
+    'list',
+    '[
+      {
+        "key": "palmia-wilds",
+        "label": "野外",
+        "summary": "收益平衡，适合刚创角时开第一张图。",
+        "goldPerMinute": 20,
+        "aetherPerMinute": 0.25,
+        "expPerMinute": 10
+      }
+    ]'::jsonb,
+    NOW()
+  ),
+  (
+    'afk-encounter-rates',
+    'object',
+    '{"common": 0.1, "rare": 0.01, "legendary": 0.001}'::jsonb,
+    NOW()
+  ),
+  (
+    'afk-encounters',
+    'list',
+    '[
+      {
+        "key": "wanderer-cache",
+        "tier": "common",
+        "title": "拾荒者的暗袋",
+        "description": "你在枯树根下翻出一只旧布袋，却被藏着的铁夹划伤了手，好在还能顺走一点物资。",
+        "reward": { "gold": 28, "aetherCrystal": 0, "exp": 8, "healthDelta": -10, "items": [{ "itemId": "scout-bracers", "quantity": 1 }] }
+      },
+      {
+        "key": "mossy-altar",
+        "tier": "common",
+        "title": "长苔石坛",
+        "description": "路边石坛上还留着未散的微光，你靠近后精神为之一振。",
+        "reward": { "gold": 12, "aetherCrystal": 1, "exp": 10, "healthDelta": 12, "items": [{ "itemId": "leather-cap", "quantity": 1 }] }
+      },
+      {
+        "key": "merchant-clue",
+        "tier": "common",
+        "title": "流商的线索",
+        "description": "你追上了匆匆离开的行商，从他手里换到了一点便宜补给。",
+        "reward": { "gold": 36, "aetherCrystal": 0, "exp": 6, "items": [{ "itemId": "training-bow", "quantity": 1 }] }
+      },
+      {
+        "key": "windfall-fruit",
+        "tier": "common",
+        "title": "风落浆果",
+        "description": "你尝到一串罕见野果，体力恢复不少，连动作都轻快了些。",
+        "reward": { "gold": 0, "aetherCrystal": 1, "exp": 14, "healthDelta": 18 }
+      },
+      {
+        "key": "crystal-burrow",
+        "tier": "rare",
+        "title": "隐晶兽巢",
+        "description": "灌木后藏着一处被废弃的兽巢，残留的晶刺划破了你的护具，但你也捡到了完整结晶。",
+        "reward": { "gold": 120, "aetherCrystal": 4, "exp": 36, "healthDelta": -22, "items": [{ "itemId": "amber-charm", "quantity": 1 }] }
+      },
+      {
+        "key": "forgotten-caravan",
+        "tier": "rare",
+        "title": "失落商队",
+        "description": "你在旧车辙旁找到半埋的补给箱，却也顺手赶跑了几只扑上来的鬣犬。",
+        "reward": { "gold": 168, "aetherCrystal": 2, "exp": 28, "healthDelta": -14, "items": [{ "itemId": "hunter-leathers", "quantity": 1 }] }
+      },
+      {
+        "key": "moonlit-guidance",
+        "tier": "rare",
+        "title": "月影指引",
+        "description": "短暂闪过的银白轨迹为你指明了近路，也让你看清了更多细节。",
+        "reward": { "gold": 88, "aetherCrystal": 3, "exp": 56, "healthDelta": 20, "items": [{ "itemId": "moonshadow-dagger", "quantity": 1 }] }
+      },
+      {
+        "key": "dragonbone-relic",
+        "tier": "legendary",
+        "title": "龙骨遗辉",
+        "description": "你在荒野深处碰见一截仍在低鸣的龙骨，其残响将力量灌入你的血脉。",
+        "reward": { "gold": 888, "aetherCrystal": 18, "exp": 220, "healthDelta": 40, "items": [{ "itemId": "knightwatch-mail", "quantity": 1 }] }
+      },
+      {
+        "key": "starlight-vault",
+        "tier": "legendary",
+        "title": "星辉秘匣",
+        "description": "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
+        "reward": { "gold": 1280, "aetherCrystal": 12, "exp": 188, "healthDelta": 32, "items": [{ "itemId": "dawnfire-pendant", "quantity": 1 }] }
+      }
+    ]'::jsonb,
+    NOW()
+  ),
+  (
+    'battle-enemies',
+    'list',
+    '[
+      {
+        "key": "stray-wolf",
+        "name": "荒原孤狼",
+        "summary": "敏捷高、出手快，喜欢趁空档撕咬。",
+        "skillCaps": { "guard": 1, "spell": 0 },
+        "statWeights": { "agility": 1.15, "intelligence": 0.45, "strength": 0.9, "vitality": 0.85 }
+      },
+      {
+        "key": "bandit-scout",
+        "name": "流匪斥候",
+        "summary": "动作灵活，偶尔会抓时机用投刃压血线。",
+        "skillCaps": { "guard": 1, "spell": 2 },
+        "statWeights": { "agility": 1.05, "intelligence": 0.65, "strength": 0.95, "vitality": 0.9 }
+      },
+      {
+        "key": "ruin-mage",
+        "name": "遗迹术士",
+        "summary": "智力偏高，擅长在残血时用法术收尾。",
+        "skillCaps": { "guard": 1, "spell": 3 },
+        "statWeights": { "agility": 0.75, "intelligence": 1.25, "strength": 0.55, "vitality": 0.95 }
+      },
+      {
+        "key": "stonehide-boar",
+        "name": "石皮野猪",
+        "summary": "血厚皮硬，撞击前摇慢但很难被秒掉。",
+        "skillCaps": { "guard": 1, "spell": 0 },
+        "statWeights": { "agility": 0.65, "intelligence": 0.25, "strength": 1, "vitality": 1.15 }
+      }
+    ]'::jsonb,
+    NOW()
+  ),
+  (
+    'system-balance',
+    'object',
+    '{
+      "marketFeeRatePercent": 10,
+      "battleTriggerChance": 0.2,
+      "actionBarTarget": 100,
+      "playerHealRatio": 0.18,
+      "playerGuardRatio": 0.45,
+      "enemyHealRatio": 0.08,
+      "enemyGuardRatio": 0.35,
+      "spellBaseChance": 0.7,
+      "intelligenceSpellBonusThreshold": 12,
+      "executionRewardTickSeconds": 1,
+      "playerGuardHealthThreshold": 0.3,
+      "enemyGuardHealthThreshold": 0.18,
+      "playerGuardCooldownTurns": 2,
+      "enemyGuardCooldownTurns": 3
+    }'::jsonb,
+    NOW()
+  )
+ON CONFLICT (config_key) DO NOTHING;
 
 UPDATE backpack
 SET equipped_slot_groups = CASE item_id

@@ -2,37 +2,41 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypt
 import type { PoolClient } from "pg";
 import {
   AFK_TASK_SECONDS,
-  afkEncounterChances,
-  afkEncounterPool,
-  classConfigs,
   EXP_GROWTH_PER_LEVEL,
   EXP_PER_LEVEL,
-  getBodySlotCapacities,
-  getBodySlotTypeLabel,
-  getClassConfig,
   getCurrentLevelProgress,
   getExpRequiredForLevel,
   getLevelBaseExp,
   getLevelFromExp,
   getMaxHealth,
-  getMapConfig,
-  getRaceConfig,
-  levelTable,
   LEVEL_CURVE_VERSION,
-  mapConfigs,
   MAX_OFFLINE_SECONDS,
-  raceConfigs,
+  afkEncounterChances as defaultAfkEncounterChances,
+  afkEncounterPool as defaultAfkEncounterPool,
+  classConfigs as defaultClassConfigs,
+  mapConfigs as defaultMapConfigs,
+  raceConfigs as defaultRaceConfigs,
   type AfkEncounterConfig,
   type AfkEncounterReward,
   type BodySlotCapacities,
   type BodySlotType,
+  type ClassConfig,
   type ClassKey,
   type EncounterTier,
   type ItemRarity,
+  type MapConfig,
   type MapKey,
+  type RaceConfig,
   type RaceKey,
 } from "@/lib/game-config";
 import { query, withTransaction } from "@/lib/server/db";
+import {
+  getBodySlotCapacitiesFromRace,
+  getBodySlotTypeLabelRuntime,
+  getLevelTable,
+  refreshRuntimeGameConfig,
+  type RuntimeItemSeed,
+} from "@/lib/server/dynamic-game-config";
 import { deleteRedisKey, setRedisJson } from "@/lib/server/redis";
 
 type UserRow = {
@@ -350,38 +354,22 @@ export type AccountRegistrationInput = {
   username: string;
 };
 
+const levelTable = getLevelTable();
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
 const MIN_PASSWORD_LENGTH = 6;
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 20;
-const MARKET_FEE_RATE_PERCENT = 10;
+let MARKET_FEE_RATE_PERCENT = 10;
 const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }] as const satisfies Array<{
   key: MarketCategoryKey;
   label: string;
 }>;
-const itemSeeds: ItemSeed[] = [
-  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
-  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
-  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
-  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
-  { itemId: "training-bow", name: "练习短弓", rarity: "white", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
-  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
-  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
-  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
-  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
-  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
-  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
-  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
-  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
-  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
-  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
-  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
-  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
-];
-const itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
-const afkEncounterPoolByTier = afkEncounterPool.reduce<Record<EncounterTier, AfkEncounterConfig[]>>(
+let itemSeeds: ItemSeed[] = [];
+let itemSeedById = new Map<string, ItemSeed>();
+let afkEncounterChances = defaultAfkEncounterChances;
+let afkEncounterPool = defaultAfkEncounterPool;
+let afkEncounterPoolByTier = afkEncounterPool.reduce<Record<EncounterTier, AfkEncounterConfig[]>>(
   (accumulator, encounter) => {
     accumulator[encounter.tier].push(encounter);
     return accumulator;
@@ -392,6 +380,74 @@ const afkEncounterPoolByTier = afkEncounterPool.reduce<Record<EncounterTier, Afk
     legendary: [],
   },
 );
+let classConfigs: ClassConfig[] = defaultClassConfigs;
+let mapConfigs: MapConfig[] = defaultMapConfigs;
+let raceConfigs: RaceConfig[] = defaultRaceConfigs;
+
+applyRuntimeConfig({
+  afkEncounterChances: defaultAfkEncounterChances,
+  afkEncounterPool: defaultAfkEncounterPool,
+  afkEncounterPoolByTier,
+  battleEnemyTemplates: [],
+  classConfigs: defaultClassConfigs,
+  itemCatalog: [] as RuntimeItemSeed[],
+  itemSeedById: new Map<string, RuntimeItemSeed>(),
+  levelTable,
+  mapConfigs: defaultMapConfigs,
+  raceConfigs: defaultRaceConfigs,
+  systemBalance: {
+    actionBarTarget: 100,
+    battleTriggerChance: 0.2,
+    enemyGuardCooldownTurns: 3,
+    enemyGuardHealthThreshold: 0.18,
+    enemyGuardRatio: 0.35,
+    enemyHealRatio: 0.08,
+    executionRewardTickSeconds: 1,
+    intelligenceSpellBonusThreshold: 12,
+    marketFeeRatePercent: 10,
+    playerGuardCooldownTurns: 2,
+    playerGuardHealthThreshold: 0.3,
+    playerGuardRatio: 0.45,
+    playerHealRatio: 0.18,
+    spellBaseChance: 0.7,
+  },
+});
+
+function applyRuntimeConfig(config: Awaited<ReturnType<typeof refreshRuntimeGameConfig>>) {
+  MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
+  itemSeeds = config.itemCatalog as ItemSeed[];
+  itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
+  afkEncounterChances = config.afkEncounterChances;
+  afkEncounterPool = config.afkEncounterPool;
+  afkEncounterPoolByTier = config.afkEncounterPoolByTier;
+  classConfigs = config.classConfigs;
+  mapConfigs = config.mapConfigs;
+  raceConfigs = config.raceConfigs;
+}
+
+async function ensureRuntimeGameConfig() {
+  applyRuntimeConfig(await refreshRuntimeGameConfig());
+}
+
+function getRaceConfig(raceKey: string) {
+  return raceConfigs.find((item) => item.key === raceKey) ?? null;
+}
+
+function getClassConfig(classKey: string) {
+  return classConfigs.find((item) => item.key === classKey) ?? null;
+}
+
+function getMapConfig(mapKey: string) {
+  return mapConfigs.find((item) => item.key === mapKey) ?? null;
+}
+
+function getBodySlotCapacities(raceKey: string) {
+  return getBodySlotCapacitiesFromRace(raceKey, raceConfigs);
+}
+
+function getBodySlotTypeLabel(slotType: BodySlotType) {
+  return getBodySlotTypeLabelRuntime(slotType);
+}
 
 function makeId(prefix: string) {
   return `${prefix}-${randomUUID()}`;
@@ -1614,6 +1670,7 @@ async function findRoleByUserId(userId: string) {
 }
 
 async function requireDashboardData(guestToken: string) {
+  await ensureRuntimeGameConfig();
   const user = await findUserByGuestToken(guestToken);
 
   if (!user) {
@@ -1711,6 +1768,7 @@ async function deleteBackpackEntry(client: PoolClient, roleId: string, backpackI
 }
 
 export async function equipBackpackItem(guestToken: string, backpackId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
@@ -1739,6 +1797,7 @@ export async function equipBackpackItem(guestToken: string, backpackId: string) 
 }
 
 export async function unequipBackpackItem(guestToken: string, backpackId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
@@ -1983,6 +2042,7 @@ export async function createRoleForGuest(input: {
   raceKey: RaceKey;
   classKey: ClassKey;
 }) {
+  await ensureRuntimeGameConfig();
   const race = getRaceConfig(input.raceKey);
   const roleClass = getClassConfig(input.classKey);
   const trimmedName = input.name.trim();
@@ -2113,6 +2173,7 @@ export async function getGuestBootstrap(
   guestToken?: string | null,
   options?: { forceOfflineSettlement?: boolean },
 ) {
+  await ensureRuntimeGameConfig();
   const loginResult = await loginGuest(guestToken);
 
   if (!loginResult.hasRole) {
@@ -2170,6 +2231,7 @@ export async function getFullSessionSnapshot(
   guestToken: string,
   options?: { forceOfflineSettlement?: boolean },
 ) {
+  await ensureRuntimeGameConfig();
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
@@ -2211,6 +2273,7 @@ export async function getFullSessionSnapshot(
 }
 
 export async function startAfk(guestToken: string, mapKey: MapKey) {
+  await ensureRuntimeGameConfig();
   const map = getMapConfig(mapKey);
 
   if (!map) {
@@ -2239,6 +2302,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
 }
 
 export async function stopAfk(guestToken: string) {
+  await ensureRuntimeGameConfig();
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
@@ -2275,6 +2339,7 @@ export async function stopAfk(guestToken: string) {
 }
 
 export async function claimAfkReward(guestToken: string) {
+  await ensureRuntimeGameConfig();
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
@@ -2335,6 +2400,7 @@ export async function claimAfkReward(guestToken: string) {
 }
 
 export async function dropBackpackItem(guestToken: string, backpackId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
@@ -2360,6 +2426,7 @@ export async function dropBackpackItem(guestToken: string, backpackId: string) {
 }
 
 export async function createMarketListing(guestToken: string, backpackId: string, price: number, quantity: number) {
+  await ensureRuntimeGameConfig();
   const normalizedBackpackId = backpackId.trim();
   const normalizedPrice = normalizeNumber(price);
   const normalizedQuantity = normalizeNumber(quantity);
@@ -2500,6 +2567,7 @@ export async function createMarketListing(guestToken: string, backpackId: string
 }
 
 export async function cancelMarketListing(guestToken: string, listingId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {
@@ -2589,6 +2657,7 @@ export async function cancelMarketListing(guestToken: string, listingId: string)
 }
 
 export async function dismissMarketSoldNotification(guestToken: string, listingId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {
@@ -2659,6 +2728,7 @@ export async function dismissMarketSoldNotification(guestToken: string, listingI
 }
 
 export async function buyMarketListing(guestToken: string, listingId: string) {
+  await ensureRuntimeGameConfig();
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {

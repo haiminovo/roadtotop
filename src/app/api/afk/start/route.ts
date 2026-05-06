@@ -1,4 +1,6 @@
-import { isValidMapKey, startAfk } from "@/lib/server/game-session-service";
+import type { MapKey } from "@/lib/game-config";
+import { startAfk } from "@/lib/server/game-session-service";
+import { isValidMapKeyRuntime } from "@/lib/server/dynamic-game-config";
 import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";
@@ -16,11 +18,11 @@ export async function POST(request: Request) {
       throw new ApiError("缺少游客 token。", 401);
     }
 
-    if (!body.mapKey || !isValidMapKey(body.mapKey)) {
+    if (!body.mapKey || !(await isValidMapKeyRuntime(body.mapKey))) {
       throw new ApiError("请选择有效挂机地图。");
     }
 
-    const snapshot = await startAfk(body.guestToken.trim(), body.mapKey);
+    const snapshot = await startAfk(body.guestToken.trim(), body.mapKey as MapKey);
     return jsonOk({ snapshot });
   } catch (error) {
     return jsonError(error);

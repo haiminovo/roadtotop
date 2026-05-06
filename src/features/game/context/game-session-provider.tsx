@@ -122,14 +122,6 @@ function clearPendingReturnSettlement() {
   window.localStorage.removeItem(RETURNING_FROM_BACKGROUND_KEY);
 }
 
-function isLocalDevelopmentHost() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-}
-
 function getFallbackWebSocketUrl() {
   if (typeof window === "undefined") {
     return null;
