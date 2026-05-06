@@ -1,6 +1,6 @@
-import { jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
-import { getAdminStaticMeta, getDynamicGameConfig, saveAdminGameConfig } from "@/lib/server/admin-config";
+import { getAdminStaticMeta, getDynamicGameConfig, saveAdminGameConfig, validateAdminGameConfig } from "@/lib/server/admin-config";
 import { refreshRuntimeGameConfig } from "@/lib/server/dynamic-game-config";
+import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 
@@ -20,6 +20,14 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await readJson<Parameters<typeof saveAdminGameConfig>[0]>(request);
+    const validation = validateAdminGameConfig(body);
+
+    if (!validation.isValid) {
+      throw new ApiError("配置校验失败。", 400, {
+        fieldErrors: validation.fieldErrors,
+      });
+    }
+
     await saveAdminGameConfig(body);
     await refreshRuntimeGameConfig();
     const config = await getDynamicGameConfig();

@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import type {
   AfkEncounterConfig,
   BodySlotCapacities,
@@ -24,6 +25,7 @@ import {
   MAX_OFFLINE_SECONDS,
   raceConfigs as defaultRaceConfigs,
 } from "@/lib/game-config";
+import type { Stats } from "@/lib/game-config";
 import { query, withTransaction } from "@/lib/server/db";
 
 type ConfigRow = {
@@ -107,6 +109,29 @@ export type AdminRoleRecord = {
   accountType: string;
   updatedAt: number | null;
 };
+
+export type AdminAccountRecord = {
+  userId: string;
+  guestToken: string;
+  accountType: "guest" | "account";
+  username: string | null;
+  hasPassword: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  createdAt: number | null;
+  lastLoginAt: number | null;
+  lastSeenAt: number | null;
+};
+
+export type AdminAccountUpsertInput = {
+  userId?: string;
+  guestToken?: string;
+  accountType: "guest" | "account";
+  username?: string | null;
+  password?: string;
+};
+
+export type AdminConfigFieldErrors = Partial<Record<keyof Omit<DynamicGameConfig, "levelTable">, string[]>>;
 
 const DEFAULT_AFK_ENCOUNTER_CHANCES: Record<EncounterTier, number> = {
   common: 0.1,
@@ -260,6 +285,48 @@ function asRarity(value: unknown) {
     : "white";
 }
 
+function makeId(prefix: string) {
+  return `${prefix}-${randomUUID()}`;
+}
+
+function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isValidUsername(value: string) {
+  return /^[a-zA-Z0-9_]+$/.test(value);
+}
+
+function validateUsername(username: string) {
+  const normalizedUsername = normalizeUsername(username);
+
+  if (
+    normalizedUsername.length < 4
+    || normalizedUsername.length > 20
+    || !isValidUsername(normalizedUsername)
+  ) {
+    throw new Error("账号需为 4 到 20 位，仅支持字母、数字和下划线。");
+  }
+
+  return normalizedUsername;
+}
+
+function validatePassword(password: string) {
+  if (password.length < 6 || password.length > 64) {
+    throw new Error("密码需为 6 到 64 个字符。");
+  }
+}
+
+function hashPassword(password: string, salt?: string) {
+  const resolvedSalt = salt ?? randomBytes(16).toString("hex");
+  const passwordHash = scryptSync(password, resolvedSalt, 64).toString("hex");
+
+  return {
+    passwordHash,
+    passwordSalt: resolvedSalt,
+  };
+}
+
 function asEncounterTier(value: unknown): EncounterTier {
   return value === "common" || value === "rare" || value === "legendary" ? value : "common";
 }
@@ -289,6 +356,414 @@ function normalizeStats(value: unknown) {
     agility: asInt(source?.agility, 0),
     intelligence: asInt(source?.intelligence, 0),
     vitality: asInt(source?.vitality, 0),
+  };
+}
+
+function createConfigErrorBucket(): AdminConfigFieldErrors {
+  return {
+    afkEncounterChances: [],
+    afkEncounterPool: [],
+    battleEnemyTemplates: [],
+    classConfigs: [],
+    itemCatalog: [],
+    mapConfigs: [],
+    raceConfigs: [],
+    systemBalance: [],
+  };
+}
+
+function pushConfigError(
+  errors: AdminConfigFieldErrors,
+  key: keyof AdminConfigFieldErrors,
+  message: string,
+) {
+  const bucket = errors[key];
+
+  if (bucket) {
+    bucket.push(message);
+  } else {
+    errors[key] = [message];
+  }
+}
+
+function isEmptyConfigErrors(errors: AdminConfigFieldErrors) {
+  return Object.values(errors).every((messages) => !messages || messages.length === 0);
+}
+
+function isKnownBodySlotType(value: unknown): value is BodySlotType {
+  return typeof value === "string" && value in DEFAULT_BODY_SLOT_CAPACITIES;
+}
+
+function isKnownEncounterTier(value: unknown): value is EncounterTier {
+  return value === "common" || value === "rare" || value === "legendary";
+}
+
+function isKnownRarity(value: unknown) {
+  return value === "white"
+    || value === "green"
+    || value === "blue"
+    || value === "purple"
+    || value === "orange";
+}
+
+function validateRequiredString(
+  value: unknown,
+  label: string,
+  push: (message: string) => void,
+) {
+  if (typeof value !== "string" || !value.trim()) {
+    push(`${label}不能为空。`);
+    return null;
+  }
+
+  return value.trim();
+}
+
+function validateFiniteNumber(
+  value: unknown,
+  label: string,
+  push: (message: string) => void,
+  options?: {
+    integer?: boolean;
+    min?: number;
+    max?: number;
+    exclusiveMin?: number;
+    exclusiveMax?: number;
+  },
+) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    push(`${label}必须是合法数字。`);
+    return null;
+  }
+
+  if (options?.integer && !Number.isInteger(value)) {
+    push(`${label}必须是整数。`);
+    return null;
+  }
+
+  if (options?.min !== undefined && value < options.min) {
+    push(`${label}不能小于 ${options.min}。`);
+    return null;
+  }
+
+  if (options?.max !== undefined && value > options.max) {
+    push(`${label}不能大于 ${options.max}。`);
+    return null;
+  }
+
+  if (options?.exclusiveMin !== undefined && value <= options.exclusiveMin) {
+    push(`${label}必须大于 ${options.exclusiveMin}。`);
+    return null;
+  }
+
+  if (options?.exclusiveMax !== undefined && value >= options.exclusiveMax) {
+    push(`${label}必须小于 ${options.exclusiveMax}。`);
+    return null;
+  }
+
+  return value;
+}
+
+function validateStatsObject(
+  value: unknown,
+  label: string,
+  push: (message: string) => void,
+) {
+  const stats = asObject(value);
+
+  if (!stats) {
+    push(`${label}必须是对象。`);
+    return;
+  }
+
+  const statKeys: Array<keyof Stats> = ["strength", "agility", "intelligence", "vitality"];
+
+  for (const statKey of statKeys) {
+    validateFiniteNumber(stats[statKey], `${label}.${statKey}`, push, { integer: true });
+  }
+}
+
+function validateItemStatsObject(
+  value: unknown,
+  label: string,
+  push: (message: string) => void,
+) {
+  const stats = asObject(value);
+
+  if (!stats) {
+    push(`${label}必须是对象。`);
+    return;
+  }
+
+  for (const [statKey, statValue] of Object.entries(stats)) {
+    validateFiniteNumber(statValue, `${label}.${statKey}`, push, { integer: true });
+  }
+}
+
+export function validateAdminGameConfig(input: {
+  afkEncounterChances: Record<EncounterTier, number>;
+  afkEncounterPool: AfkEncounterConfig[];
+  battleEnemyTemplates: BattleEnemyTemplate[];
+  classConfigs: ClassConfig[];
+  itemCatalog: DynamicGameConfig["itemCatalog"];
+  mapConfigs: MapConfig[];
+  raceConfigs: RaceConfig[];
+  systemBalance: SystemBalanceConfig;
+}) {
+  const errors = createConfigErrorBucket();
+  const itemIds = new Set<string>();
+  const raceKeys = new Set<string>();
+  const classKeys = new Set<string>();
+  const mapKeys = new Set<string>();
+  const enemyKeys = new Set<string>();
+  const encounterKeys = new Set<string>();
+
+  if (!Array.isArray(input.raceConfigs) || input.raceConfigs.length === 0) {
+    pushConfigError(errors, "raceConfigs", "种族配置必须是非空数组。");
+  } else {
+    input.raceConfigs.forEach((race, index) => {
+      const push = (message: string) => pushConfigError(errors, "raceConfigs", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(race?.key, "key", push);
+      validateRequiredString(race?.label, "label", push);
+      validateStatsObject(race?.stats, "stats", push);
+
+      if (key) {
+        if (raceKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        raceKeys.add(key);
+      }
+
+      if (race?.bodySlotAdjustments !== undefined) {
+        const adjustments = asObject(race.bodySlotAdjustments);
+
+        if (!adjustments) {
+          push("bodySlotAdjustments 必须是对象。");
+        } else {
+          for (const [slotType, slotValue] of Object.entries(adjustments)) {
+            if (!isKnownBodySlotType(slotType)) {
+              push(`bodySlotAdjustments.${slotType} 不是合法槽位。`);
+              continue;
+            }
+
+            validateFiniteNumber(slotValue, `bodySlotAdjustments.${slotType}`, push, { integer: true });
+          }
+        }
+      }
+    });
+  }
+
+  if (!Array.isArray(input.itemCatalog) || input.itemCatalog.length === 0) {
+    pushConfigError(errors, "itemCatalog", "物品目录必须是非空数组。");
+  } else {
+    input.itemCatalog.forEach((item, index) => {
+      const push = (message: string) => pushConfigError(errors, "itemCatalog", `第 ${index + 1} 项：${message}`);
+      const itemId = validateRequiredString(item?.itemId, "itemId", push);
+      validateRequiredString(item?.name, "name", push);
+      validateFiniteNumber(item?.slotUsage, "slotUsage", push, { integer: true, min: 1 });
+      validateFiniteNumber(item?.sellPrice, "sellPrice", push, { integer: true, min: 0 });
+      validateItemStatsObject(item?.stats, "stats", push);
+
+      if (!isKnownRarity(item?.rarity)) {
+        push("rarity 必须是 white / green / blue / purple / orange 之一。");
+      }
+
+      if (!isKnownBodySlotType(item?.slot)) {
+        push("slot 不是合法装备槽位。");
+      }
+
+      if (itemId) {
+        if (itemIds.has(itemId)) {
+          push(`itemId "${itemId}" 重复。`);
+        }
+
+        itemIds.add(itemId);
+      }
+    });
+  }
+
+  if (!Array.isArray(input.classConfigs) || input.classConfigs.length === 0) {
+    pushConfigError(errors, "classConfigs", "职业配置必须是非空数组。");
+  } else {
+    input.classConfigs.forEach((classConfig, index) => {
+      const push = (message: string) => pushConfigError(errors, "classConfigs", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(classConfig?.key, "key", push);
+      validateRequiredString(classConfig?.label, "label", push);
+      validateRequiredString(classConfig?.starterItemId, "starterItemId", push);
+      validateStatsObject(classConfig?.stats, "stats", push);
+
+      if (key) {
+        if (classKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        classKeys.add(key);
+      }
+
+      if (classConfig?.starterItemId && !itemIds.has(classConfig.starterItemId)) {
+        push(`starterItemId "${classConfig.starterItemId}" 不存在于物品目录。`);
+      }
+    });
+  }
+
+  if (!Array.isArray(input.mapConfigs) || input.mapConfigs.length === 0) {
+    pushConfigError(errors, "mapConfigs", "地图配置必须是非空数组。");
+  } else {
+    input.mapConfigs.forEach((mapConfig, index) => {
+      const push = (message: string) => pushConfigError(errors, "mapConfigs", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(mapConfig?.key, "key", push);
+      validateRequiredString(mapConfig?.label, "label", push);
+      validateFiniteNumber(mapConfig?.goldPerMinute, "goldPerMinute", push, { min: 0 });
+      validateFiniteNumber(mapConfig?.aetherPerMinute, "aetherPerMinute", push, { min: 0 });
+      validateFiniteNumber(mapConfig?.expPerMinute, "expPerMinute", push, { min: 0 });
+
+      if (key) {
+        if (mapKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        mapKeys.add(key);
+      }
+    });
+  }
+
+  if (!Array.isArray(input.battleEnemyTemplates) || input.battleEnemyTemplates.length === 0) {
+    pushConfigError(errors, "battleEnemyTemplates", "怪物模板必须是非空数组。");
+  } else {
+    input.battleEnemyTemplates.forEach((enemy, index) => {
+      const push = (message: string) => pushConfigError(errors, "battleEnemyTemplates", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(enemy?.key, "key", push);
+      validateRequiredString(enemy?.name, "name", push);
+
+      if (key) {
+        if (enemyKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        enemyKeys.add(key);
+      }
+
+      const skillCaps = asObject(enemy?.skillCaps);
+
+      if (!skillCaps) {
+        push("skillCaps 必须是对象。");
+      } else {
+        validateFiniteNumber(skillCaps.guard, "skillCaps.guard", push, { integer: true, min: 0 });
+        validateFiniteNumber(skillCaps.spell, "skillCaps.spell", push, { integer: true, min: 0 });
+      }
+
+      const statWeights = asObject(enemy?.statWeights);
+
+      if (!statWeights) {
+        push("statWeights 必须是对象。");
+      } else {
+        validateFiniteNumber(statWeights.strength, "statWeights.strength", push, { exclusiveMin: 0 });
+        validateFiniteNumber(statWeights.agility, "statWeights.agility", push, { exclusiveMin: 0 });
+        validateFiniteNumber(statWeights.intelligence, "statWeights.intelligence", push, { exclusiveMin: 0 });
+        validateFiniteNumber(statWeights.vitality, "statWeights.vitality", push, { exclusiveMin: 0 });
+      }
+    });
+  }
+
+  if (!Array.isArray(input.afkEncounterPool) || input.afkEncounterPool.length === 0) {
+    pushConfigError(errors, "afkEncounterPool", "挂机遭遇池必须是非空数组。");
+  } else {
+    input.afkEncounterPool.forEach((encounter, index) => {
+      const push = (message: string) => pushConfigError(errors, "afkEncounterPool", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(encounter?.key, "key", push);
+      validateRequiredString(encounter?.title, "title", push);
+
+      if (key) {
+        if (encounterKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        encounterKeys.add(key);
+      }
+
+      if (!isKnownEncounterTier(encounter?.tier)) {
+        push("tier 必须是 common / rare / legendary 之一。");
+      }
+
+      const reward = asObject(encounter?.reward);
+
+      if (!reward) {
+        push("reward 必须是对象。");
+      } else {
+        validateFiniteNumber(reward.gold, "reward.gold", push, { integer: true });
+        validateFiniteNumber(reward.aetherCrystal, "reward.aetherCrystal", push, { integer: true });
+        validateFiniteNumber(reward.exp, "reward.exp", push, { integer: true });
+
+        if ("healthDelta" in reward && reward.healthDelta !== undefined) {
+          validateFiniteNumber(reward.healthDelta, "reward.healthDelta", push, { integer: true });
+        }
+
+        if ("items" in reward && reward.items !== undefined) {
+          if (!Array.isArray(reward.items)) {
+            push("reward.items 必须是数组。");
+          } else {
+            reward.items.forEach((item, itemIndex) => {
+              const itemSource = asObject(item);
+
+              if (!itemSource) {
+                push(`reward.items[${itemIndex + 1}] 必须是对象。`);
+                return;
+              }
+
+              const rewardItemId = validateRequiredString(itemSource.itemId, `reward.items[${itemIndex + 1}].itemId`, push);
+              validateFiniteNumber(itemSource.quantity, `reward.items[${itemIndex + 1}].quantity`, push, { integer: true, min: 1 });
+
+              if (rewardItemId && !itemIds.has(rewardItemId)) {
+                push(`reward.items[${itemIndex + 1}].itemId "${rewardItemId}" 不存在于物品目录。`);
+              }
+            });
+          }
+        }
+      }
+    });
+  }
+
+  const chances = asObject(input.afkEncounterChances);
+
+  if (!chances) {
+    pushConfigError(errors, "afkEncounterChances", "遭遇概率必须是对象。");
+  } else {
+    const common = validateFiniteNumber(chances.common, "common", (message) => pushConfigError(errors, "afkEncounterChances", message), { min: 0, max: 1 });
+    const rare = validateFiniteNumber(chances.rare, "rare", (message) => pushConfigError(errors, "afkEncounterChances", message), { min: 0, max: 1 });
+    const legendary = validateFiniteNumber(chances.legendary, "legendary", (message) => pushConfigError(errors, "afkEncounterChances", message), { min: 0, max: 1 });
+
+    if (common !== null && rare !== null && legendary !== null && common + rare + legendary > 1) {
+      pushConfigError(errors, "afkEncounterChances", "common + rare + legendary 的总和不能大于 1。");
+    }
+  }
+
+  const systemBalance = asObject(input.systemBalance);
+
+  if (!systemBalance) {
+    pushConfigError(errors, "systemBalance", "系统平衡参数必须是对象。");
+  } else {
+    const push = (message: string) => pushConfigError(errors, "systemBalance", message);
+
+    validateFiniteNumber(systemBalance.marketFeeRatePercent, "marketFeeRatePercent", push, { min: 0, max: 100 });
+    validateFiniteNumber(systemBalance.battleTriggerChance, "battleTriggerChance", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.actionBarTarget, "actionBarTarget", push, { integer: true, exclusiveMin: 0 });
+    validateFiniteNumber(systemBalance.playerHealRatio, "playerHealRatio", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.playerGuardRatio, "playerGuardRatio", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.enemyHealRatio, "enemyHealRatio", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.enemyGuardRatio, "enemyGuardRatio", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.spellBaseChance, "spellBaseChance", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.intelligenceSpellBonusThreshold, "intelligenceSpellBonusThreshold", push, { integer: true, min: 0 });
+    validateFiniteNumber(systemBalance.executionRewardTickSeconds, "executionRewardTickSeconds", push, { integer: true, exclusiveMin: 0 });
+    validateFiniteNumber(systemBalance.playerGuardHealthThreshold, "playerGuardHealthThreshold", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.enemyGuardHealthThreshold, "enemyGuardHealthThreshold", push, { min: 0, max: 1 });
+    validateFiniteNumber(systemBalance.playerGuardCooldownTurns, "playerGuardCooldownTurns", push, { integer: true, min: 0 });
+    validateFiniteNumber(systemBalance.enemyGuardCooldownTurns, "enemyGuardCooldownTurns", push, { integer: true, min: 0 });
+  }
+
+  return {
+    fieldErrors: errors,
+    isValid: isEmptyConfigErrors(errors),
   };
 }
 
@@ -641,6 +1116,229 @@ export async function listAdminRoles(): Promise<AdminRoleRecord[]> {
     accountType: row.account_type,
     updatedAt: row.updated_at ? new Date(row.updated_at).getTime() : null,
   }));
+}
+
+export async function listAdminAccounts(): Promise<AdminAccountRecord[]> {
+  const result = await query<{
+    user_id: string;
+    guest_token: string;
+    account_type: "guest" | "account";
+    username: string | null;
+    password_hash: string | null;
+    role_id: string | null;
+    role_name: string | null;
+    created_at: Date | null;
+    last_login_at: Date | null;
+    last_seen_at: Date | null;
+  }>(
+    `
+      SELECT
+        "user".user_id,
+        "user".guest_token,
+        "user".account_type,
+        "user".username,
+        "user".password_hash,
+        role.role_id,
+        role.name AS role_name,
+        "user".created_at,
+        "user".last_login_at,
+        "user".last_seen_at
+      FROM "user"
+      LEFT JOIN role ON role.user_id = "user".user_id
+      ORDER BY "user".created_at DESC, "user".user_id DESC
+    `,
+  );
+
+  return result.rows.map((row) => ({
+    userId: row.user_id,
+    guestToken: row.guest_token,
+    accountType: row.account_type,
+    username: row.username,
+    hasPassword: Boolean(row.password_hash),
+    roleId: row.role_id,
+    roleName: row.role_name,
+    createdAt: row.created_at ? new Date(row.created_at).getTime() : null,
+    lastLoginAt: row.last_login_at ? new Date(row.last_login_at).getTime() : null,
+    lastSeenAt: row.last_seen_at ? new Date(row.last_seen_at).getTime() : null,
+  }));
+}
+
+export async function createAdminAccount(input: AdminAccountUpsertInput) {
+  const accountType = input.accountType === "account" ? "account" : "guest";
+  const guestToken = input.guestToken?.trim() || makeId("guest");
+  const username = accountType === "account" ? validateUsername(input.username ?? "") : null;
+  const password = accountType === "account" ? (input.password ?? "") : "";
+
+  if (accountType === "account") {
+    validatePassword(password);
+  }
+
+  await withTransaction(async (client) => {
+    if (accountType === "account" && username) {
+      const existingUser = await client.query<{ user_id: string }>(
+        `SELECT user_id FROM "user" WHERE username = $1`,
+        [username],
+      );
+
+      if ((existingUser.rowCount ?? 0) > 0) {
+        throw new Error("该账号名已被占用。");
+      }
+    }
+
+    const existingGuestToken = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM "user" WHERE guest_token = $1`,
+      [guestToken],
+    );
+
+    if ((existingGuestToken.rowCount ?? 0) > 0) {
+      throw new Error("游客 token 已存在，请更换后重试。");
+    }
+
+    const passwordData = accountType === "account" ? hashPassword(password) : null;
+
+    await client.query(
+      `
+        INSERT INTO "user" (
+          user_id,
+          guest_token,
+          account_type,
+          username,
+          password_hash,
+          password_salt,
+          created_at,
+          last_login_at,
+          last_seen_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), NOW())
+      `,
+      [
+        makeId("user"),
+        guestToken,
+        accountType,
+        username,
+        passwordData?.passwordHash ?? null,
+        passwordData?.passwordSalt ?? null,
+      ],
+    );
+  });
+}
+
+export async function updateAdminAccount(input: AdminAccountUpsertInput & { userId: string }) {
+  const accountType = input.accountType === "account" ? "account" : "guest";
+  const guestToken = input.guestToken?.trim();
+
+  if (!input.userId.trim()) {
+    throw new Error("缺少账号标识。");
+  }
+
+  await withTransaction(async (client) => {
+    const existingResult = await client.query<{
+      user_id: string;
+      guest_token: string;
+      account_type: "guest" | "account";
+      username: string | null;
+      password_hash: string | null;
+      password_salt: string | null;
+    }>(
+      `
+        SELECT
+          user_id,
+          guest_token,
+          account_type,
+          username,
+          password_hash,
+          password_salt
+        FROM "user"
+        WHERE user_id = $1
+        FOR UPDATE
+      `,
+      [input.userId.trim()],
+    );
+
+    const current = existingResult.rows[0];
+
+    if (!current) {
+      throw new Error("账号不存在。");
+    }
+
+    const nextGuestToken = guestToken || current.guest_token;
+
+    if (nextGuestToken !== current.guest_token) {
+      const duplicateGuestToken = await client.query<{ user_id: string }>(
+        `SELECT user_id FROM "user" WHERE guest_token = $1 AND user_id <> $2`,
+        [nextGuestToken, current.user_id],
+      );
+
+      if ((duplicateGuestToken.rowCount ?? 0) > 0) {
+        throw new Error("游客 token 已存在，请更换后重试。");
+      }
+    }
+
+    const nextUsername = accountType === "account"
+      ? validateUsername(input.username ?? current.username ?? "")
+      : null;
+
+    if (accountType === "account" && nextUsername) {
+      const duplicateUsername = await client.query<{ user_id: string }>(
+        `SELECT user_id FROM "user" WHERE username = $1 AND user_id <> $2`,
+        [nextUsername, current.user_id],
+      );
+
+      if ((duplicateUsername.rowCount ?? 0) > 0) {
+        throw new Error("该账号名已被占用。");
+      }
+    }
+
+    let passwordHash = current.password_hash;
+    let passwordSalt = current.password_salt;
+
+    if (accountType === "account" && input.password && input.password.trim()) {
+      validatePassword(input.password);
+      const passwordData = hashPassword(input.password);
+      passwordHash = passwordData.passwordHash;
+      passwordSalt = passwordData.passwordSalt;
+    }
+
+    if (accountType === "guest") {
+      passwordHash = null;
+      passwordSalt = null;
+    }
+
+    await client.query(
+      `
+        UPDATE "user"
+        SET
+          guest_token = $2,
+          account_type = $3,
+          username = $4,
+          password_hash = $5,
+          password_salt = $6
+        WHERE user_id = $1
+      `,
+      [
+        current.user_id,
+        nextGuestToken,
+        accountType,
+        nextUsername,
+        passwordHash,
+        passwordSalt,
+      ],
+    );
+  });
+}
+
+export async function deleteAdminAccount(userId: string) {
+  if (!userId.trim()) {
+    throw new Error("缺少账号标识。");
+  }
+
+  await query(
+    `
+      DELETE FROM "user"
+      WHERE user_id = $1
+    `,
+    [userId.trim()],
+  );
 }
 
 export async function updateAdminRole(input: AdminRoleRecord) {

@@ -10,11 +10,13 @@ const corsHeaders = {
 
 export class ApiError extends Error {
   status: number;
+  details?: unknown;
 
-  constructor(message: string, status = 400) {
+  constructor(message: string, status = 400, details?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -34,6 +36,7 @@ export function jsonOk(payload: unknown, status = 200) {
 export function jsonError(error: unknown) {
   const message = error instanceof Error ? error.message : "服务端处理失败。";
   const status = error instanceof ApiError ? error.status : 500;
+  const details = error instanceof ApiError ? error.details : undefined;
 
   if (status >= 500) {
     logger.error("Game API failed.", {
@@ -46,6 +49,7 @@ export function jsonError(error: unknown) {
     {
       error: message,
       ok: false,
+      ...(details && typeof details === "object" ? details as object : details !== undefined ? { details } : {}),
     },
     {
       headers: corsHeaders,
