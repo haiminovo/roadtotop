@@ -417,6 +417,43 @@ function metricCard(title: string, value: string, detail: string) {
   );
 }
 
+function MobileAdminCollapse({
+  children,
+  defaultOpen = true,
+  summary,
+  title,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  summary: string;
+  title: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="space-y-3">
+      <button
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] lg:hidden"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-900">{title}</p>
+          <p className="mt-1 text-xs text-slate-500">{summary}</p>
+        </div>
+        <span className="ml-3 shrink-0 text-xs font-medium text-slate-400">
+          {isOpen ? "收起" : "展开"}
+        </span>
+      </button>
+
+      <div className={`${isOpen ? "block" : "hidden"} lg:block`}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [accountDeleteTarget, setAccountDeleteTarget] = useState<AdminAccountRecord | null>(null);
   const [accountDraft, setAccountDraft] = useState<AdminAccountDraft>({
@@ -437,8 +474,10 @@ export default function AdminPage() {
   const [roleKeyword, setRoleKeyword] = useState("");
   const [roles, setRoles] = useState<AdminRoleRecord[]>([]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [editorMode, setEditorMode] = useState<"structured" | "raw">("structured");
   const [selectedArrayItemIndexes, setSelectedArrayItemIndexes] = useState<Partial<Record<ConfigEditorKey, number>>>({});
   const [selectedConfigKey, setSelectedConfigKey] = useState<ConfigEditorKey>("raceConfigs");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     void Promise.all([
@@ -507,6 +546,7 @@ export default function AdminPage() {
     () => CONFIG_DEFINITIONS.filter((item) => item.category === activeSection),
     [activeSection],
   );
+  const hasStructuredEditor = !selectedConfigParseResult.error && (selectedArrayItems !== null || selectedObjectEntries !== null);
 
   useEffect(() => {
     if (activeSection === "roles" || activeSection === "reference") {
@@ -519,6 +559,14 @@ export default function AdminPage() {
       setSelectedConfigKey(nextTab.key);
     }
   }, [activeSection]);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activeSection]);
+
+  useEffect(() => {
+    setEditorMode(hasStructuredEditor ? "structured" : "raw");
+  }, [hasStructuredEditor, selectedConfig.key]);
 
   useEffect(() => {
     if (!selectedArrayItems) {
@@ -869,7 +917,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <main className="flex h-screen overflow-auto bg-[#f3f6fb] text-slate-600">
+      <main className="flex min-h-screen bg-[#f3f6fb] text-slate-600">
         <div className="m-auto">
         正在加载管理后台...
         </div>
@@ -878,9 +926,22 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[#f3f6fb] text-slate-800">
-      <div className="grid h-full lg:grid-cols-[248px_minmax(0,1fr)]">
-        <aside className="hidden h-full overflow-y-auto border-r border-slate-900/10 bg-[linear-gradient(180deg,#0a1a2b_0%,#081421_100%)] text-slate-100 lg:flex lg:flex-col">
+    <main className="min-h-screen bg-[#f3f6fb] text-slate-800 lg:h-screen lg:overflow-hidden">
+      <div className="grid min-h-screen lg:h-screen lg:grid-cols-[248px_minmax(0,1fr)]">
+        {isSidebarOpen ? (
+          <button
+            aria-label="关闭菜单"
+            className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+            type="button"
+          />
+        ) : null}
+
+        <aside
+          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,248px)] flex-col overflow-y-auto border-r border-slate-900/10 bg-[linear-gradient(180deg,#0a1a2b_0%,#081421_100%)] text-slate-100 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:translate-x-0 ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
           <div className="border-b border-white/10 px-5 py-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-400/20 text-lg font-semibold text-sky-200">
@@ -924,17 +985,16 @@ export default function AdminPage() {
             </div>
           </nav>
 
-          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-500">
-            当前版本优先支持动态配置与在线生效，后续可继续拆成结构化表单编辑。
-          </div>
+          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-500" />
         </aside>
 
-        <section className="flex min-w-0 min-h-0 flex-col">
-          <header className="shrink-0 border-b border-slate-200 bg-white">
+        <section className="flex min-w-0 flex-col lg:min-h-0">
+          <header className="sticky top-0 z-20 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
             <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4 md:px-6">
               <div className="flex items-center gap-3">
                 <button
                   className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 lg:hidden"
+                  onClick={() => setIsSidebarOpen(true)}
                   type="button"
                 >
                   菜单
@@ -946,12 +1006,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="hidden rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-500 md:block">
-                  已接入配置编辑、角色编辑、运行时参考
-                </div>
+              <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
                 <button
-                  className="rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,119,255,0.25)] transition hover:bg-[#0f6de8] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,119,255,0.25)] transition hover:bg-[#0f6de8] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   disabled={savingKey === "config"}
                   onClick={() => {
                     void saveConfig();
@@ -964,7 +1021,7 @@ export default function AdminPage() {
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6">
+          <div className="flex-1 px-4 py-5 md:px-6 lg:min-h-0 lg:overflow-y-auto">
             <div className="space-y-5 pb-6">
             {error ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
@@ -972,154 +1029,163 @@ export default function AdminPage() {
               </div>
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {metricCard("账号数量", formatNumber(metrics.accountCount), "当前账号总数")}
-              {metricCard("角色数量", formatNumber(roles.length), "当前可编辑角色总数")}
-              {metricCard("种族 / 职业", `${metrics.raceCount} / ${metrics.classCount}`, "成长体系配置规模")}
-              {metricCard("物品 / 事件", `${formatNumber(metrics.itemCount)} / ${formatNumber(metrics.encounterCount)}`, "物品目录与挂机事件规模")}
-            </section>
+            <MobileAdminCollapse
+              summary="账号、角色、成长与内容规模概览"
+              title="总览指标"
+            >
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {metricCard("账号数量", formatNumber(metrics.accountCount), "当前账号总数")}
+                {metricCard("角色数量", formatNumber(roles.length), "当前可编辑角色总数")}
+                {metricCard("种族 / 职业", `${metrics.raceCount} / ${metrics.classCount}`, "成长体系配置规模")}
+                {metricCard("物品 / 事件", `${formatNumber(metrics.itemCount)} / ${formatNumber(metrics.encounterCount)}`, "物品目录与挂机事件规模")}
+              </section>
+            </MobileAdminCollapse>
 
             {activeSection === "accounts" ? (
-              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-                <div className="border-b border-slate-200 px-5 py-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">账号管理</p>
-                      <h2 className="mt-2 text-xl font-semibold text-slate-900">账号增删改查</h2>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input
-                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10 md:w-72"
-                        onChange={(event) => setAccountKeyword(event.target.value)}
-                        placeholder="搜索账号 / token / 角色"
-                        value={accountKeyword}
-                      />
-                      <button
-                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-                        onClick={() => {
-                          setAccountKeyword("");
-                          resetAccountDraft();
-                        }}
-                        type="button"
-                      >
-                        重置
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-5 p-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">账号表单</p>
-                    <h3 className="mt-3 text-lg font-semibold text-slate-900">
-                      {accountDraft.userId ? "编辑账号" : "新增账号"}
-                    </h3>
-                    <div className="mt-4 space-y-4">
-                      <label className="block">
-                        <span className="mb-2 block text-sm text-slate-600">账号类型</span>
-                        <select
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                          onChange={(event) => setAccountDraft((current) => ({
-                            ...current,
-                            accountType: event.target.value === "account" ? "account" : "guest",
-                          }))}
-                          value={accountDraft.accountType}
-                        >
-                          <option value="guest">guest</option>
-                          <option value="account">account</option>
-                        </select>
-                      </label>
-
-                      <label className="block">
-                        <span className="mb-2 block text-sm text-slate-600">游客 Token</span>
+              <MobileAdminCollapse
+                summary="账号表单、搜索与账号列表"
+                title="账号增删改查"
+              >
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                  <div className="border-b border-slate-200 px-5 py-4">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">账号管理</p>
+                        <h2 className="mt-2 text-xl font-semibold text-slate-900">账号增删改查</h2>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
                         <input
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                          onChange={(event) => setAccountDraft((current) => ({ ...current, guestToken: event.target.value }))}
-                          placeholder="为空则自动生成"
-                          value={accountDraft.guestToken}
+                          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10 md:w-72"
+                          onChange={(event) => setAccountKeyword(event.target.value)}
+                          placeholder="搜索账号 / token / 角色"
+                          value={accountKeyword}
                         />
-                      </label>
-
-                      {accountDraft.accountType === "account" ? (
-                        <>
-                          <label className="block">
-                            <span className="mb-2 block text-sm text-slate-600">账号名</span>
-                            <input
-                              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                              onChange={(event) => setAccountDraft((current) => ({ ...current, username: event.target.value }))}
-                              placeholder="4-20 位字母 / 数字 / 下划线"
-                              value={accountDraft.username}
-                            />
-                          </label>
-
-                          <label className="block">
-                            <span className="mb-2 block text-sm text-slate-600">
-                              {accountDraft.userId ? "重置密码" : "初始密码"}
-                            </span>
-                            <input
-                              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                              onChange={(event) => setAccountDraft((current) => ({ ...current, password: event.target.value }))}
-                              placeholder={accountDraft.userId ? "留空则不修改" : "请输入密码"}
-                              type="password"
-                              value={accountDraft.password}
-                            />
-                          </label>
-                        </>
-                      ) : null}
-
-                      <div className="flex gap-3">
                         <button
-                          className="rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0f6de8] disabled:opacity-50"
-                          disabled={savingKey === "account-create" || savingKey === accountDraft.userId}
+                          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
                           onClick={() => {
-                            void saveAccount();
+                            setAccountKeyword("");
+                            resetAccountDraft();
                           }}
                           type="button"
                         >
-                          {savingKey === "account-create" || savingKey === accountDraft.userId ? "保存中..." : accountDraft.userId ? "更新账号" : "创建账号"}
-                        </button>
-                        <button
-                          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-white"
-                          onClick={resetAccountDraft}
-                          type="button"
-                        >
-                          清空表单
+                          重置
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[980px] text-sm">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium">账号</th>
-                          <th className="px-4 py-3 text-left font-medium">游客 Token</th>
-                          <th className="px-4 py-3 text-left font-medium">角色</th>
-                          <th className="px-4 py-3 text-left font-medium">密码</th>
-                          <th className="px-4 py-3 text-left font-medium">创建时间</th>
-                          <th className="px-4 py-3 text-left font-medium">最近登录</th>
-                          <th className="px-4 py-3 text-left font-medium">最近在线</th>
-                          <th className="w-[152px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAccounts.map((account, index) => (
-                          <tr
-                            key={account.userId}
-                            className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
+                  <div className="grid gap-5 p-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">账号表单</p>
+                      <h3 className="mt-3 text-lg font-semibold text-slate-900">
+                        {accountDraft.userId ? "编辑账号" : "新增账号"}
+                      </h3>
+                      <div className="mt-4 space-y-4">
+                        <label className="block">
+                          <span className="mb-2 block text-sm text-slate-600">账号类型</span>
+                          <select
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                            onChange={(event) => setAccountDraft((current) => ({
+                              ...current,
+                              accountType: event.target.value === "account" ? "account" : "guest",
+                            }))}
+                            value={accountDraft.accountType}
                           >
-                            <td className="px-4 py-3 align-top">
-                              <div className="font-medium text-slate-900">{account.username ?? "guest"}</div>
-                              <div className="mt-1 text-xs text-slate-500">{account.accountType}</div>
-                              <div className="mt-1 text-xs text-slate-400">{account.userId}</div>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{account.guestToken}</td>
-                            <td className="px-4 py-3 text-slate-600">{account.roleName ?? "-"}</td>
-                            <td className="px-4 py-3 text-slate-600">{account.hasPassword ? "已设置" : "-"}</td>
-                            <td className="px-4 py-3 text-slate-500">{formatDateTime(account.createdAt)}</td>
-                            <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastLoginAt)}</td>
-                            <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastSeenAt)}</td>
+                            <option value="guest">guest</option>
+                            <option value="account">account</option>
+                          </select>
+                        </label>
+
+                        <label className="block">
+                          <span className="mb-2 block text-sm text-slate-600">游客 Token</span>
+                          <input
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                            onChange={(event) => setAccountDraft((current) => ({ ...current, guestToken: event.target.value }))}
+                            placeholder="为空则自动生成"
+                            value={accountDraft.guestToken}
+                          />
+                        </label>
+
+                        {accountDraft.accountType === "account" ? (
+                          <>
+                            <label className="block">
+                              <span className="mb-2 block text-sm text-slate-600">账号名</span>
+                              <input
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                                onChange={(event) => setAccountDraft((current) => ({ ...current, username: event.target.value }))}
+                                placeholder="4-20 位字母 / 数字 / 下划线"
+                                value={accountDraft.username}
+                              />
+                            </label>
+
+                            <label className="block">
+                              <span className="mb-2 block text-sm text-slate-600">
+                                {accountDraft.userId ? "重置密码" : "初始密码"}
+                              </span>
+                              <input
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                                onChange={(event) => setAccountDraft((current) => ({ ...current, password: event.target.value }))}
+                                placeholder={accountDraft.userId ? "留空则不修改" : "请输入密码"}
+                                type="password"
+                                value={accountDraft.password}
+                              />
+                            </label>
+                          </>
+                        ) : null}
+
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                          <button
+                            className="rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0f6de8] disabled:opacity-50"
+                            disabled={savingKey === "account-create" || savingKey === accountDraft.userId}
+                            onClick={() => {
+                              void saveAccount();
+                            }}
+                            type="button"
+                          >
+                            {savingKey === "account-create" || savingKey === accountDraft.userId ? "保存中..." : accountDraft.userId ? "更新账号" : "创建账号"}
+                          </button>
+                          <button
+                            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-white"
+                            onClick={resetAccountDraft}
+                            type="button"
+                          >
+                            清空表单
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="min-w-[980px] text-sm">
+                        <thead className="bg-slate-50 text-slate-500">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium">账号</th>
+                            <th className="px-4 py-3 text-left font-medium">游客 Token</th>
+                            <th className="px-4 py-3 text-left font-medium">角色</th>
+                            <th className="px-4 py-3 text-left font-medium">密码</th>
+                            <th className="px-4 py-3 text-left font-medium">创建时间</th>
+                            <th className="px-4 py-3 text-left font-medium">最近登录</th>
+                            <th className="px-4 py-3 text-left font-medium">最近在线</th>
+                            <th className="w-[152px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredAccounts.map((account, index) => (
+                            <tr
+                              key={account.userId}
+                              className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
+                            >
+                              <td className="px-4 py-3 align-top">
+                                <div className="font-medium text-slate-900">{account.username ?? "guest"}</div>
+                                <div className="mt-1 text-xs text-slate-500">{account.accountType}</div>
+                                <div className="mt-1 text-xs text-slate-400">{account.userId}</div>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{account.guestToken}</td>
+                              <td className="px-4 py-3 text-slate-600">{account.roleName ?? "-"}</td>
+                              <td className="px-4 py-3 text-slate-600">{account.hasPassword ? "已设置" : "-"}</td>
+                              <td className="px-4 py-3 text-slate-500">{formatDateTime(account.createdAt)}</td>
+                              <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastLoginAt)}</td>
+                              <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastSeenAt)}</td>
                               <td className="w-[152px] whitespace-nowrap px-4 py-3">
                                 <div className="flex flex-nowrap gap-2">
                                   <button
@@ -1135,104 +1201,114 @@ export default function AdminPage() {
                                     type="button"
                                   >
                                     删除
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              </section>
+                </section>
+              </MobileAdminCollapse>
             ) : null}
 
             {activeSection === "roles" ? (
               <div className="space-y-5">
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-                  <div className="border-b border-slate-200 px-5 py-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">角色列表</p>
-                        <h2 className="mt-2 text-xl font-semibold text-slate-900">角色数据维护</h2>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <input
-                          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10 md:w-72"
-                          onChange={(event) => setRoleKeyword(event.target.value)}
-                          placeholder="搜索角色名 / 账号 / 种族 / 职业"
-                          value={roleKeyword}
-                        />
-                        <button
-                          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
-                          onClick={() => setRoleKeyword("")}
-                          type="button"
-                        >
-                          重置
-                        </button>
+                <MobileAdminCollapse
+                  summary="角色搜索、数值编辑与保存"
+                  title="角色数据维护"
+                >
+                  <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">角色列表</p>
+                          <h2 className="mt-2 text-xl font-semibold text-slate-900">角色数据维护</h2>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <input
+                            className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10 md:w-72"
+                            onChange={(event) => setRoleKeyword(event.target.value)}
+                            placeholder="搜索角色名 / 账号 / 种族 / 职业"
+                            value={roleKeyword}
+                          />
+                          <button
+                            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+                            onClick={() => setRoleKeyword("")}
+                            type="button"
+                          >
+                            重置
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[1400px] text-sm">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-medium">账号</th>
-                          {ROLE_COLUMNS.map((column) => (
-                            <th key={column} className="px-3 py-3 text-left font-medium">
-                              {column}
-                            </th>
-                          ))}
-                          <th className="px-4 py-3 text-left font-medium">最近更新时间</th>
-                          <th className="w-[120px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredRoles.map((role, index) => (
-                          <tr
-                            key={role.roleId}
-                            className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
-                          >
-                            <td className="px-4 py-3 align-top">
-                              <div className="font-medium text-slate-900">{role.username ?? "guest"}</div>
-                              <div className="mt-1 text-xs text-slate-500">{role.accountType}</div>
-                            </td>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="min-w-[1400px] text-sm">
+                        <thead className="bg-slate-50 text-slate-500">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-medium">账号</th>
                             {ROLE_COLUMNS.map((column) => (
-                              <td key={column} className="px-3 py-3">
-                                <input
-                                  className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                                  onChange={(event) => updateRoleField(role.roleId, column, event.target.value)}
-                                  value={String(role[column] ?? "")}
-                                />
-                              </td>
+                              <th key={column} className="px-3 py-3 text-left font-medium">
+                                {column}
+                              </th>
                             ))}
-                            <td className="px-4 py-3 text-slate-500">
-                              {formatDateTime(role.updatedAt)}
-                            </td>
-                            <td className="w-[120px] whitespace-nowrap px-4 py-3">
-                              <button
-                                className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
-                                disabled={savingKey === role.roleId}
-                                onClick={() => {
-                                  void saveRole(role);
-                                }}
-                                type="button"
-                              >
-                                {savingKey === role.roleId ? "保存中" : "保存"}
-                              </button>
-                            </td>
+                            <th className="px-4 py-3 text-left font-medium">最近更新时间</th>
+                            <th className="w-[120px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
+                        </thead>
+                        <tbody>
+                          {filteredRoles.map((role, index) => (
+                            <tr
+                              key={role.roleId}
+                              className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
+                            >
+                              <td className="px-4 py-3 align-top">
+                                <div className="font-medium text-slate-900">{role.username ?? "guest"}</div>
+                                <div className="mt-1 text-xs text-slate-500">{role.accountType}</div>
+                              </td>
+                              {ROLE_COLUMNS.map((column) => (
+                                <td key={column} className="px-3 py-3">
+                                  <input
+                                    className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                                    onChange={(event) => updateRoleField(role.roleId, column, event.target.value)}
+                                    value={String(role[column] ?? "")}
+                                  />
+                                </td>
+                              ))}
+                              <td className="px-4 py-3 text-slate-500">
+                                {formatDateTime(role.updatedAt)}
+                              </td>
+                              <td className="w-[120px] whitespace-nowrap px-4 py-3">
+                                <button
+                                  className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                                  disabled={savingKey === role.roleId}
+                                  onClick={() => {
+                                    void saveRole(role);
+                                  }}
+                                  type="button"
+                                >
+                                  {savingKey === role.roleId ? "保存中" : "保存"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                </MobileAdminCollapse>
               </div>
             ) : null}
 
             {activeSection !== "accounts" && activeSection !== "roles" && activeSection !== "reference" ? (
-              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+              <MobileAdminCollapse
+                summary={`当前编辑 ${selectedConfig.label}`}
+                title="配置工作台"
+              >
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] xl:flex xl:min-h-0 xl:flex-col">
                 <div className="border-b border-slate-200 px-5 py-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
@@ -1278,7 +1354,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-5 p-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="grid gap-5 p-5 2xl:grid-cols-[240px_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
                       当前编辑项
@@ -1286,81 +1362,114 @@ export default function AdminPage() {
                     <h3 className="mt-3 text-lg font-semibold text-slate-900">{selectedConfig.label}</h3>
                     <p className="mt-2 text-sm leading-7 text-slate-500">{selectedConfig.description}</p>
 
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-white px-4 py-4">
-                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">编辑说明</p>
-                      <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-                        <li>使用 JSON 结构编辑，适合先快速扩展字段。</li>
-                        <li>发布配置后，Next API 和 WebSocket 运行时都会刷新。</li>
-                        <li>输入不合法时会按模块阻止发布，并展示具体字段错误。</li>
-                      </ul>
-                    </div>
                   </div>
 
-                  <div className="min-w-0 space-y-4">
+                  <div className="min-w-0 space-y-4 xl:min-h-0">
                     {selectedConfigParseResult.error ? (
                       <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-                        <p className="text-sm font-medium text-amber-700">结构化编辑已暂停</p>
-                        <p className="mt-2 text-sm leading-6 text-amber-700">
-                          当前 JSON 解析失败：{selectedConfigParseResult.error}
+                        <p className="text-sm leading-6 text-amber-700">
+                          JSON 解析失败：{selectedConfigParseResult.error}
                         </p>
                       </div>
                     ) : null}
 
-                    {!selectedConfigParseResult.error && selectedArrayItems ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">结构化列表</p>
-                            <h4 className="mt-2 text-base font-semibold text-slate-900">逐项编辑 {selectedConfig.label}</h4>
-                          </div>
+                    {(configFieldErrors[selectedConfig.key] ?? []).length > 0 ? (
+                      <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                        <ul className="mt-3 space-y-2 text-sm leading-6 text-rose-700">
+                          {(configFieldErrors[selectedConfig.key] ?? []).map((message) => (
+                            <li key={message}>{message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <div className="rounded-2xl border border-slate-200 bg-white xl:flex xl:min-h-0 xl:flex-col">
+                      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">编辑器</p>
+                          <h4 className="mt-2 text-base font-semibold text-slate-900">
+                            {editorMode === "structured" && hasStructuredEditor ? "结构化编辑" : "原始 JSON"}
+                          </h4>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {hasStructuredEditor ? (
+                            <button
+                              className={`rounded-lg px-4 py-2 text-sm transition ${
+                                editorMode === "structured"
+                                  ? "bg-[#1677ff] text-white"
+                                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                              onClick={() => setEditorMode("structured")}
+                              type="button"
+                            >
+                              结构化编辑
+                            </button>
+                          ) : null}
                           <button
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
-                            onClick={addStructuredArrayItem}
+                            className={`rounded-lg px-4 py-2 text-sm transition ${
+                              editorMode === "raw"
+                                ? "bg-[#1677ff] text-white"
+                                : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                            onClick={() => setEditorMode("raw")}
                             type="button"
                           >
-                            新增条目
+                            原始 JSON
                           </button>
                         </div>
+                      </div>
 
-                        <div className="mt-4 grid gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
-                          <div className="max-h-[420px] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2">
-                            {selectedArrayItems.length === 0 ? (
-                              <div className="px-3 py-4 text-sm text-slate-500">当前没有条目，可直接新增。</div>
-                            ) : (
-                              <div className="space-y-2">
-                                {selectedArrayItems.map((item, index) => {
-                                  const isActive = index === selectedArrayItemIndex;
+                      {editorMode === "structured" && !selectedConfigParseResult.error && selectedArrayItems ? (
+                        <div className="grid gap-4 p-4 2xl:grid-cols-[180px_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2">
+                            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-2 pb-3">
+                              <p className="text-sm font-medium text-slate-900">条目列表</p>
+                              <button
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
+                                onClick={addStructuredArrayItem}
+                                type="button"
+                              >
+                                新增
+                              </button>
+                            </div>
+                            <div className="mt-3 h-[16.5rem] overflow-y-auto px-1">
+                              {selectedArrayItems.length === 0 ? (
+                                <div className="px-3 py-4 text-sm text-slate-500">暂无条目</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {selectedArrayItems.map((item, index) => {
+                                    const isActive = index === selectedArrayItemIndex;
 
-                                  return (
-                                    <button
-                                      key={`${selectedConfig.key}-${index}-${getArrayItemTitle(selectedConfig.key, item, index)}`}
-                                      className={`w-full rounded-xl border px-3 py-3 text-left transition ${
-                                        isActive
-                                          ? "border-[#1677ff] bg-[#1677ff]/8"
-                                          : "border-transparent bg-slate-50 hover:border-slate-200 hover:bg-slate-100"
-                                      }`}
-                                      onClick={() => {
-                                        setSelectedArrayItemIndexes((current) => ({
-                                          ...current,
-                                          [selectedConfig.key]: index,
-                                        }));
-                                      }}
-                                      type="button"
-                                    >
-                                      <div className="text-sm font-medium text-slate-900">
-                                        {getArrayItemTitle(selectedConfig.key, item, index)}
-                                      </div>
-                                      <div className="mt-1 text-xs leading-5 text-slate-500">
-                                        {getArrayItemSubtitle(selectedConfig.key, item) || `第 ${index + 1} 项`}
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
+                                    return (
+                                      <button
+                                        key={`${selectedConfig.key}-${index}-${getArrayItemTitle(selectedConfig.key, item, index)}`}
+                                      className={`min-h-[5rem] w-full rounded-xl border px-3 py-3 text-left transition ${
+                                          isActive
+                                            ? "border-[#1677ff] bg-[#1677ff]/8"
+                                            : "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50"
+                                        }`}
+                                        onClick={() => {
+                                          setSelectedArrayItemIndexes((current) => ({
+                                            ...current,
+                                            [selectedConfig.key]: index,
+                                          }));
+                                        }}
+                                        type="button"
+                                      >
+                                        <div className="text-sm font-medium text-slate-900">
+                                          {getArrayItemTitle(selectedConfig.key, item, index)}
+                                        </div>
+                                        <div className="mt-1 text-xs leading-5 text-slate-500">
+                                          {getArrayItemSubtitle(selectedConfig.key, item) || `第 ${index + 1} 项`}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:flex xl:min-h-0 xl:flex-col">
                             <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
                               <div>
                                 <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">当前条目</p>
@@ -1399,7 +1508,7 @@ export default function AdminPage() {
 
                             {selectedArrayItem !== null ? (
                               <textarea
-                                className="mt-4 block min-h-[320px] w-full rounded-2xl border border-slate-200 bg-[#0b1220] px-5 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15"
+                                className="mt-4 block min-h-[680px] w-full rounded-2xl border border-slate-200 bg-[#0b1220] px-5 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15 xl:min-h-0 xl:flex-1"
                                 onChange={(event) => {
                                   const nextValue = event.target.value;
 
@@ -1413,106 +1522,91 @@ export default function AdminPage() {
                               />
                             ) : (
                               <div className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-                                先从左侧选择一个条目，或者新增一个条目。
+                                请选择条目
                               </div>
                             )}
                           </div>
                         </div>
-                      </div>
-                    ) : null}
+                      ) : null}
 
-                    {!selectedConfigParseResult.error && !selectedArrayItems && selectedObjectEntries ? (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">快速字段编辑</p>
-                        <h4 className="mt-2 text-base font-semibold text-slate-900">直接修改当前对象字段</h4>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          {selectedObjectEntries.map(([fieldKey, fieldValue]) => (
-                            <label key={fieldKey} className="block rounded-2xl border border-slate-200 bg-white p-4">
-                              <span className="block text-sm font-medium text-slate-700">{fieldKey}</span>
-                              {typeof fieldValue === "boolean" ? (
-                                <select
-                                  className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                                  onChange={(event) => updateStructuredObjectField(fieldKey, event.target.value)}
-                                  value={String(fieldValue)}
-                                >
-                                  <option value="true">true</option>
-                                  <option value="false">false</option>
-                                </select>
-                              ) : (
-                                <input
-                                  className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                                  onChange={(event) => updateStructuredObjectField(fieldKey, event.target.value)}
-                                  type={typeof fieldValue === "number" ? "number" : "text"}
-                                  value={String(fieldValue ?? "")}
-                                />
-                              )}
-                            </label>
-                          ))}
+                      {editorMode === "structured" && !selectedConfigParseResult.error && !selectedArrayItems && selectedObjectEntries ? (
+                        <div className="p-4">
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {selectedObjectEntries.map(([fieldKey, fieldValue]) => (
+                              <label key={fieldKey} className="block rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <span className="block text-sm font-medium text-slate-700">{fieldKey}</span>
+                                {typeof fieldValue === "boolean" ? (
+                                  <select
+                                    className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                                    onChange={(event) => updateStructuredObjectField(fieldKey, event.target.value)}
+                                    value={String(fieldValue)}
+                                  >
+                                    <option value="true">true</option>
+                                    <option value="false">false</option>
+                                  </select>
+                                ) : (
+                                  <input
+                                    className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
+                                    onChange={(event) => updateStructuredObjectField(fieldKey, event.target.value)}
+                                    type={typeof fieldValue === "number" ? "number" : "text"}
+                                    value={String(fieldValue ?? "")}
+                                  />
+                                )}
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
+                      ) : null}
 
-                    {(configFieldErrors[selectedConfig.key] ?? []).length > 0 ? (
-                      <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
-                        <p className="text-sm font-medium text-rose-700">当前配置存在以下问题</p>
-                        <ul className="mt-3 space-y-2 text-sm leading-6 text-rose-700">
-                          {(configFieldErrors[selectedConfig.key] ?? []).map((message) => (
-                            <li key={message}>{message}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    <div className="rounded-2xl border border-slate-200 bg-white">
-                      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                        <div>
-                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">原始 JSON</p>
-                          <p className="mt-1 text-sm text-slate-500">保留整段编辑能力，结构化改动会实时同步到这里。</p>
-                        </div>
-                      </div>
-                    <textarea
-                      className={`block min-h-[620px] w-full overflow-auto rounded-2xl border bg-[#0b1220] px-5 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition ${
-                        (configFieldErrors[selectedConfig.key] ?? []).length > 0
-                          ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/60"
-                          : "border-slate-200 focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15"
-                      }`}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
+                      {editorMode === "raw" ? (
+                        <textarea
+                          className={`block min-h-[620px] w-full overflow-auto rounded-2xl border bg-[#0b1220] px-4 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition md:min-h-[760px] md:px-5 xl:min-h-0 xl:flex-1 ${
+                            (configFieldErrors[selectedConfig.key] ?? []).length > 0
+                              ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/60"
+                              : "border-slate-200 focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15"
+                          }`}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
 
-                        updateConfigDraftValue(selectedConfig.key, nextValue);
-                      }}
-                      spellCheck={false}
-                      value={configDrafts[selectedConfig.key] ?? ""}
-                    />
+                            updateConfigDraftValue(selectedConfig.key, nextValue);
+                          }}
+                          spellCheck={false}
+                          value={configDrafts[selectedConfig.key] ?? ""}
+                        />
+                      ) : null}
                     </div>
                   </div>
                 </div>
               </section>
+              </MobileAdminCollapse>
             ) : null}
 
             {activeSection === "reference" && configPayload?.meta ? (
-              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+              <MobileAdminCollapse
+                defaultOpen={false}
+                summary="运行时常量、槽位辅助与默认上下文"
+                title="常量与辅助信息"
+              >
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] xl:flex xl:min-h-0 xl:flex-col">
                 <div className="border-b border-slate-200 px-5 py-4">
                   <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">运行时参考</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900">常量与辅助信息</h2>
                 </div>
-                <div className="grid gap-5 p-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-sm leading-7 text-slate-600">
-                      这里展示当前后台依赖的运行时常量、默认辅助项和槽位标签，方便你在改配置时核对上下文。
-                    </p>
-                  </div>
+                <div className="grid gap-5 p-5 2xl:grid-cols-[320px_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" />
                   <pre className="max-h-[620px] overflow-auto rounded-2xl border border-slate-200 bg-[#0b1220] p-5 text-[13px] leading-6 text-slate-100">
                     {pretty(configPayload.meta)}
                   </pre>
                 </div>
               </section>
+              </MobileAdminCollapse>
             ) : null}
             </div>
           </div>
         </section>
       </div>
       {accountDeleteTarget ? (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-rose-500">删除确认</p>
             <h3 className="mt-3 text-xl font-semibold text-slate-900">确定删除这个账号吗？</h3>

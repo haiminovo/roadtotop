@@ -332,7 +332,7 @@ export default function Chat() {
 
   return (
     <>
-      <section className="flex h-full min-h-0 flex-col rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.96),rgba(11,16,30,0.98))] p-4 text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)]">
+      <section className="flex min-h-[18rem] flex-col rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.96),rgba(11,16,30,0.98))] p-4 text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)] xl:h-full xl:min-h-0">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">

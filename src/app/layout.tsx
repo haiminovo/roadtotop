@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${displayFont.variable} h-screen overflow-hidden antialiased`}>
+      <body className={`${displayFont.variable} min-h-screen antialiased`}>
         <LocaleProvider>
           <GameSessionProvider>
             {children}

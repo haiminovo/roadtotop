@@ -33,14 +33,15 @@ body {
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
   margin: 0;
-  overflow: hidden;
+  overflow-x: hidden;
   padding: 0;
 }
 
 body {
   min-height: 100vh;
+  min-height: 100svh;
 }
 
 body::before {

@@ -301,8 +301,45 @@ function OverlayModal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/72 px-4">
-      <div className="w-full max-w-lg rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/72 px-4 py-6">
+      <div className="mx-auto w-full max-w-lg rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.45)] sm:p-6">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MobileDashboardCollapse({
+  children,
+  defaultOpen = true,
+  summary,
+  title,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  summary: string;
+  title: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="space-y-3 xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+      <button
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)] xl:hidden"
+        onClick={() => setIsOpen((current) => !current)}
+        type="button"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-1 text-xs text-slate-400">{summary}</p>
+        </div>
+        <span className="ml-3 shrink-0 text-xs font-medium text-slate-400">
+          {isOpen ? "收起" : "展开"}
+        </span>
+      </button>
+
+      <div className={`${isOpen ? "block" : "hidden"} xl:flex xl:min-h-0 xl:flex-1 xl:flex-col`}>
         {children}
       </div>
     </div>
@@ -671,9 +708,9 @@ function LandingView() {
   const [password, setPassword] = useState("");
 
   return (
-    <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <SectionCard className="overflow-hidden px-6 py-7 md:px-8">
+        <SectionCard className="overflow-hidden px-5 py-6 md:px-8 md:py-7">
           <SectionEyebrow>{copy.landing.eyebrow}</SectionEyebrow>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {[
@@ -689,7 +726,7 @@ function LandingView() {
           </div>
         </SectionCard>
 
-        <SectionCard className="px-6 py-7">
+        <SectionCard className="px-5 py-6 md:px-6 md:py-7">
           <SectionEyebrow>{copy.landing.access}</SectionEyebrow>
           <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
 
@@ -796,9 +833,9 @@ function CreateRoleView() {
   const previewHealth = getMaxHealth(fusedStats.vitality, 1);
 
   return (
-    <main className="h-screen overflow-y-auto bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <SectionCard className="px-6 py-7 md:px-8">
+        <SectionCard className="px-5 py-6 md:px-8 md:py-7">
           <SectionEyebrow>{copy.createRole.setup}</SectionEyebrow>
           <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">{copy.createRole.title}</h1>
 
@@ -876,7 +913,7 @@ function CreateRoleView() {
           </div>
         </SectionCard>
 
-        <SectionCard className="px-6 py-7">
+        <SectionCard className="px-5 py-6 md:px-6 md:py-7">
           <SectionEyebrow>{copy.createRole.preview}</SectionEyebrow>
           <div className="mt-4 rounded-[1rem] border border-white/8 bg-white/[0.035] p-5">
             <p className="text-[11px] uppercase tracking-[0.2em] text-sky-100/55">{copy.createRole.currentBuild}</p>
@@ -1100,7 +1137,7 @@ function CenterPanel({
 
   if (activePanel === "backpack") {
     return (
-        <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+        <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
           <div className="border-b border-white/8 px-4 py-3">
             <SectionEyebrow>{copy.dashboard.inventory}</SectionEyebrow>
             <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -1134,7 +1171,7 @@ function CenterPanel({
     const bodySlots = getSafeBodySlots(role);
 
     return (
-      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+      <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
         <div className="border-b border-white/8 px-4 py-3">
           <SectionEyebrow>{copy.dashboard.characterSheet}</SectionEyebrow>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.roleTitle}</h2>
@@ -1211,7 +1248,7 @@ function CenterPanel({
     ));
 
     return (
-      <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+      <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
         <div className="border-b border-white/8 px-4 py-3">
           <SectionEyebrow>{copy.market.eyebrow}</SectionEyebrow>
           <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
@@ -1300,7 +1337,7 @@ function CenterPanel({
   }
 
   return (
-    <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+    <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
       <div className="border-b border-white/8 px-4 py-2.5">
         <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
         <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -1317,7 +1354,7 @@ function CenterPanel({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-2 overflow-hidden p-3 xl:grid-cols-[1.08fr_0.92fr]">
+      <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-3 xl:grid-cols-[1.08fr_0.92fr]">
         <div className={`rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-3 transition-all duration-300 ${isBattleTurnFlashing ? "shadow-[0_0_0_1px_rgba(125,211,252,0.26),0_0_32px_rgba(56,189,248,0.16)]" : ""}`}>
           {activeBattle ? (
             <div>
@@ -1472,7 +1509,7 @@ function RightRail({
   const equippedItems = backpack.filter((item) => item.equipped);
 
   return (
-    <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
+    <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
       <div className={`h-1 w-full bg-gradient-to-r ${panelAccent(activePanel)}`} />
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
 
@@ -1932,7 +1969,7 @@ function MainDashboard() {
   };
 
   return (
-    <main className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,#27326d_0%,#111630_34%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#27326d_0%,#111630_34%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4 xl:h-screen xl:overflow-hidden">
       {error ? (
         <div className="mx-auto mb-3 flex max-w-[1600px] items-center justify-between gap-4 rounded-[1rem] border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
           <span>{error}</span>
@@ -1943,8 +1980,8 @@ function MainDashboard() {
       ) : null}
 
       {shouldShowRewardModal ? (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950/72 px-4">
-          <div className="w-full max-w-2xl rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-7 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+        <div className="fixed inset-0 z-30 overflow-y-auto bg-slate-950/72 px-4 py-6">
+          <div className="mx-auto w-full max-w-2xl rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.45)] sm:p-7">
             <SectionEyebrow>{copy.dashboard.afkSummary}</SectionEyebrow>
             <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.offlineModalTitle}</h2>
             <p className="mt-3 text-sm leading-7 text-slate-300">
@@ -2392,7 +2429,7 @@ function MainDashboard() {
         </OverlayModal>
       ) : null}
 
-      <div className="mx-auto flex h-full max-w-[1760px] flex-col gap-3 overflow-hidden">
+      <div className="mx-auto flex max-w-[1760px] flex-col gap-3 xl:h-full xl:overflow-hidden">
         <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(49,62,121,0.95),rgba(12,16,34,0.98))]">
           <div className="px-4 py-3 md:px-5">
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)] xl:items-center">
@@ -2503,62 +2540,85 @@ function MainDashboard() {
           </div>
         </SectionCard>
 
-        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[184px_minmax(0,1.45fr)_252px]">
-          <SectionCard className="min-h-0 p-3">
-            <div className="space-y-3">
-              {menuItems.map((item) => (
-                <RailButton
-                  key={item.key}
-                  active={activePanel === item.key}
-                  count={item.count}
-                  label={item.label}
-                  onClick={() => setActivePanel(item.key)}
-                />
-              ))}
-            </div>
-          </SectionCard>
+        <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[184px_minmax(0,1.45fr)_252px]">
+          <MobileDashboardCollapse
+            defaultOpen={false}
+            summary="切换挂机、背包、市场和角色面板"
+            title="功能导航"
+          >
+            <SectionCard className="p-3 xl:min-h-0">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                {menuItems.map((item) => (
+                  <RailButton
+                    key={item.key}
+                    active={activePanel === item.key}
+                    count={item.count}
+                    label={item.label}
+                    onClick={() => setActivePanel(item.key)}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          </MobileDashboardCollapse>
 
-          <div className="grid min-h-0 gap-3 xl:grid-rows-[minmax(0,1fr)_220px]">
-            <CenterPanel
+          <MobileDashboardCollapse
+            summary={`当前面板：${menuItems.find((item) => item.key === activePanel)?.label ?? "主面板"}`}
+            title="主面板"
+          >
+            <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:overflow-hidden xl:grid-rows-[minmax(0,1fr)_220px]">
+              <CenterPanel
+                activePanel={activePanel}
+                backpack={backpack}
+                isRealtimeReady={isRealtimeReady}
+                currentTaskReward={currentTaskReward}
+                maps={maps}
+                onRequestBuyMarketListing={(listingId) => {
+                  setPendingMarketPurchaseListingId(listingId);
+                }}
+                onUnequipItem={(backpackId) => {
+                  void unequipBackpackItem(backpackId).catch(() => {});
+                }}
+                onSelectItem={handleSelectBackpackItem}
+                role={role}
+                selectedBackpackId={selectedBackpackId}
+                selectedMapKey={selectedMapKey}
+                selectMap={selectMap}
+                snapshot={snapshot}
+                status={status}
+                taskDuration={taskDuration}
+                taskProgress={taskProgress}
+                taskProgressPercent={taskProgressPercent}
+              />
+              <MobileDashboardCollapse
+                defaultOpen={false}
+                summary="世界频道与事件日志"
+                title="聊天与事件"
+              >
+                <Chat />
+              </MobileDashboardCollapse>
+            </div>
+          </MobileDashboardCollapse>
+
+          <MobileDashboardCollapse
+            defaultOpen={false}
+            summary="所选物品、结算摘要和个人挂单"
+            title="侧边信息"
+          >
+            <RightRail
               activePanel={activePanel}
               backpack={backpack}
               isRealtimeReady={isRealtimeReady}
-              currentTaskReward={currentTaskReward}
-              maps={maps}
-              onRequestBuyMarketListing={(listingId) => {
-                setPendingMarketPurchaseListingId(listingId);
+              onCancelMarketListing={(listingId) => {
+                void cancelMarketListing(listingId).catch(() => {});
               }}
-              onUnequipItem={(backpackId) => {
-                void unequipBackpackItem(backpackId).catch(() => {});
+              onDismissMarketSoldNotification={(listingId) => {
+                void dismissMarketSoldNotification(listingId).catch(() => {});
               }}
-              onSelectItem={handleSelectBackpackItem}
-              role={role}
-              selectedBackpackId={selectedBackpackId}
-              selectedMapKey={selectedMapKey}
-              selectMap={selectMap}
+              pendingReward={snapshot.afk.pendingReward}
+              selectedItem={selectedItem}
               snapshot={snapshot}
-              status={status}
-              taskDuration={taskDuration}
-              taskProgress={taskProgress}
-              taskProgressPercent={taskProgressPercent}
             />
-            <Chat />
-          </div>
-
-          <RightRail
-            activePanel={activePanel}
-            backpack={backpack}
-            isRealtimeReady={isRealtimeReady}
-            onCancelMarketListing={(listingId) => {
-              void cancelMarketListing(listingId).catch(() => {});
-            }}
-            onDismissMarketSoldNotification={(listingId) => {
-              void dismissMarketSoldNotification(listingId).catch(() => {});
-            }}
-            pendingReward={snapshot.afk.pendingReward}
-            selectedItem={selectedItem}
-            snapshot={snapshot}
-          />
+          </MobileDashboardCollapse>
         </div>
 
         <div className="rounded-[0.95rem] border border-white/6 bg-slate-950/45 px-4 py-2.5">
