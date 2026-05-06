@@ -168,10 +168,6 @@ async function getWebSocketUrl() {
     // Fallback to static configuration when runtime discovery is unavailable.
   }
 
-  if (isLocalDevelopmentHost()) {
-    return null;
-  }
-
   return getFallbackWebSocketUrl();
 }
 
@@ -181,6 +177,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [guestToken, setGuestToken] = useState<string | null>(null);
+  const [isRealtimeReady, setIsRealtimeReady] = useState(false);
   const [selectedMapKey, setSelectedMapKey] = useState<MapKey>("palmia-wilds");
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("booting");
@@ -216,6 +213,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       reconnectTimerRef.current = null;
     }
 
+    setIsRealtimeReady(false);
+
     const socketUrl = await getWebSocketUrl();
 
     if (!socketUrl) {
@@ -239,6 +238,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     socketRef.current = socket;
 
     socket.addEventListener("open", () => {
+      setIsRealtimeReady(true);
       socket.send(JSON.stringify({
         payload: { guestToken: nextGuestToken },
         type: "game:session:start",
@@ -291,6 +291,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       }
 
       socketRef.current = null;
+      setIsRealtimeReady(false);
 
       if (!shouldReconnectRef.current) {
         return;
@@ -306,6 +307,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     });
 
     socket.addEventListener("error", () => {
+      setIsRealtimeReady(false);
       setStatus("error");
       setError(localizeErrorMessage(locale, "挂机长连接建立失败。"));
     });
@@ -334,6 +336,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       socketRef.current.close();
       socketRef.current = null;
     }
+
+    setIsRealtimeReady(false);
   }, []);
 
   const silentlyStartBackgroundAfk = useCallback(() => {
@@ -792,6 +796,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       equipBackpackItem,
       error,
       guestLogin,
+      isRealtimeReady,
       registerAccount,
       sendChatMessage,
       selectedMapKey,
@@ -819,6 +824,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       equipBackpackItem,
       error,
       guestLogin,
+      isRealtimeReady,
       registerAccount,
       sendChatMessage,
       selectedMapKey,

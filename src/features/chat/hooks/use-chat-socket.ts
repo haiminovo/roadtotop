@@ -17,7 +17,7 @@ function createEmptyUnreadCounts(): Record<ChatChannelKey, number> {
 
 export function useChatSocket() {
   const { messages: i18n } = useI18n();
-  const { chatMessages, sendChatMessage, snapshot, status } = useGameSession();
+  const { chatMessages, isRealtimeReady, sendChatMessage, snapshot, status } = useGameSession();
   const [activeChannel, setActiveChannel] = useState<ChatChannelKey>("world");
   const [input, setInput] = useState("");
   const [lastSentAt, setLastSentAt] = useState<number | null>(null);
@@ -131,6 +131,7 @@ export function useChatSocket() {
     currentUserId,
     input,
     messages,
+    isRealtimeReady,
     remainingCooldownMs,
     sendMessage: async () => {
       const content = input.trim();

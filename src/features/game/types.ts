@@ -257,6 +257,7 @@ export type GameSessionContextValue = {
   equipBackpackItem: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
+  isRealtimeReady: boolean;
   registerAccount: (draft: AccountRegistrationDraft) => Promise<void>;
   sendChatMessage: (channelKey: ChatChannelKey, content: string) => Promise<void>;
   selectedMapKey: MapKey;

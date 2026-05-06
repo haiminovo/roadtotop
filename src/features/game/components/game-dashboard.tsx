@@ -915,6 +915,7 @@ function BackpackSectionList({
 function CenterPanel({
   activePanel,
   backpack,
+  isRealtimeReady,
   currentTaskReward,
   maps,
   onRequestBuyMarketListing,
@@ -932,6 +933,7 @@ function CenterPanel({
 }: {
   activePanel: PanelKey;
   backpack: BackpackItem[];
+  isRealtimeReady: boolean;
   currentTaskReward: {
     aetherCrystal: number;
     exp: number;
@@ -1044,7 +1046,7 @@ function CenterPanel({
                   {slot.item ? (
                     <button
                       className="mt-3 rounded-[0.75rem] border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-100 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={status === "saving"}
+                      disabled={!isRealtimeReady || status === "saving"}
                       onClick={() => onUnequipItem(slot.item!.backpackId)}
                       type="button"
                     >
@@ -1142,7 +1144,7 @@ function CenterPanel({
                   </p>
                   <button
                     className="mt-4 w-full rounded-[0.95rem] bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={status === "saving" || listing.isOwnListing}
+                    disabled={!isRealtimeReady || status === "saving" || listing.isOwnListing}
                     onClick={() => onRequestBuyMarketListing(listing.listingId)}
                     type="button"
                   >
@@ -1309,6 +1311,7 @@ function CenterPanel({
 function RightRail({
   activePanel,
   backpack,
+  isRealtimeReady,
   onCancelMarketListing,
   onDismissMarketSoldNotification,
   pendingReward,
@@ -1317,6 +1320,7 @@ function RightRail({
 }: {
   activePanel: PanelKey;
   backpack: BackpackItem[];
+  isRealtimeReady: boolean;
   onCancelMarketListing: (listingId: string) => void;
   onDismissMarketSoldNotification: (listingId: string) => void;
   pendingReward: {
@@ -1436,6 +1440,7 @@ function RightRail({
                       </p>
                       <button
                         className="mt-3 w-full rounded-[0.85rem] border border-emerald-300/30 bg-emerald-300/10 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/18 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!isRealtimeReady}
                         onClick={() => onDismissMarketSoldNotification(listing.listingId)}
                         type="button"
                       >
@@ -1446,7 +1451,7 @@ function RightRail({
                   {listing.status === "active" ? (
                     <button
                       className="mt-3 w-full rounded-[0.85rem] border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition hover:border-amber-200/30 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={snapshot.market.myListings.length <= 0}
+                      disabled={!isRealtimeReady || snapshot.market.myListings.length <= 0}
                       onClick={() => onCancelMarketListing(listing.listingId)}
                       type="button"
                     >
@@ -1500,6 +1505,7 @@ function MainDashboard() {
     equipBackpackItem,
     error,
     registerAccount,
+    isRealtimeReady,
     selectedMapKey,
     selectMap,
     setActivePanel,
@@ -1691,6 +1697,7 @@ function MainDashboard() {
     : null;
   const isAccountUser = snapshot?.account.mode === "account";
   const isGuestUser = snapshot?.account.mode === "guest";
+  const isRealtimeActionDisabled = status === "saving" || !isRealtimeReady;
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
   const activeBattle = snapshot?.afk.battle?.active ? snapshot.afk.battle : null;
@@ -1781,7 +1788,7 @@ function MainDashboard() {
               <button
                 className="flex-1 rounded-[1rem] bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_100%)] px-4 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105"
                 onClick={() => {
-                  void claimOfflineReward();
+                  void claimOfflineReward().catch(() => {});
                 }}
                 type="button"
               >
@@ -1858,7 +1865,7 @@ function MainDashboard() {
                   setRegisterUsername("");
                   setRegisterPassword("");
                   setRegisterConfirmPassword("");
-                });
+                }).catch(() => {});
               }}
               type="button"
             >
@@ -1896,7 +1903,7 @@ function MainDashboard() {
               onClick={() => {
                 void deleteAccountRole().then(() => {
                   setShowDeleteRoleConfirm(false);
-                });
+                }).catch(() => {});
               }}
               type="button"
             >
@@ -1947,19 +1954,19 @@ function MainDashboard() {
                     ? "border-rose-300/30 bg-rose-300/10 text-rose-100 hover:bg-rose-300/18"
                     : "border-white/10 bg-white/[0.04] text-white hover:border-sky-200/25",
                 ].join(" ")}
-                disabled={status === "saving"}
-              onClick={() => {
+                disabled={isRealtimeActionDisabled}
+                onClick={() => {
                   if (action.actionKey === "equip") {
                     void equipBackpackItem(actionItem.backpackId).then(() => {
                       setItemActionBackpackId(null);
-                    });
+                    }).catch(() => {});
                     return;
                   }
 
                   if (action.actionKey === "unequip") {
                     void unequipBackpackItem(actionItem.backpackId).then(() => {
                       setItemActionBackpackId(null);
-                    });
+                    }).catch(() => {});
                     return;
                   }
 
@@ -2025,27 +2032,27 @@ function MainDashboard() {
                   ? "bg-rose-500 hover:bg-rose-400"
                   : "bg-sky-500 hover:bg-sky-400",
               ].join(" ")}
-              disabled={status === "saving"}
+              disabled={isRealtimeActionDisabled}
               onClick={() => {
                 if (pendingItemAction?.actionKey === "drop") {
                   void dropBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  });
+                  }).catch(() => {});
                 }
 
                 if (pendingItemAction?.actionKey === "equip") {
                   void equipBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  });
+                  }).catch(() => {});
                 }
 
                 if (pendingItemAction?.actionKey === "unequip") {
                   void unequipBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  });
+                  }).catch(() => {});
                 }
               }}
               type="button"
@@ -2142,7 +2149,7 @@ function MainDashboard() {
             <button
               className="flex-1 rounded-[1rem] bg-amber-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={
-                status === "saving"
+                isRealtimeActionDisabled
                 || Number(marketSellPrice) <= 0
                 || Number(marketSellQuantity) <= 0
                 || Number(marketSellQuantity) > marketSellableQuantity
@@ -2152,7 +2159,7 @@ function MainDashboard() {
                   setMarketSellBackpackId(null);
                   setMarketSellPrice("");
                   setMarketSellQuantity("1");
-                });
+                }).catch(() => {});
               }}
               type="button"
             >
@@ -2191,11 +2198,11 @@ function MainDashboard() {
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <button
               className="flex-1 rounded-[1rem] bg-emerald-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={status === "saving"}
+              disabled={isRealtimeActionDisabled}
               onClick={() => {
                 void buyMarketListing(pendingMarketPurchase.listingId).then(() => {
                   setPendingMarketPurchaseListingId(null);
-                });
+                }).catch(() => {});
               }}
               type="button"
             >
@@ -2277,9 +2284,9 @@ function MainDashboard() {
                   ) : null}
                   <button
                     className="rounded-[0.95rem] bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={snapshot.afk.status === "active" || status === "saving"}
+                    disabled={snapshot.afk.status === "active" || isRealtimeActionDisabled}
                     onClick={() => {
-                      void startAfk();
+                      void startAfk().catch(() => {});
                     }}
                     type="button"
                   >
@@ -2287,9 +2294,9 @@ function MainDashboard() {
                   </button>
                   <button
                     className="rounded-[0.95rem] bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={snapshot.afk.status === "idle" || status === "saving" || Boolean(activeBattle)}
+                    disabled={snapshot.afk.status === "idle" || isRealtimeActionDisabled || Boolean(activeBattle)}
                     onClick={() => {
-                      void stopAfk();
+                      void stopAfk().catch(() => {});
                     }}
                     type="button"
                   >
@@ -2297,8 +2304,9 @@ function MainDashboard() {
                   </button>
                   <button
                     className="col-span-2 rounded-[0.95rem] border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-sky-200/25 sm:col-span-2 xl:col-span-2"
+                    disabled={status === "saving"}
                     onClick={() => {
-                      void claimOfflineReward();
+                      void claimOfflineReward().catch(() => {});
                     }}
                     type="button"
                   >
@@ -2330,13 +2338,14 @@ function MainDashboard() {
             <CenterPanel
               activePanel={activePanel}
               backpack={backpack}
+              isRealtimeReady={isRealtimeReady}
               currentTaskReward={currentTaskReward}
               maps={maps}
               onRequestBuyMarketListing={(listingId) => {
                 setPendingMarketPurchaseListingId(listingId);
               }}
               onUnequipItem={(backpackId) => {
-                void unequipBackpackItem(backpackId);
+                void unequipBackpackItem(backpackId).catch(() => {});
               }}
               onSelectItem={handleSelectBackpackItem}
               role={role}
@@ -2355,11 +2364,12 @@ function MainDashboard() {
           <RightRail
             activePanel={activePanel}
             backpack={backpack}
+            isRealtimeReady={isRealtimeReady}
             onCancelMarketListing={(listingId) => {
-              void cancelMarketListing(listingId);
+              void cancelMarketListing(listingId).catch(() => {});
             }}
             onDismissMarketSoldNotification={(listingId) => {
-              void dismissMarketSoldNotification(listingId);
+              void dismissMarketSoldNotification(listingId).catch(() => {});
             }}
             pendingReward={snapshot.afk.pendingReward}
             selectedItem={selectedItem}

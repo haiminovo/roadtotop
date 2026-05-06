@@ -231,6 +231,7 @@ export default function Chat() {
     channels,
     currentUserId,
     input,
+    isRealtimeReady,
     messages,
     remainingCooldownMs,
     sendMessage,
@@ -469,7 +470,7 @@ export default function Chat() {
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  void sendMessage();
+                  void sendMessage().catch(() => {});
                 }
               }}
               className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
@@ -477,10 +478,10 @@ export default function Chat() {
             />
             <button
               onClick={() => {
-                void sendMessage();
+                void sendMessage().catch(() => {});
               }}
               className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={input.trim().length === 0 || remainingCooldownMs > 0}
+              disabled={!isRealtimeReady || input.trim().length === 0 || remainingCooldownMs > 0}
               type="button"
             >
               {remainingCooldownMs > 0 ? `${sendCooldownSeconds}s` : copy.send}
