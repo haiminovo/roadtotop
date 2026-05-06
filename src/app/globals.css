@@ -56,6 +56,17 @@ body::before {
   position: fixed;
 }
 
+body::after {
+  background:
+    radial-gradient(circle at 18% 16%, rgba(103, 232, 249, 0.1), transparent 24%),
+    radial-gradient(circle at 82% 10%, rgba(96, 165, 250, 0.1), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(52, 211, 153, 0.06), transparent 32%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+}
+
 h1,
 h2,
 h3,
@@ -68,6 +79,29 @@ h6 {
 ::selection {
   background: rgba(103, 232, 249, 0.3);
   color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.9);
+  outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {

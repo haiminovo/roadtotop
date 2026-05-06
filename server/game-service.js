@@ -908,6 +908,8 @@ function summarizeBattleEffect(effect) {
       return `敏捷提升 ${normalizeSignedNumber(amount)}`;
     case "agility_down":
       return `敏捷降低 ${normalizeSignedNumber(amount)}`;
+    case "interrupt_cast":
+      return "打断读条";
     default:
       return effect.name || "状态效果";
   }
@@ -1010,6 +1012,10 @@ function applySkillEffects(battleState, actor, defender, skill, timestamp) {
   const effects = Array.isArray(skill?.effects) ? skill.effects : [];
 
   effects.forEach((effectTemplate, index) => {
+    if (effectTemplate?.effectType === "interrupt_cast") {
+      return;
+    }
+
     const target = effectTemplate.target === "self" || effectTemplate.target === "ally"
       ? actor
       : defender;
@@ -1035,6 +1041,39 @@ function applySkillEffects(battleState, actor, defender, skill, timestamp) {
       timestamp,
     );
   });
+}
+
+function applyInstantSkillEffects(battleState, actor, defender, skill, timestamp) {
+  const effects = Array.isArray(skill?.effects) ? skill.effects : [];
+  let didInterrupt = false;
+
+  effects.forEach((effectTemplate) => {
+    if (effectTemplate?.effectType !== "interrupt_cast") {
+      return;
+    }
+
+    const target = effectTemplate.target === "self" || effectTemplate.target === "ally"
+      ? actor
+      : defender;
+    const currentActionBar = normalizeNumber(target.actionBar);
+
+    if (currentActionBar <= 0) {
+      return;
+    }
+
+    target.actionBar = 0;
+    didInterrupt = true;
+    addBattleLog(
+      battleState,
+      `${actor.name} 的【${skill.name}】打断了 ${target.name} 的读条！`,
+      "interrupt",
+      timestamp,
+    );
+  });
+
+  return {
+    didInterrupt,
+  };
 }
 
 function tickCombatantEffects(battleState, combatant, timestamp) {
@@ -1648,6 +1687,9 @@ function resolveBattleAction(battleState, actingSide, timestamp) {
       timestamp,
     );
   } else {
+    if (usedSkill) {
+      applyInstantSkillEffects(battleState, actor, defender, usedSkill, timestamp);
+    }
     addBattleLog(
       battleState,
       `${actor.name}${usedSkill ? ` 施放 ${usedSkill.name}` : decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害。`,

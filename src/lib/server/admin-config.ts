@@ -64,7 +64,8 @@ export type SkillEffectType =
   | "vitality_up"
   | "vitality_down"
   | "agility_up"
-  | "agility_down";
+  | "agility_down"
+  | "interrupt_cast";
 
 export type SkillEffectTarget = "self" | "ally" | "enemy";
 
@@ -380,6 +381,37 @@ const DEFAULT_SKILL_TEMPLATES: SkillTemplate[] = [
     ],
   },
   {
+    key: "severing-strike",
+    name: "断脉击",
+    iconText: "断",
+    description: "以精准斩击打乱对手蓄力节奏，适合克制依赖读条的敌人。",
+    quality: "green",
+    category: "attack",
+    trigger: "random",
+    acquisitionHint: "可从战斗奇遇或精英怪掉落的技能书中学会。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.05,
+    levelDamageGrowth: 0.09,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 1,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "severing-strike-interrupt",
+        name: "断势",
+        description: "命中后打断敌方读条。",
+        effectType: "interrupt_cast",
+        target: "enemy",
+        durationTurns: 1,
+        magnitude: 1,
+      },
+    ],
+  },
+  {
     key: "arcane-burst",
     name: "奥术爆裂",
     iconText: "奥",
@@ -558,6 +590,7 @@ function asSkillEffectType(value: unknown): SkillEffectType {
     || value === "vitality_down"
     || value === "agility_up"
     || value === "agility_down"
+    || value === "interrupt_cast"
     ? value
     : "attack_up";
 }
@@ -1069,6 +1102,7 @@ export function validateAdminGameConfig(input: {
             && effect?.effectType !== "vitality_down"
             && effect?.effectType !== "agility_up"
             && effect?.effectType !== "agility_down"
+            && effect?.effectType !== "interrupt_cast"
           ) {
             push(`effects[${effectIndex + 1}].effectType 不合法。`);
           }

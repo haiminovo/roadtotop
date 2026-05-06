@@ -23,7 +23,6 @@ import type {
 } from "@/features/game/types";
 
 const GUEST_TOKEN_KEY = "roadtotop.guest-token";
-const RETURNING_FROM_BACKGROUND_KEY = "roadtotop.returning-from-background";
 
 const GameSessionContext = createContext<GameSessionContextValue | null>(null);
 
@@ -47,15 +46,8 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
 
 async function fetchSessionSnapshot(
   guestToken: string,
-  options?: { returningFromBackground?: boolean },
 ) {
-  const searchParams = new URLSearchParams({
-    guestToken,
-  });
-
-  if (options?.returningFromBackground) {
-    searchParams.set("returning", "1");
-  }
+  const searchParams = new URLSearchParams({ guestToken });
 
   const response = await fetch(`/api/session?${searchParams.toString()}`, {
     cache: "no-store",
@@ -96,30 +88,6 @@ function clearStoredGuestToken() {
   }
 
   window.localStorage.removeItem(GUEST_TOKEN_KEY);
-}
-
-function hasPendingReturnSettlement() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  return window.localStorage.getItem(RETURNING_FROM_BACKGROUND_KEY) === "1";
-}
-
-function setPendingReturnSettlement() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(RETURNING_FROM_BACKGROUND_KEY, "1");
-}
-
-function clearPendingReturnSettlement() {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(RETURNING_FROM_BACKGROUND_KEY);
 }
 
 function getFallbackWebSocketUrl() {
@@ -174,12 +142,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("booting");
   const reconnectTimerRef = useRef<number | null>(null);
-  const autoBackgroundHandledRef = useRef(false);
-  const backgroundStartRequestRef = useRef<Promise<void> | null>(null);
   const guestTokenRef = useRef<string | null>(null);
-  const selectedMapKeyRef = useRef<MapKey>("palmia-wilds");
   const shouldReconnectRef = useRef(true);
-  const snapshotRef = useRef<SessionSnapshot | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot) => {
@@ -309,9 +273,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     setStoredGuestToken(nextGuestToken);
     setGuestToken(nextGuestToken);
     guestTokenRef.current = nextGuestToken;
-    const returningFromBackground = hasPendingReturnSettlement();
-    const nextSnapshot = await fetchSessionSnapshot(nextGuestToken, { returningFromBackground });
-    clearPendingReturnSettlement();
+    const nextSnapshot = await fetchSessionSnapshot(nextGuestToken);
     handleIncomingSnapshot(nextSnapshot);
     void connectSocket(nextGuestToken);
   }, [connectSocket, handleIncomingSnapshot]);
@@ -332,72 +294,17 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     setIsRealtimeReady(false);
   }, []);
 
-  const silentlyStartBackgroundAfk = useCallback(() => {
-    const currentGuestToken = guestTokenRef.current ?? getStoredGuestToken();
-    const currentSnapshot = snapshotRef.current;
-    const mapKey =
-      currentSnapshot?.afk.mapKey
-      ?? selectedMapKeyRef.current
-      ?? currentSnapshot?.config.maps[0]?.key
-      ?? "palmia-wilds";
-
-    if (!currentGuestToken || !currentSnapshot?.role || !mapKey) {
-      return;
-    }
-
-    setPendingReturnSettlement();
-
-    backgroundStartRequestRef.current = fetch("/api/afk/start", {
-      body: JSON.stringify({
-        guestToken: currentGuestToken,
-        mapKey,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      keepalive: true,
-      method: "POST",
-    })
-      .then(() => undefined)
-      .catch(() => {
-        // Best effort only. Re-entry will still resync from the server.
-      });
-  }, []);
-
   const resumeFromBackground = useCallback(() => {
     const currentGuestToken = guestTokenRef.current ?? getStoredGuestToken();
 
-    autoBackgroundHandledRef.current = false;
-
-    if (!currentGuestToken || !hasPendingReturnSettlement()) {
-      if (currentGuestToken && !socketRef.current) {
-        void connectSocket(currentGuestToken);
-      }
+    if (!currentGuestToken) {
       return;
     }
 
-    setStatus("booting");
-    setError(null);
-
-    const backgroundStartRequest = backgroundStartRequestRef.current ?? Promise.resolve();
-
-    void backgroundStartRequest
-      .finally(() => {
-        backgroundStartRequestRef.current = null;
-
-        return fetchSessionSnapshot(currentGuestToken, { returningFromBackground: true })
-          .then((nextSnapshot) => {
-            clearPendingReturnSettlement();
-            handleIncomingSnapshot(nextSnapshot);
-            void connectSocket(currentGuestToken);
-          })
-          .catch((resumeError) => {
-            setStatus("error");
-            setError(localizeErrorMessage(locale, resumeError instanceof Error ? resumeError.message : "恢复挂机会话失败。"));
-            void connectSocket(currentGuestToken);
-          });
-      });
-  }, [connectSocket, handleIncomingSnapshot, locale]);
+    if (!socketRef.current) {
+      void connectSocket(currentGuestToken);
+    }
+  }, [connectSocket]);
 
   const guestLogin = useCallback(async () => {
     setStatus("booting");
@@ -462,14 +369,6 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   }, [guestToken]);
 
   useEffect(() => {
-    snapshotRef.current = snapshot;
-  }, [snapshot]);
-
-  useEffect(() => {
-    selectedMapKeyRef.current = selectedMapKey;
-  }, [selectedMapKey]);
-
-  useEffect(() => {
     return () => {
       closeSocketConnection();
     };
@@ -480,23 +379,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       if (document.visibilityState !== "hidden") {
         return;
       }
-
-      if (autoBackgroundHandledRef.current) {
-        return;
-      }
-
-      autoBackgroundHandledRef.current = true;
-      silentlyStartBackgroundAfk();
       closeSocketConnection();
     };
 
     const handlePageHide = () => {
-      if (autoBackgroundHandledRef.current) {
-        return;
-      }
-
-      autoBackgroundHandledRef.current = true;
-      silentlyStartBackgroundAfk();
       closeSocketConnection();
     };
 
@@ -521,7 +407,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       document.removeEventListener("visibilitychange", handleBackgroundEntry);
       document.removeEventListener("visibilitychange", handleForegroundEntry);
     };
-  }, [closeSocketConnection, resumeFromBackground, silentlyStartBackgroundAfk]);
+  }, [closeSocketConnection, resumeFromBackground]);
 
   const createRole = useCallback(
     async (draft: CreateRoleDraft) => {

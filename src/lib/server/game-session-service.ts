@@ -2241,20 +2241,15 @@ export async function getFullSessionSnapshot(
   });
   const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
   const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
+  const didAutoSettleReward = applyRewardToRole(data.role, rewardDelta, data.backpack);
 
-  const didAutoSettleOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didAutoSettleOnlineReward) {
+  if (didAutoSettleReward) {
     consumePendingReward(data.afk, rewardDelta);
   }
 
-  const shouldShowOfflineRewardModal =
-    wasOffline &&
-    (data.afk.pending_gold > 0 || data.afk.pending_aether_crystal > 0 || data.afk.pending_exp > 0);
-
   await withTransaction(async (client) => {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didAutoSettleOnlineReward) {
+    if (didNormalizeRoleHealth || didApplyEncounterEffects || didAutoSettleReward) {
       await persistRole(client, data.role);
     }
     if (didApplyEncounterItems) {
@@ -2265,7 +2260,7 @@ export async function getFullSessionSnapshot(
 
   await syncAfkRedis(data.afk);
   data.role.level = getLevelFromExp(data.role.exp);
-  return buildSnapshot(data, { shouldShowOfflineRewardModal });
+  return buildSnapshot(data, { shouldShowOfflineRewardModal: false });
 }
 
 export async function startAfk(guestToken: string, mapKey: MapKey) {

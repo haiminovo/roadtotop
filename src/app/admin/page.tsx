@@ -65,7 +65,7 @@ type AdminAccountDraft = {
   username: string;
 };
 
-type AdminSectionKey = "accounts" | "roles" | "progression" | "content" | "encounters" | "system" | "reference";
+type AdminSectionKey = "accounts" | "roles" | "configWorkbench" | "system" | "reference";
 type ConfigEditorKey =
   | "raceConfigs"
   | "classConfigs"
@@ -85,8 +85,9 @@ type SectionDefinition = {
 
 type ConfigDefinition = {
   key: ConfigEditorKey;
-  category: Exclude<AdminSectionKey, "roles" | "reference">;
+  category: "configWorkbench" | "system";
   description: string;
+  group: string;
   label: string;
 };
 
@@ -109,9 +110,7 @@ type JsonParseResult =
 const SIDEBAR_SECTIONS: SectionDefinition[] = [
   { key: "accounts", label: "账号管理", hint: "账号 / 密码 / Token" },
   { key: "roles", label: "角色管理", hint: "角色 / 数值 / 职业" },
-  { key: "progression", label: "成长体系", hint: "种族 / 职业 / 地图" },
-  { key: "content", label: "内容资源", hint: "物品 / 怪物模板" },
-  { key: "encounters", label: "挂机事件", hint: "遭遇池 / 概率" },
+  { key: "configWorkbench", label: "配置中心", hint: "成长 / 内容 / 挂机事件" },
   { key: "system", label: "系统参数", hint: "战斗 / 市场 / 平衡" },
   { key: "reference", label: "运行时参考", hint: "常量 / 槽位辅助" },
 ];
@@ -119,55 +118,64 @@ const SIDEBAR_SECTIONS: SectionDefinition[] = [
 const CONFIG_DEFINITIONS: ConfigDefinition[] = [
   {
     key: "raceConfigs",
-    category: "progression",
+    category: "configWorkbench",
+    group: "成长体系",
     label: "种族配置",
     description: "定义初始四维、身体槽位修正和角色定位。",
   },
   {
     key: "classConfigs",
-    category: "progression",
+    category: "configWorkbench",
+    group: "成长体系",
     label: "职业配置",
     description: "定义职业增益、开局装备和成长方向。",
   },
   {
     key: "mapConfigs",
-    category: "progression",
+    category: "configWorkbench",
+    group: "成长体系",
     label: "地图配置",
     description: "定义挂机地图的经验、金币和以太收益。",
   },
   {
     key: "itemCatalog",
-    category: "content",
+    category: "configWorkbench",
+    group: "内容资源",
     label: "物品目录",
     description: "定义装备、售价、占用槽位和词条属性。",
   },
   {
     key: "skillTemplates",
-    category: "content",
+    category: "configWorkbench",
+    group: "内容资源",
     label: "技能模板",
     description: "定义技能倍率、单轮次数、冷却、技能效果与 buff/debuff 持续回合。",
   },
   {
     key: "battleEnemyTemplates",
-    category: "content",
+    category: "configWorkbench",
+    group: "内容资源",
     label: "怪物模板",
     description: "定义怪物风格、技能次数和属性权重。",
   },
   {
     key: "afkEncounterPool",
-    category: "encounters",
+    category: "configWorkbench",
+    group: "挂机事件",
     label: "挂机遭遇池",
     description: "定义挂机触发的事件、文案、奖励与惩罚。",
   },
   {
     key: "afkEncounterChances",
-    category: "encounters",
+    category: "configWorkbench",
+    group: "挂机事件",
     label: "遭遇概率",
     description: "定义普通、稀有、传说事件的掉落概率。",
   },
   {
     key: "systemBalance",
     category: "system",
+    group: "系统参数",
     label: "系统平衡参数",
     description: "定义市场手续费、战斗触发率和战斗判定参数。",
   },
@@ -188,6 +196,22 @@ const ROLE_COLUMNS = [
   "vitality",
   "avatarSeed",
 ] as const;
+
+const ROLE_COLUMN_WIDTHS: Record<(typeof ROLE_COLUMNS)[number], number> = {
+  agility: 110,
+  aetherCrystal: 130,
+  avatarSeed: 170,
+  classKey: 120,
+  currentHealth: 120,
+  exp: 120,
+  gold: 120,
+  intelligence: 120,
+  level: 90,
+  name: 140,
+  raceKey: 120,
+  strength: 110,
+  vitality: 110,
+};
 
 const ARRAY_CONFIG_KEYS: ConfigEditorKey[] = [
   "raceConfigs",
@@ -409,8 +433,8 @@ async function requestJson<T>(input: RequestInfo, init?: RequestInit) {
 
 function metricCard(title: string, value: string, detail: string) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-[0_8px_20px_rgba(15,23,42,0.04)]">
-      <p className="text-xs font-medium tracking-[0.16em] text-slate-400 uppercase">{title}</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
+      <p className="text-xs font-medium tracking-[0.16em] text-slate-500 uppercase">{title}</p>
       <p className="mt-3 text-2xl font-semibold text-slate-900">{value}</p>
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
@@ -419,11 +443,15 @@ function metricCard(title: string, value: string, detail: string) {
 
 function MobileAdminCollapse({
   children,
+  className,
+  contentClassName,
   defaultOpen = true,
   summary,
   title,
 }: {
   children: React.ReactNode;
+  className?: string;
+  contentClassName?: string;
   defaultOpen?: boolean;
   summary: string;
   title: string;
@@ -431,10 +459,10 @@ function MobileAdminCollapse({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="space-y-3">
+    <div className={className ?? "space-y-3"}>
       <button
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(15,23,42,0.04)] lg:hidden"
+        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-[0_6px_16px_rgba(15,23,42,0.06)] lg:hidden"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
@@ -442,12 +470,12 @@ function MobileAdminCollapse({
           <p className="text-sm font-semibold text-slate-900">{title}</p>
           <p className="mt-1 text-xs text-slate-500">{summary}</p>
         </div>
-        <span className="ml-3 shrink-0 text-xs font-medium text-slate-400">
+        <span className="ml-3 shrink-0 text-xs font-medium text-slate-500">
           {isOpen ? "收起" : "展开"}
         </span>
       </button>
 
-      <div className={`${isOpen ? "block" : "hidden"} lg:block`}>
+      <div className={`${isOpen ? "block" : "hidden"} lg:block ${contentClassName ?? ""}`}>
         {children}
       </div>
     </div>
@@ -546,6 +574,17 @@ export default function AdminPage() {
     () => CONFIG_DEFINITIONS.filter((item) => item.category === activeSection),
     [activeSection],
   );
+  const configTabGroups = useMemo(() => {
+    const grouped = new Map<string, ConfigDefinition[]>();
+
+    visibleConfigTabs.forEach((item) => {
+      const items = grouped.get(item.group) ?? [];
+      items.push(item);
+      grouped.set(item.group, items);
+    });
+
+    return Array.from(grouped.entries()).map(([group, tabs]) => ({ group, tabs }));
+  }, [visibleConfigTabs]);
   const hasStructuredEditor = !selectedConfigParseResult.error && (selectedArrayItems !== null || selectedObjectEntries !== null);
 
   useEffect(() => {
@@ -931,25 +970,25 @@ export default function AdminPage() {
         {isSidebarOpen ? (
           <button
             aria-label="关闭菜单"
-            className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden"
+            className="fixed inset-0 z-30 bg-slate-900/30 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
             type="button"
           />
         ) : null}
 
         <aside
-          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,248px)] flex-col overflow-y-auto border-r border-slate-900/10 bg-[linear-gradient(180deg,#0a1a2b_0%,#081421_100%)] text-slate-100 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-40 flex w-[min(84vw,248px)] flex-col overflow-y-auto border-r border-slate-200 bg-white text-slate-800 transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-auto lg:translate-x-0 ${
             isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="border-b border-white/10 px-5 py-5">
+          <div className="border-b border-slate-200 px-5 py-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-400/20 text-lg font-semibold text-sky-200">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-lg font-semibold text-cyan-700">
                 GM
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">业务管理后台</p>
-                <p className="mt-1 text-xs text-slate-400">Road To Top Console</p>
+                <p className="text-sm font-semibold text-slate-900">业务管理后台</p>
+                <p className="mt-1 text-xs text-slate-500">Road To Top Console</p>
               </div>
             </div>
           </div>
@@ -967,15 +1006,15 @@ export default function AdminPage() {
                     key={section.key}
                     className={`flex w-full items-start rounded-xl px-3 py-3 text-left transition ${
                       isActive
-                        ? "bg-sky-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                        : "text-slate-300 hover:bg-white/5 hover:text-white"
+                        ? "bg-[#1677ff] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                     }`}
                     onClick={() => setActiveSection(section.key)}
                     type="button"
                   >
                     <div>
                       <div className="text-sm font-medium">{section.label}</div>
-                      <div className={`mt-1 text-xs ${isActive ? "text-sky-100/80" : "text-slate-500"}`}>
+                      <div className={`mt-1 text-xs ${isActive ? "text-blue-100" : "text-slate-500"}`}>
                         {section.hint}
                       </div>
                     </div>
@@ -985,7 +1024,7 @@ export default function AdminPage() {
             </div>
           </nav>
 
-          <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-500" />
+          <div className="border-t border-slate-200 px-5 py-4 text-xs text-slate-500" />
         </aside>
 
         <section className="flex min-w-0 flex-col lg:min-h-0">
@@ -1008,7 +1047,7 @@ export default function AdminPage() {
 
               <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
                 <button
-                  className="w-full rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white shadow-[0_8px_18px_rgba(22,119,255,0.25)] transition hover:bg-[#0f6de8] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                  className="w-full rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white shadow-[0_6px_14px_rgba(22,119,255,0.2)] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   disabled={savingKey === "config"}
                   onClick={() => {
                     void saveConfig();
@@ -1024,7 +1063,7 @@ export default function AdminPage() {
           <div className="flex-1 px-4 py-5 md:px-6 lg:min-h-0 lg:overflow-y-auto">
             <div className="space-y-5 pb-6">
             {error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+              <div className="rounded-xl border border-rose-300/50 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {error}
               </div>
             ) : null}
@@ -1046,11 +1085,11 @@ export default function AdminPage() {
                 summary="账号表单、搜索与账号列表"
                 title="账号增删改查"
               >
-                <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
                   <div className="border-b border-slate-200 px-5 py-4">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                       <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">账号管理</p>
+                        <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">账号管理</p>
                         <h2 className="mt-2 text-xl font-semibold text-slate-900">账号增删改查</h2>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
@@ -1076,24 +1115,37 @@ export default function AdminPage() {
 
                   <div className="grid gap-5 p-5 2xl:grid-cols-[360px_minmax(0,1fr)]">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">账号表单</p>
+                      <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">账号表单</p>
                       <h3 className="mt-3 text-lg font-semibold text-slate-900">
                         {accountDraft.userId ? "编辑账号" : "新增账号"}
                       </h3>
                       <div className="mt-4 space-y-4">
                         <label className="block">
                           <span className="mb-2 block text-sm text-slate-600">账号类型</span>
-                          <select
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                            onChange={(event) => setAccountDraft((current) => ({
-                              ...current,
-                              accountType: event.target.value === "account" ? "account" : "guest",
-                            }))}
-                            value={accountDraft.accountType}
-                          >
-                            <option value="guest">guest</option>
-                            <option value="account">account</option>
-                          </select>
+                          <div className="grid h-11 grid-cols-2 rounded-xl border border-slate-200 bg-white p-1">
+                            <button
+                              className={`rounded-lg text-sm font-medium transition ${
+                                accountDraft.accountType === "guest"
+                                  ? "bg-[#1677ff]/12 text-[#1677ff] shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35)]"
+                                  : "text-slate-600 hover:bg-slate-100"
+                              }`}
+                              onClick={() => setAccountDraft((current) => ({ ...current, accountType: "guest" }))}
+                              type="button"
+                            >
+                              guest
+                            </button>
+                            <button
+                              className={`rounded-lg text-sm font-medium transition ${
+                                accountDraft.accountType === "account"
+                                  ? "bg-[#1677ff]/12 text-[#1677ff] shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35)]"
+                                  : "text-slate-600 hover:bg-slate-100"
+                              }`}
+                              onClick={() => setAccountDraft((current) => ({ ...current, accountType: "account" }))}
+                              type="button"
+                            >
+                              account
+                            </button>
+                          </div>
                         </label>
 
                         <label className="block">
@@ -1135,7 +1187,7 @@ export default function AdminPage() {
 
                         <div className="flex flex-col gap-3 sm:flex-row">
                           <button
-                            className="rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0f6de8] disabled:opacity-50"
+                            className="rounded-xl bg-[#1677ff] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-cyan-400 disabled:opacity-50"
                             disabled={savingKey === "account-create" || savingKey === accountDraft.userId}
                             onClick={() => {
                               void saveAccount();
@@ -1156,16 +1208,26 @@ export default function AdminPage() {
                     </div>
 
                     <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="min-w-[980px] text-sm">
+                      <table className="min-w-[1100px] table-fixed text-sm">
+                        <colgroup>
+                          <col style={{ width: 210 }} />
+                          <col style={{ width: 220 }} />
+                          <col style={{ width: 120 }} />
+                          <col style={{ width: 86 }} />
+                          <col style={{ width: 120 }} />
+                          <col style={{ width: 120 }} />
+                          <col style={{ width: 120 }} />
+                          <col style={{ width: 160 }} />
+                        </colgroup>
                         <thead className="bg-slate-50 text-slate-500">
                           <tr>
-                            <th className="px-4 py-3 text-left font-medium">账号</th>
-                            <th className="px-4 py-3 text-left font-medium">游客 Token</th>
-                            <th className="px-4 py-3 text-left font-medium">角色</th>
-                            <th className="px-4 py-3 text-left font-medium">密码</th>
-                            <th className="px-4 py-3 text-left font-medium">创建时间</th>
-                            <th className="px-4 py-3 text-left font-medium">最近登录</th>
-                            <th className="px-4 py-3 text-left font-medium">最近在线</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">账号</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">游客 Token</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">角色</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">密码</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">创建时间</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">最近登录</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">最近在线</th>
                             <th className="w-[152px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
                           </tr>
                         </thead>
@@ -1176,17 +1238,21 @@ export default function AdminPage() {
                               className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
                             >
                               <td className="px-4 py-3 align-top">
-                                <div className="font-medium text-slate-900">{account.username ?? "guest"}</div>
+                                <div className="truncate font-medium text-slate-900" title={account.username ?? "guest"}>
+                                  {account.username ?? "guest"}
+                                </div>
                                 <div className="mt-1 text-xs text-slate-500">{account.accountType}</div>
-                                <div className="mt-1 text-xs text-slate-400">{account.userId}</div>
+                                <div className="mt-1 truncate text-xs text-slate-500" title={account.userId}>
+                                  {account.userId}
+                                </div>
                               </td>
-                              <td className="px-4 py-3 text-slate-600">{account.guestToken}</td>
-                              <td className="px-4 py-3 text-slate-600">{account.roleName ?? "-"}</td>
+                              <td className="truncate px-4 py-3 text-slate-600" title={account.guestToken}>{account.guestToken}</td>
+                              <td className="truncate px-4 py-3 text-slate-600" title={account.roleName ?? "-"}>{account.roleName ?? "-"}</td>
                               <td className="px-4 py-3 text-slate-600">{account.hasPassword ? "已设置" : "-"}</td>
                               <td className="px-4 py-3 text-slate-500">{formatDateTime(account.createdAt)}</td>
                               <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastLoginAt)}</td>
                               <td className="px-4 py-3 text-slate-500">{formatDateTime(account.lastSeenAt)}</td>
-                              <td className="w-[152px] whitespace-nowrap px-4 py-3">
+                              <td className="whitespace-nowrap px-4 py-3">
                                 <div className="flex flex-nowrap gap-2">
                                   <button
                                     className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
@@ -1196,7 +1262,7 @@ export default function AdminPage() {
                                     编辑
                                   </button>
                                   <button
-                                    className="whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-100"
+                                    className="whitespace-nowrap rounded-lg border border-rose-300/50 bg-rose-50 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-300/30"
                                     onClick={() => setAccountDeleteTarget(account)}
                                     type="button"
                                   >
@@ -1220,11 +1286,11 @@ export default function AdminPage() {
                   summary="角色搜索、数值编辑与保存"
                   title="角色数据维护"
                 >
-                  <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                  <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
                     <div className="border-b border-slate-200 px-5 py-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">角色列表</p>
+                          <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">角色列表</p>
                           <h2 className="mt-2 text-xl font-semibold text-slate-900">角色数据维护</h2>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
@@ -1246,16 +1312,24 @@ export default function AdminPage() {
                     </div>
 
                     <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="min-w-[1400px] text-sm">
+                      <table className="min-w-[1760px] table-fixed text-sm">
+                        <colgroup>
+                          <col style={{ width: 220 }} />
+                          {ROLE_COLUMNS.map((column) => (
+                            <col key={`role-col-${column}`} style={{ width: ROLE_COLUMN_WIDTHS[column] }} />
+                          ))}
+                          <col style={{ width: 140 }} />
+                          <col style={{ width: 120 }} />
+                        </colgroup>
                         <thead className="bg-slate-50 text-slate-500">
                           <tr>
-                            <th className="px-4 py-3 text-left font-medium">账号</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">账号</th>
                             {ROLE_COLUMNS.map((column) => (
-                              <th key={column} className="px-3 py-3 text-left font-medium">
+                              <th key={column} className="whitespace-nowrap px-3 py-3 text-left font-medium">
                                 {column}
                               </th>
                             ))}
-                            <th className="px-4 py-3 text-left font-medium">最近更新时间</th>
+                            <th className="whitespace-nowrap px-4 py-3 text-left font-medium">最近更新时间</th>
                             <th className="w-[120px] whitespace-nowrap px-4 py-3 text-left font-medium">操作</th>
                           </tr>
                         </thead>
@@ -1266,7 +1340,9 @@ export default function AdminPage() {
                               className={index % 2 === 0 ? "bg-white" : "bg-slate-50/55"}
                             >
                               <td className="px-4 py-3 align-top">
-                                <div className="font-medium text-slate-900">{role.username ?? "guest"}</div>
+                                <div className="truncate font-medium text-slate-900" title={role.username ?? "guest"}>
+                                  {role.username ?? "guest"}
+                                </div>
                                 <div className="mt-1 text-xs text-slate-500">{role.accountType}</div>
                               </td>
                               {ROLE_COLUMNS.map((column) => (
@@ -1283,7 +1359,7 @@ export default function AdminPage() {
                               </td>
                               <td className="w-[120px] whitespace-nowrap px-4 py-3">
                                 <button
-                                  className="whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                                  className="whitespace-nowrap rounded-lg border border-emerald-300/50 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-300/30 disabled:opacity-50"
                                   disabled={savingKey === role.roleId}
                                   onClick={() => {
                                     void saveRole(role);
@@ -1303,60 +1379,69 @@ export default function AdminPage() {
               </div>
             ) : null}
 
-            {activeSection !== "accounts" && activeSection !== "roles" && activeSection !== "reference" ? (
+            {activeSection === "configWorkbench" || activeSection === "system" ? (
               <MobileAdminCollapse
+                className="space-y-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+                contentClassName="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
                 summary={`当前编辑 ${selectedConfig.label}`}
                 title="配置工作台"
               >
-              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] xl:flex xl:min-h-0 xl:flex-col">
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.06)] xl:flex xl:min-h-0 xl:flex-1 xl:flex-col">
                 <div className="border-b border-slate-200 px-5 py-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">
+                      <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">
                         配置工作台
                       </p>
                       <h2 className="mt-2 text-xl font-semibold text-slate-900">
                         {SIDEBAR_SECTIONS.find((item) => item.key === activeSection)?.label}
                       </h2>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {visibleConfigTabs.map((tab) => {
-                        const isActive = selectedConfigKey === tab.key;
-                        const hasError = (configFieldErrors[tab.key] ?? []).length > 0;
+                    <div className="space-y-3">
+                      {configTabGroups.map(({ group, tabs }) => (
+                        <div key={group} className="flex flex-wrap items-center gap-2">
+                          <span className="mr-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
+                            {group}
+                          </span>
+                          {tabs.map((tab) => {
+                            const isActive = selectedConfigKey === tab.key;
+                            const hasError = (configFieldErrors[tab.key] ?? []).length > 0;
 
-                        return (
-                          <button
-                            key={tab.key}
-                            className={`rounded-lg px-4 py-2 text-sm transition ${
-                              isActive
-                                ? hasError
-                                  ? "bg-rose-600 text-white"
-                                  : "bg-[#1677ff] text-white"
-                                : hasError
-                                  ? "border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100"
-                                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                            }`}
-                            onClick={() => setSelectedConfigKey(tab.key)}
-                            type="button"
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <span>{tab.label}</span>
-                              {hasError ? (
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] ${isActive ? "bg-white/16 text-white" : "bg-rose-100 text-rose-700"}`}>
-                                  {configFieldErrors[tab.key]?.length}
+                            return (
+                              <button
+                                key={tab.key}
+                                className={`rounded-lg px-4 py-2 text-sm transition ${
+                                  isActive
+                                    ? hasError
+                                      ? "bg-rose-600 text-white"
+                                      : "bg-[#1677ff] text-white"
+                                    : hasError
+                                      ? "border border-rose-300/50 bg-rose-50 text-rose-700 hover:bg-rose-300/30"
+                                      : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                }`}
+                                onClick={() => setSelectedConfigKey(tab.key)}
+                                type="button"
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  <span>{tab.label}</span>
+                                  {hasError ? (
+                                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${isActive ? "bg-white/20 text-white" : "bg-rose-100 text-rose-700"}`}>
+                                      {configFieldErrors[tab.key]?.length}
+                                    </span>
+                                  ) : null}
                                 </span>
-                              ) : null}
-                            </span>
-                          </button>
-                        );
-                      })}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
                 <div className="grid gap-5 p-5 2xl:grid-cols-[240px_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                       当前编辑项
                     </p>
                     <h3 className="mt-3 text-lg font-semibold text-slate-900">{selectedConfig.label}</h3>
@@ -1374,7 +1459,7 @@ export default function AdminPage() {
                     ) : null}
 
                     {(configFieldErrors[selectedConfig.key] ?? []).length > 0 ? (
-                      <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                      <div className="mb-4 rounded-2xl border border-rose-300/50 bg-rose-50 px-4 py-4">
                         <ul className="mt-3 space-y-2 text-sm leading-6 text-rose-700">
                           {(configFieldErrors[selectedConfig.key] ?? []).map((message) => (
                             <li key={message}>{message}</li>
@@ -1385,7 +1470,7 @@ export default function AdminPage() {
                     <div className="rounded-2xl border border-slate-200 bg-white xl:flex xl:min-h-0 xl:flex-col">
                       <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 md:flex-row md:items-center md:justify-between">
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">编辑器</p>
+                          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">编辑器</p>
                           <h4 className="mt-2 text-base font-semibold text-slate-900">
                             {editorMode === "structured" && hasStructuredEditor ? "结构化编辑" : "原始 JSON"}
                           </h4>
@@ -1444,7 +1529,7 @@ export default function AdminPage() {
                                         key={`${selectedConfig.key}-${index}-${getArrayItemTitle(selectedConfig.key, item, index)}`}
                                       className={`min-h-[5rem] w-full rounded-xl border px-3 py-3 text-left transition ${
                                           isActive
-                                            ? "border-[#1677ff] bg-[#1677ff]/8"
+                                            ? "border-[#1677ff] bg-cyan-500/8"
                                             : "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50"
                                         }`}
                                         onClick={() => {
@@ -1472,7 +1557,7 @@ export default function AdminPage() {
                           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 xl:flex xl:min-h-0 xl:flex-col">
                             <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
                               <div>
-                                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">当前条目</p>
+                                <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">当前条目</p>
                                 <h4 className="mt-2 text-base font-semibold text-slate-900">
                                   {selectedArrayItem === null
                                     ? "尚未选择"
@@ -1489,14 +1574,14 @@ export default function AdminPage() {
                                     重置当前项
                                   </button>
                                   <button
-                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-100"
+                                    className="rounded-xl border border-rose-300/50 bg-rose-50 px-3 py-2 text-sm text-rose-700 transition hover:bg-rose-300/30"
                                     onClick={() => removeStructuredArrayItem(selectedArrayItemIndex)}
                                     type="button"
                                   >
                                     删除当前项
                                   </button>
                                   <button
-                                    className="rounded-xl bg-[#1677ff] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#0f6de8]"
+                                    className="rounded-xl bg-[#1677ff] px-3 py-2 text-sm font-medium text-white transition hover:bg-cyan-400"
                                     onClick={applySelectedItemEditor}
                                     type="button"
                                   >
@@ -1508,7 +1593,7 @@ export default function AdminPage() {
 
                             {selectedArrayItem !== null ? (
                               <textarea
-                                className="mt-4 block min-h-[680px] w-full rounded-2xl border border-slate-200 bg-[#0b1220] px-5 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15 xl:min-h-0 xl:flex-1"
+                                className="mt-4 block min-h-[680px] w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 font-mono text-[13px] leading-6 text-slate-800 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15 xl:min-h-0 xl:flex-1"
                                 onChange={(event) => {
                                   const nextValue = event.target.value;
 
@@ -1536,14 +1621,30 @@ export default function AdminPage() {
                               <label key={fieldKey} className="block rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                 <span className="block text-sm font-medium text-slate-700">{fieldKey}</span>
                                 {typeof fieldValue === "boolean" ? (
-                                  <select
-                                    className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
-                                    onChange={(event) => updateStructuredObjectField(fieldKey, event.target.value)}
-                                    value={String(fieldValue)}
-                                  >
-                                    <option value="true">true</option>
-                                    <option value="false">false</option>
-                                  </select>
+                                  <div className="mt-3 grid h-11 grid-cols-2 rounded-xl border border-slate-200 bg-white p-1">
+                                    <button
+                                      className={`rounded-lg text-sm font-medium transition ${
+                                        fieldValue === true
+                                          ? "bg-[#1677ff]/12 text-[#1677ff] shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35)]"
+                                          : "text-slate-600 hover:bg-slate-100"
+                                      }`}
+                                      onClick={() => updateStructuredObjectField(fieldKey, "true")}
+                                      type="button"
+                                    >
+                                      true
+                                    </button>
+                                    <button
+                                      className={`rounded-lg text-sm font-medium transition ${
+                                        fieldValue === false
+                                          ? "bg-[#1677ff]/12 text-[#1677ff] shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35)]"
+                                          : "text-slate-600 hover:bg-slate-100"
+                                      }`}
+                                      onClick={() => updateStructuredObjectField(fieldKey, "false")}
+                                      type="button"
+                                    >
+                                      false
+                                    </button>
+                                  </div>
                                 ) : (
                                   <input
                                     className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10"
@@ -1560,7 +1661,7 @@ export default function AdminPage() {
 
                       {editorMode === "raw" ? (
                         <textarea
-                          className={`block min-h-[620px] w-full overflow-auto rounded-2xl border bg-[#0b1220] px-4 py-4 font-mono text-[13px] leading-6 text-slate-100 outline-none transition md:min-h-[760px] md:px-5 xl:min-h-0 xl:flex-1 ${
+                          className={`block min-h-[620px] w-full overflow-auto rounded-2xl border bg-white px-4 py-4 font-mono text-[13px] leading-6 text-slate-800 outline-none transition md:min-h-[760px] md:px-5 xl:min-h-0 xl:flex-1 ${
                             (configFieldErrors[selectedConfig.key] ?? []).length > 0
                               ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/60"
                               : "border-slate-200 focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15"
@@ -1587,14 +1688,14 @@ export default function AdminPage() {
                 summary="运行时常量、槽位辅助与默认上下文"
                 title="常量与辅助信息"
               >
-              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)] xl:flex xl:min-h-0 xl:flex-col">
+              <section className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.06)] xl:flex xl:min-h-0 xl:flex-col">
                 <div className="border-b border-slate-200 px-5 py-4">
-                  <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">运行时参考</p>
+                  <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">运行时参考</p>
                   <h2 className="mt-2 text-xl font-semibold text-slate-900">常量与辅助信息</h2>
                 </div>
                 <div className="grid gap-5 p-5 2xl:grid-cols-[320px_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" />
-                  <pre className="max-h-[620px] overflow-auto rounded-2xl border border-slate-200 bg-[#0b1220] p-5 text-[13px] leading-6 text-slate-100">
+                  <pre className="max-h-[620px] overflow-auto rounded-2xl border border-slate-200 bg-white p-5 text-[13px] leading-6 text-slate-800">
                     {pretty(configPayload.meta)}
                   </pre>
                 </div>
@@ -1606,14 +1707,17 @@ export default function AdminPage() {
         </section>
       </div>
       {accountDeleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-rose-500">删除确认</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-rose-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.14)]">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-rose-600">删除确认</p>
             <h3 className="mt-3 text-xl font-semibold text-slate-900">确定删除这个账号吗？</h3>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <p className="mt-3 text-sm leading-7 text-slate-700">
               账号 <span className="font-medium text-slate-900">{accountDeleteTarget.username ?? "guest"}</span> 删除后，
               关联角色、背包、挂机状态和市场数据也会一并移除。
             </p>
+            <div className="mt-4 rounded-xl border border-rose-300/30 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+              此操作不可恢复，请确认后再继续。
+            </div>
             <div className="mt-6 flex justify-end gap-3">
               <button
                 className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
