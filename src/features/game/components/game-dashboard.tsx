@@ -340,7 +340,7 @@ function TopStatusBar({
       </div>
       <div className={`${barClassName} overflow-hidden rounded-full bg-slate-950/90`}>
         <div
-          className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-75 ease-linear ${tone}`}
+          className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out ${tone}`}
           style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
         />
       </div>
@@ -1562,12 +1562,6 @@ function MainDashboard() {
   const role = snapshot?.role;
   const backpack = snapshot?.backpack ?? EMPTY_BACKPACK;
   const maps = snapshot?.config.maps ?? [];
-  const progressAnimationAnchorRef = useRef(Date.now());
-  const progressMemoryRef = useRef<{ cycleKey: string | null; progress: number }>({
-    cycleKey: null,
-    progress: 0,
-  });
-  const progressFrameRef = useRef<number | null>(null);
   const equippedItems = useMemo(
     () => backpack.filter((item) => item.equipped),
     [backpack],
@@ -1609,68 +1603,27 @@ function MainDashboard() {
   }, [pendingMarketPurchaseListingId, snapshot]);
 
   useEffect(() => {
-    if (!snapshot?.role || snapshot.afk.status !== "active") {
-      if (progressFrameRef.current !== null) {
-        window.cancelAnimationFrame(progressFrameRef.current);
-        progressFrameRef.current = null;
-      }
+    if (!snapshot?.role || snapshot.afk.status !== "active" || snapshot.afk.battle?.active) {
       return;
     }
 
-    if (progressFrameRef.current !== null) {
-      return;
-    }
-
-    const tick = () => {
+    const timer = window.setInterval(() => {
       setDisplayNow(Date.now());
-      progressFrameRef.current = window.requestAnimationFrame(tick);
-    };
-
-    progressFrameRef.current = window.requestAnimationFrame(tick);
+    }, 1000);
 
     return () => {
-      if (progressFrameRef.current !== null) {
-        window.cancelAnimationFrame(progressFrameRef.current);
-        progressFrameRef.current = null;
-      }
+      window.clearInterval(timer);
     };
-  }, [snapshot?.afk.status, snapshot?.role, snapshot?.role?.roleId]);
+  }, [snapshot?.afk.battle?.active, snapshot?.afk.status, snapshot?.role]);
 
   useEffect(() => {
-    const now = Date.now();
-
-    if (!snapshot || snapshot.afk.status !== "active" || !snapshot.role) {
-      progressAnimationAnchorRef.current = now;
-      progressMemoryRef.current = {
-        cycleKey: null,
-        progress: snapshot?.afk.accruedSeconds ?? 0,
-      };
-      setDisplayNow(now);
-      return;
-    }
-
-    const cycleKey = `${snapshot.role.roleId}:${snapshot.afk.startedAt ?? 0}:${snapshot.afk.lastSettledAt ?? 0}:${snapshot.afk.taskDurationSeconds ?? 0}`;
-    const currentBaseProgress = Math.max(0, snapshot.afk.accruedSeconds ?? 0);
-    const previousProgress = progressMemoryRef.current;
-    const previousDisplayedProgress = previousProgress.cycleKey === cycleKey
-      ? Math.min(
-        snapshot.afk.taskDurationSeconds ?? 0,
-        previousProgress.progress + Math.max(0, now - progressAnimationAnchorRef.current) / 1000,
-      )
-      : 0;
-
-    progressMemoryRef.current = {
-      cycleKey,
-      progress: Math.max(currentBaseProgress, previousDisplayedProgress),
-    };
-    progressAnimationAnchorRef.current = now;
-    setDisplayNow(now);
+    setDisplayNow(Date.now());
   }, [
-    snapshot,
     snapshot?.afk.accruedSeconds,
-    snapshot?.afk.status,
+    snapshot?.afk.battle?.active,
     snapshot?.afk.lastSettledAt,
     snapshot?.afk.startedAt,
+    snapshot?.afk.status,
     snapshot?.afk.taskDurationSeconds,
     snapshot?.role?.roleId,
   ]);
@@ -1701,29 +1654,16 @@ function MainDashboard() {
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
   const taskDuration = snapshot?.afk.taskDurationSeconds ?? 0;
   const activeBattle = snapshot?.afk.battle?.active ? snapshot.afk.battle : null;
-  const activeTaskCycleKey = snapshot?.afk.status === "active" && snapshot.role
-    ? `${snapshot.role.roleId}:${snapshot.afk.startedAt ?? 0}:${snapshot.afk.lastSettledAt ?? 0}:${taskDuration}`
-    : null;
   const taskProgress = (() => {
     const baseProgress = Math.max(0, snapshot?.afk.accruedSeconds ?? 0);
 
-    if (snapshot?.afk.status !== "active" || !activeTaskCycleKey || activeBattle) {
-      progressMemoryRef.current = {
-        cycleKey: null,
-        progress: baseProgress,
-      };
+    if (snapshot?.afk.status !== "active" || !snapshot?.role || activeBattle) {
       return baseProgress;
     }
 
-    const anchoredProgress = progressMemoryRef.current.cycleKey === activeTaskCycleKey
-      ? progressMemoryRef.current.progress
-      : baseProgress;
-    const estimatedProgress = Math.min(
-      taskDuration,
-      anchoredProgress + Math.max(0, displayNow - progressAnimationAnchorRef.current) / 1000,
-    );
-
-    return estimatedProgress;
+    const serverTime = snapshot.serverTime ?? displayNow;
+    const elapsedSeconds = Math.max(0, Math.floor((displayNow - serverTime) / 1000));
+    return Math.min(taskDuration, baseProgress + elapsedSeconds);
   })();
   const taskProgressPercent = taskDuration > 0 ? (taskProgress / taskDuration) * 100 : 0;
   const currentTaskReward = snapshot?.afk.currentMap
@@ -2384,7 +2324,7 @@ function MainDashboard() {
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-teal-300/65 via-cyan-300/60 to-sky-400/70 transition-[width] duration-75 ease-linear"
+              className="h-full rounded-full bg-gradient-to-r from-teal-300/65 via-cyan-300/60 to-sky-400/70 transition-[width] duration-500 ease-out"
               style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
             />
           </div>
