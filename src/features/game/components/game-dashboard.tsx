@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Chat from "@/components/chat";
 import { getMaxHealth, type BodySlotType, type ClassKey, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
@@ -962,6 +962,75 @@ function CenterPanel({
   const [marketCategoryFilter, setMarketCategoryFilter] = useState<"all" | "equipment">("equipment");
   const [marketRarityFilter, setMarketRarityFilter] = useState<"all" | "white" | "green" | "blue" | "purple" | "orange">("all");
   const [marketSlotFilter, setMarketSlotFilter] = useState<"all" | BodySlotType>("all");
+  const [battleFxState, setBattleFxState] = useState({
+    enemyHitAt: 0,
+    enemyPulseAt: 0,
+    playerHitAt: 0,
+    playerPulseAt: 0,
+    turnFlashAt: 0,
+  });
+  const previousBattleRef = useRef<NonNullable<typeof snapshot.afk.battle> | null>(null);
+  const activeBattle = snapshot.afk.battle?.active ? snapshot.afk.battle : null;
+  const battleStatusCopy = activeBattle
+    ? copy.dashboard.battleOngoing
+    : snapshot.afk.battle?.winner === "player"
+      ? copy.dashboard.battleVictory
+      : snapshot.afk.battle?.winner === "enemy"
+        ? copy.dashboard.battleDefeat
+        : messages.common.idle;
+
+  useEffect(() => {
+    if (!activeBattle) {
+      previousBattleRef.current = null;
+      return;
+    }
+
+    const previousBattle = previousBattleRef.current;
+
+    if (previousBattle && previousBattle.battleId === activeBattle.battleId) {
+      const nextFxState = { ...battleFxState };
+      let shouldUpdateFx = false;
+
+      if (activeBattle.turnCount !== previousBattle.turnCount) {
+        nextFxState.turnFlashAt = Date.now();
+        shouldUpdateFx = true;
+      }
+
+      if (activeBattle.player.currentHealth < previousBattle.player.currentHealth) {
+        nextFxState.playerHitAt = Date.now();
+        shouldUpdateFx = true;
+      }
+
+      if (activeBattle.enemy.currentHealth < previousBattle.enemy.currentHealth) {
+        nextFxState.enemyHitAt = Date.now();
+        shouldUpdateFx = true;
+      }
+
+      if (activeBattle.player.actionBar > previousBattle.player.actionBar) {
+        nextFxState.playerPulseAt = Date.now();
+        shouldUpdateFx = true;
+      }
+
+      if (activeBattle.enemy.actionBar > previousBattle.enemy.actionBar) {
+        nextFxState.enemyPulseAt = Date.now();
+        shouldUpdateFx = true;
+      }
+
+      if (shouldUpdateFx) {
+        setBattleFxState(nextFxState);
+      }
+    }
+
+    previousBattleRef.current = activeBattle;
+  }, [activeBattle, battleFxState]);
+
+  const battleFxNow = Date.now();
+  const isBattleTurnFlashing = Boolean(activeBattle) && battleFxNow - battleFxState.turnFlashAt < 420;
+  const isPlayerHit = Boolean(activeBattle) && battleFxNow - battleFxState.playerHitAt < 380;
+  const isEnemyHit = Boolean(activeBattle) && battleFxNow - battleFxState.enemyHitAt < 380;
+  const isPlayerPulsing = Boolean(activeBattle) && battleFxNow - battleFxState.playerPulseAt < 520;
+  const isEnemyPulsing = Boolean(activeBattle) && battleFxNow - battleFxState.enemyPulseAt < 520;
+
   if (!role) {
     return null;
   }
@@ -1167,15 +1236,6 @@ function CenterPanel({
     );
   }
 
-  const activeBattle = snapshot.afk.battle?.active ? snapshot.afk.battle : null;
-  const battleStatusCopy = activeBattle
-    ? copy.dashboard.battleOngoing
-    : snapshot.afk.battle?.winner === "player"
-      ? copy.dashboard.battleVictory
-      : snapshot.afk.battle?.winner === "enemy"
-        ? copy.dashboard.battleDefeat
-        : messages.common.idle;
-
   return (
     <SectionCard className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-white/8 px-4 py-2.5">
@@ -1195,7 +1255,7 @@ function CenterPanel({
       </div>
 
       <div className="grid min-h-0 flex-1 gap-2 overflow-hidden p-3 xl:grid-cols-[1.08fr_0.92fr]">
-        <div className="rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-3">
+        <div className={`rounded-[1rem] border border-sky-300/25 bg-sky-300/8 p-3 transition-all duration-300 ${isBattleTurnFlashing ? "shadow-[0_0_0_1px_rgba(125,211,252,0.26),0_0_32px_rgba(56,189,248,0.16)]" : ""}`}>
           {activeBattle ? (
             <div>
               <div className="flex items-start justify-between gap-3">
@@ -1209,11 +1269,12 @@ function CenterPanel({
               </div>
 
               <div className="mt-3 grid gap-2 xl:grid-cols-2">
-                <div className="rounded-[1rem] border border-emerald-300/20 bg-emerald-300/8 p-3">
+                <div className={`rounded-[1rem] border border-emerald-300/20 bg-emerald-300/8 p-3 transition-all duration-300 ${isPlayerHit ? "scale-[0.985] border-rose-300/45 bg-rose-300/12 shadow-[0_0_28px_rgba(251,113,133,0.18)]" : isPlayerPulsing ? "shadow-[0_0_24px_rgba(45,212,191,0.14)]" : ""}`}>
                   <SectionEyebrow>{copy.dashboard.selfInfo}</SectionEyebrow>
                   <p className="mt-1.5 text-base font-semibold text-white">{activeBattle.player.name}</p>
                   <div className="mt-2.5">
                     <TopStatusBar
+                      barClassName={`h-3 ${isPlayerHit ? "animate-pulse" : ""}`}
                       label={copy.dashboard.lifeBar}
                       tone="from-emerald-400 via-cyan-300 to-sky-300"
                       valueLabel={`${formatNumber(activeBattle.player.currentHealth, locale)} / ${formatNumber(activeBattle.player.maxHealth, locale)}`}
@@ -1222,7 +1283,7 @@ function CenterPanel({
                   </div>
                   <div className="mt-2.5">
                     <TopStatusBar
-                      barClassName="h-2.5"
+                      barClassName={`h-2.5 ${isPlayerPulsing ? "animate-pulse" : ""}`}
                       label={copy.dashboard.actionBar}
                       tone="from-sky-400 via-cyan-300 to-teal-300"
                       value={activeBattle.player.actionBar}
@@ -1233,11 +1294,12 @@ function CenterPanel({
                   </div>
                 </div>
 
-                <div className="rounded-[1rem] border border-rose-300/20 bg-rose-300/8 p-3">
+                <div className={`rounded-[1rem] border border-rose-300/20 bg-rose-300/8 p-3 transition-all duration-300 ${isEnemyHit ? "scale-[0.985] border-amber-200/55 bg-amber-300/10 shadow-[0_0_28px_rgba(251,191,36,0.18)]" : isEnemyPulsing ? "shadow-[0_0_24px_rgba(251,146,60,0.14)]" : ""}`}>
                   <SectionEyebrow>{copy.dashboard.enemyInfo}</SectionEyebrow>
                   <p className="mt-1.5 text-base font-semibold text-white">{activeBattle.enemy.name}</p>
                   <div className="mt-2.5">
                     <TopStatusBar
+                      barClassName={`h-3 ${isEnemyHit ? "animate-pulse" : ""}`}
                       label={copy.dashboard.lifeBar}
                       tone="from-rose-500 via-orange-400 to-amber-300"
                       valueLabel={`${formatNumber(activeBattle.enemy.currentHealth, locale)} / ${formatNumber(activeBattle.enemy.maxHealth, locale)}`}
@@ -1246,7 +1308,7 @@ function CenterPanel({
                   </div>
                   <div className="mt-2.5">
                     <TopStatusBar
-                      barClassName="h-2.5"
+                      barClassName={`h-2.5 ${isEnemyPulsing ? "animate-pulse" : ""}`}
                       label={copy.dashboard.actionBar}
                       tone="from-amber-300 via-orange-300 to-rose-300"
                       value={activeBattle.enemy.actionBar}
@@ -1533,7 +1595,6 @@ function MainDashboard() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerUsername, setRegisterUsername] = useState("");
   const [selectedBackpackId, setSelectedBackpackId] = useState<string | null>(null);
-
   const pendingReward = snapshot?.afk.pendingReward;
   const shouldShowRewardModal =
     Boolean(snapshot?.role)
@@ -1677,6 +1738,7 @@ function MainDashboard() {
       gold: Math.floor((snapshot.afk.currentMap.goldPerMinute * taskDuration) / 60),
     }
     : { aetherCrystal: 0, exp: 0, gold: 0 };
+
   if (!snapshot || !role) {
     return null;
   }

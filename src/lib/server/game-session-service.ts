@@ -37,6 +37,7 @@ import {
   refreshRuntimeGameConfig,
   type RuntimeItemSeed,
 } from "@/lib/server/dynamic-game-config";
+import { ApiError } from "@/lib/server/http";
 import { deleteRedisKey, setRedisJson } from "@/lib/server/redis";
 
 type UserRow = {
@@ -2268,7 +2269,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
   const map = getMapConfig(mapKey);
 
   if (!map) {
-    throw new Error("地图不存在。");
+    throw new ApiError("地图不存在。", 404);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -2276,7 +2277,7 @@ export async function startAfk(guestToken: string, mapKey: MapKey) {
   settleAfkState(data.afk, { now });
 
   if (data.afk.status === "active") {
-    throw new Error("当前已经处于挂机中，请先停止。");
+    throw new ApiError("当前已经处于挂机中，请先停止。", 409);
   }
 
   data.afk.status = "active";
