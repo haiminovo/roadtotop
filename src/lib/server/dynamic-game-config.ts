@@ -21,7 +21,13 @@ import {
   MAX_OFFLINE_SECONDS,
   type ItemRarity,
 } from "@/lib/game-config";
-import { getDynamicGameConfig, type BattleEnemyTemplate, type DynamicGameConfig, type SystemBalanceConfig } from "@/lib/server/admin-config";
+import {
+  getDynamicGameConfig,
+  type BattleEnemyTemplate,
+  type DynamicGameConfig,
+  type SkillTemplate,
+  type SystemBalanceConfig,
+} from "@/lib/server/admin-config";
 
 export type RuntimeItemSeed = DynamicGameConfig["itemCatalog"][number];
 
@@ -29,6 +35,7 @@ type RuntimeGameConfig = DynamicGameConfig & {
   afkEncounterPoolByMapAndTier: Record<string, Record<EncounterTier, AfkEncounterConfig[]>>;
   battleEnemyTemplatesByMap: Record<string, BattleEnemyTemplate[]>;
   itemSeedById: Map<string, RuntimeItemSeed>;
+  skillTemplateByKey: Map<string, SkillTemplate>;
 };
 
 let cachedRuntimeConfig: RuntimeGameConfig | null = null;
@@ -89,6 +96,7 @@ function buildRuntimeConfig(source: DynamicGameConfig): RuntimeGameConfig {
     afkEncounterPoolByMapAndTier: buildAfkEncounterPoolByMapAndTier(source.afkEncounterPool, source.mapConfigs),
     battleEnemyTemplatesByMap: buildBattleEnemyTemplatesByMap(source.battleEnemyTemplates, source.mapConfigs),
     itemSeedById: new Map(source.itemCatalog.map((item) => [item.itemId, item])),
+    skillTemplateByKey: new Map(source.skillTemplates.map((skill) => [skill.key, skill])),
   };
 }
 
@@ -151,6 +159,14 @@ export async function getItemSeed(itemId: string) {
 
 export async function getSystemBalance(): Promise<SystemBalanceConfig> {
   return (await loadRuntimeGameConfig()).systemBalance;
+}
+
+export async function getSkillTemplates(): Promise<SkillTemplate[]> {
+  return (await loadRuntimeGameConfig()).skillTemplates;
+}
+
+export async function getSkillTemplateByKey() {
+  return (await loadRuntimeGameConfig()).skillTemplateByKey;
 }
 
 export function getLevelTable() {
@@ -236,5 +252,6 @@ export type {
   ItemRarity,
   MapConfig,
   RaceConfig,
+  SkillTemplate,
   SystemBalanceConfig,
 };

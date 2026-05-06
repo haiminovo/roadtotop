@@ -19,11 +19,6 @@ type I18nMessages = ReturnType<typeof getMessages>;
 const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
 const DEFAULT_MESSAGES = getMessages(DEFAULT_LOCALE);
 const BATTLE_ATTACK_DAMAGE_MULTIPLIER = 2;
-const BATTLE_SPELL_DAMAGE_MULTIPLIER = 2.5;
-const BATTLE_PLAYER_GUARD_HEAL_RATIO = 0.18;
-const BATTLE_ENEMY_GUARD_HEAL_RATIO = 0.08;
-const BATTLE_PLAYER_GUARD_REDUCTION_RATIO = 0.45;
-const BATTLE_ENEMY_GUARD_REDUCTION_RATIO = 0.35;
 const BATTLE_PLAYER_GUARD_COOLDOWN_TURNS = 2;
 const BATTLE_ENEMY_GUARD_COOLDOWN_TURNS = 3;
 const BATTLE_SPELL_HIGH_INTELLIGENCE_THRESHOLD = 12;
@@ -129,23 +124,22 @@ function formatStatsSummary(
     .join(" · ");
 }
 
+function skillCategoryLabel(category: string, messages: I18nMessages = DEFAULT_MESSAGES) {
+  return messages.game.dashboard.skillCategory?.[category as keyof typeof messages.game.dashboard.skillCategory] ?? category;
+}
+
+function skillQualityTone(quality: string) {
+  return {
+    white: "border-slate-300/20 bg-slate-200/6 text-slate-100",
+    green: "border-emerald-300/30 bg-emerald-300/10 text-emerald-100",
+    blue: "border-sky-300/30 bg-sky-300/10 text-sky-100",
+    purple: "border-fuchsia-300/30 bg-fuchsia-300/10 text-fuchsia-100",
+    orange: "border-amber-300/30 bg-amber-300/10 text-amber-100",
+  }[quality] ?? "border-slate-300/20 bg-slate-200/6 text-slate-100";
+}
+
 function calculateBattlePhysicalDamagePreview(strength: number) {
   return Math.max(1, Math.round(Math.max(0, Number(strength) || 0) * BATTLE_ATTACK_DAMAGE_MULTIPLIER));
-}
-
-function calculateBattleSpellDamagePreview(intelligence: number) {
-  return Math.max(1, Math.round(Math.max(0, Number(intelligence) || 0) * BATTLE_SPELL_DAMAGE_MULTIPLIER));
-}
-
-function calculateBattleGuardHealPreview(maxHealth: number, side: "player" | "enemy") {
-  const safeHealth = Math.max(0, Number(maxHealth) || 0);
-  return side === "player"
-    ? Math.max(10, Math.round(safeHealth * BATTLE_PLAYER_GUARD_HEAL_RATIO))
-    : Math.max(8, Math.round(safeHealth * BATTLE_ENEMY_GUARD_HEAL_RATIO));
-}
-
-function calculateBattleGuardReductionPreview(side: "player" | "enemy") {
-  return side === "player" ? BATTLE_PLAYER_GUARD_REDUCTION_RATIO : BATTLE_ENEMY_GUARD_REDUCTION_RATIO;
 }
 
 function calculateBattleSpellChancePreview(intelligence: number) {
@@ -430,60 +424,129 @@ function BattleSkillSlots({
 }) {
   const { locale, messages } = useI18n();
   const copy = messages.game.dashboard;
-  const attackDamage = calculateBattlePhysicalDamagePreview(combatant.stats.strength);
-  const spellDamage = calculateBattleSpellDamagePreview(combatant.stats.intelligence);
-  const guardHeal = calculateBattleGuardHealPreview(combatant.maxHealth, side);
-  const guardReduction = calculateBattleGuardReductionPreview(side);
-  const spellChance = calculateBattleSpellChancePreview(combatant.stats.intelligence);
-  const guardRemaining = side === "player" ? copy.skillUnlimited : formatNumber(combatant.skillUsesRemaining.guard, locale);
-  const spellRemaining = side === "player" ? copy.skillUnlimited : formatNumber(combatant.skillUsesRemaining.spell, locale);
-  const spellStatus = side === "player"
-    ? formatMessage(copy.skillChanceValue, { chance: formatPercentValue(spellChance, locale) })
-    : formatMessage(copy.skillRemainingValue, { count: spellRemaining });
-  const attackStatus = formatMessage(copy.skillDamageShortValue, { amount: formatNumber(attackDamage, locale) });
-  const guardStatusText = combatant.defenseTurns > 0 ? copy.skillActive : copy.skillReady;
+  const visibleSkills = Array.isArray(combatant.skills) && combatant.skills.length > 0
+    ? combatant.skills
+    : [
+      {
+        key: "fallback-attack",
+        name: copy.skillAttackShort,
+        iconText: "ATK",
+        description: copy.skillAttackMeta,
+        category: "attack" as const,
+        level: 1,
+        quality: "white" as const,
+        acquisitionHint: copy.skillAttackMeta,
+        trigger: "random",
+        damage: calculateBattlePhysicalDamagePreview(combatant.stats.strength),
+        heal: 0,
+        reduction: 0,
+        cooldownTurns: 0,
+        maxUses: 0,
+        usesRemaining: 0,
+        source: side,
+      },
+    ];
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-2">
-        <SkillSlot
-          badge="ATK"
-          body={formatMessage(copy.skillAttackDetail, {
-            agility: formatPercentValue(Math.max(0, Math.min(0.75, combatant.stats.agility / 50)), locale),
-            damage: formatNumber(attackDamage, locale),
-            strength: formatNumber(combatant.stats.strength, locale),
-          })}
-          meta={copy.skillAttackMeta}
-          status={attackStatus}
-          title={copy.skillAttackShort}
-          toneClassName="border-white/10 bg-slate-950/30 hover:border-sky-300/30"
-        />
-        <SkillSlot
-          badge="SP"
-          body={formatMessage(copy.skillSpellDetail, {
-            chance: formatPercentValue(spellChance, locale),
-            damage: formatNumber(spellDamage, locale),
-            intelligence: formatNumber(combatant.stats.intelligence, locale),
-            remaining: spellRemaining,
-          })}
-          meta={copy.skillSpellMeta}
-          status={spellStatus}
-          title={copy.skillSpellShort}
-          toneClassName="border-fuchsia-300/18 bg-fuchsia-300/[0.08] hover:border-fuchsia-300/35"
-        />
-        <SkillSlot
-          badge="DEF"
-          body={formatMessage(copy.skillGuardDetail, {
-            cooldown: formatNumber(side === "player" ? BATTLE_PLAYER_GUARD_COOLDOWN_TURNS : BATTLE_ENEMY_GUARD_COOLDOWN_TURNS, locale),
-            heal: formatNumber(guardHeal, locale),
-            reduction: formatPercentValue(guardReduction, locale),
-            remaining: guardRemaining,
-          })}
-          meta={copy.skillGuardMeta}
-          status={guardStatusText}
-          title={copy.skillGuardShort}
-          toneClassName="border-amber-300/18 bg-amber-300/[0.08] hover:border-amber-300/35"
-        />
+      <div className="mb-2 flex flex-wrap gap-2 text-[11px] text-slate-400">
+        <span>{formatMessage(copy.skillBattleUseLimit, { count: formatNumber(combatant.totalSkillUseLimit, locale) })}</span>
+        <span>{formatMessage(copy.skillBattleUseRemaining, { count: formatNumber(combatant.totalSkillUsesRemaining, locale) })}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+        {visibleSkills.map((skill) => {
+          const isGuard = skill.category === "guard";
+          const isSpell = skill.category === "spell";
+          const body = isGuard
+            ? formatMessage(copy.skillGuardDetail, {
+              cooldown: formatNumber(skill.cooldownTurns || (side === "player" ? BATTLE_PLAYER_GUARD_COOLDOWN_TURNS : BATTLE_ENEMY_GUARD_COOLDOWN_TURNS), locale),
+              heal: formatNumber(skill.heal, locale),
+              reduction: formatPercentValue(skill.reduction, locale),
+              remaining: formatNumber(skill.usesRemaining, locale),
+            })
+            : isSpell
+              ? formatMessage(copy.skillSpellDetail, {
+                chance: formatPercentValue(calculateBattleSpellChancePreview(combatant.stats.intelligence), locale),
+                damage: formatNumber(skill.damage, locale),
+                intelligence: formatNumber(combatant.stats.intelligence, locale),
+                remaining: formatNumber(skill.usesRemaining, locale),
+              })
+              : formatMessage(copy.skillAttackDetail, {
+                agility: formatPercentValue(Math.max(0, Math.min(0.75, combatant.stats.agility / 50)), locale),
+                damage: formatNumber(skill.damage, locale),
+                strength: formatNumber(combatant.stats.strength, locale),
+              });
+          const meta = `${rarityLabel(skill.quality, messages)} · ${skillCategoryLabel(skill.category, messages)} · Lv.${formatNumber(skill.level, locale)}`;
+          const status = isGuard
+            ? combatant.defenseTurns > 0 ? copy.skillActive : formatMessage(copy.skillRemainingValue, { count: formatNumber(skill.usesRemaining, locale) })
+            : isSpell || skill.category === "attack"
+              ? formatMessage(copy.skillDamageShortValue, { amount: formatNumber(skill.damage, locale) })
+              : copy.skillReady;
+
+          return (
+            <SkillSlot
+              key={skill.key}
+              badge={skill.iconText}
+              body={body}
+              meta={meta}
+              status={status}
+              title={skill.name}
+              toneClassName={skillQualityTone(skill.quality)}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BattleStatusBar({
+  combatant,
+}: {
+  combatant: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["afk"]["battle"] extends infer TBattle
+    ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
+      ? TPlayer | TEnemy
+      : never
+    : never;
+}) {
+  const { locale, messages } = useI18n();
+  const copy = messages.game.dashboard;
+  const effects = Array.isArray(combatant.activeEffects) ? combatant.activeEffects : [];
+
+  if (effects.length === 0) {
+    return (
+      <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
+        <div className="font-medium text-slate-300">{copy.statusBarTitle}</div>
+        <div className="mt-1">{copy.statusBarEmpty}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-2">
+      <div className="text-xs font-medium text-slate-300">{copy.statusBarTitle}</div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {effects.map((effect) => {
+          const isDebuff = effect.effectType.includes("down") || effect.effectType === "damage_over_time";
+
+          return (
+            <div
+              key={effect.key}
+              className={[
+                "min-w-[140px] rounded-[0.85rem] border px-2.5 py-2 text-xs",
+                isDebuff
+                  ? "border-rose-300/25 bg-rose-300/10 text-rose-50"
+                  : "border-emerald-300/25 bg-emerald-300/10 text-emerald-50",
+              ].join(" ")}
+            >
+              <div className="font-semibold">{effect.name}</div>
+              <div className="mt-1 text-[11px] opacity-85">{effect.summary || effect.description}</div>
+              <div className="mt-1 text-[10px] opacity-70">
+                {formatMessage(copy.statusTurnsRemaining, { count: formatNumber(effect.remainingTurns, locale) })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1290,6 +1353,9 @@ function CenterPanel({
                     />
                   </div>
                   <div className="mt-3">
+                    <BattleStatusBar combatant={activeBattle.player} />
+                  </div>
+                  <div className="mt-3">
                     <BattleSkillSlots combatant={activeBattle.player} side="player" />
                   </div>
                 </div>
@@ -1317,6 +1383,9 @@ function CenterPanel({
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <DataPill label={copy.dashboard.enemyLevel} value={formatNumber(activeBattle.enemy.level, locale)} />
                     <DataPill label={copy.dashboard.defenseActive} value={activeBattle.enemy.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+                  </div>
+                  <div className="mt-3">
+                    <BattleStatusBar combatant={activeBattle.enemy} />
                   </div>
                   <div className="mt-3">
                     <BattleSkillSlots combatant={activeBattle.enemy} side="enemy" />
@@ -1468,6 +1537,104 @@ function RightRail({
                   {copy.dashboard.equippedNone}
                 </div>
               )}
+            </div>
+            <SectionEyebrow>{copy.dashboard.skillPanelTitle}</SectionEyebrow>
+            <div className="mt-3 grid gap-3 lg:grid-cols-3">
+              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
+                <p className="text-sm font-semibold text-white">{copy.dashboard.skillSlots}</p>
+                <p className="mt-2 text-xs leading-6 text-slate-300">
+                  {formatMessage(copy.dashboard.skillSlotsSummary, {
+                    remaining: formatNumber(snapshot.role!.skillSlots.remaining, locale),
+                    total: formatNumber(snapshot.role!.skillSlots.total, locale),
+                    used: formatNumber(snapshot.role!.skillSlots.used, locale),
+                  })}
+                </p>
+                <p className="mt-2 text-xs leading-6 text-sky-100/80">
+                  {formatMessage(copy.dashboard.skillBattleUseIntelligenceRule, {
+                    count: formatNumber(snapshot.role!.battleSkillUseLimit, locale),
+                    intelligence: formatNumber(snapshot.role!.stats.intelligence, locale),
+                  })}
+                </p>
+              </div>
+              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 lg:col-span-2">
+                <p className="text-sm font-semibold text-white">{copy.dashboard.equippedSkillsTitle}</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {(snapshot.role?.equippedSkills.length ?? 0) > 0 ? snapshot.role?.equippedSkills.map((skill) => (
+                    <div key={skill.key} className="rounded-[0.95rem] border border-white/8 bg-slate-950/30 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{skill.name}</p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                            {skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}
+                          </p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-1 text-[10px] ${skillQualityTone(skill.quality)}`}>
+                          {rarityLabel(skill.quality, messages)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-6 text-slate-300">{skill.description}</p>
+                      <p className="mt-2 text-xs leading-6 text-sky-100/75">{skill.acquisitionHint}</p>
+                    </div>
+                  )) : (
+                    <div className="rounded-[0.95rem] border border-white/8 bg-slate-950/20 p-3 text-sm leading-6 text-slate-400 sm:col-span-2">
+                      {copy.dashboard.equippedSkillsEmpty}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4 lg:col-span-2">
+                <p className="text-sm font-semibold text-white">{copy.dashboard.learnedSkillsTitle}</p>
+                <div className="mt-3 space-y-3">
+                  {(snapshot.role?.learnedSkills.length ?? 0) > 0 ? snapshot.role?.learnedSkills.map((skill) => (
+                    <div key={skill.key} className="rounded-[0.95rem] border border-white/8 bg-slate-950/20 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            {skill.name}
+                            {skill.equipped ? <span className="ml-2 text-[11px] text-emerald-200">{copy.dashboard.skillEquippedBadge}</span> : null}
+                          </p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                            {skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}
+                          </p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-1 text-[10px] ${skillQualityTone(skill.quality)}`}>
+                          {rarityLabel(skill.quality, messages)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-6 text-slate-300">{skill.description}</p>
+                      <p className="mt-2 text-xs leading-6 text-sky-100/75">{skill.acquisitionHint}</p>
+                    </div>
+                  )) : (
+                    <div className="rounded-[0.95rem] border border-white/8 bg-slate-950/20 p-3 text-sm leading-6 text-slate-400">
+                      {copy.dashboard.learnedSkillsEmpty}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-[1rem] border border-white/8 bg-white/[0.035] p-4">
+                <p className="text-sm font-semibold text-white">{copy.dashboard.skillBookTitle}</p>
+                <div className="mt-3 space-y-3">
+                  {(snapshot.role?.skillBooks.length ?? 0) > 0 ? snapshot.role?.skillBooks.map((book) => (
+                    <div key={`${book.skillKey}-${book.acquiredAt}`} className="rounded-[0.95rem] border border-white/8 bg-slate-950/20 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{book.skillName}</p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-400">{copy.dashboard.skillBookSource}</p>
+                        </div>
+                        <span className={`rounded-full border px-2 py-1 text-[10px] ${skillQualityTone(book.quality)}`}>
+                          {rarityLabel(book.quality, messages)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-6 text-slate-300">{book.description}</p>
+                      <p className="mt-2 text-xs leading-6 text-sky-100/75">{book.acquisitionHint}</p>
+                    </div>
+                  )) : (
+                    <div className="rounded-[0.95rem] border border-white/8 bg-slate-950/20 p-3 text-sm leading-6 text-slate-400">
+                      {copy.dashboard.skillBooksEmpty}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : activePanel === "market" ? (

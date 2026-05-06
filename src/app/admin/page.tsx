@@ -12,6 +12,7 @@ type AdminConfigResponse = {
     levelTable: Array<{ level: number; totalExpRequired: number }>;
     mapConfigs: unknown[];
     raceConfigs: unknown[];
+    skillTemplates: unknown[];
     systemBalance: Record<string, number>;
   };
   meta: {
@@ -71,6 +72,7 @@ type ConfigEditorKey =
   | "mapConfigs"
   | "itemCatalog"
   | "battleEnemyTemplates"
+  | "skillTemplates"
   | "afkEncounterPool"
   | "afkEncounterChances"
   | "systemBalance";
@@ -140,6 +142,12 @@ const CONFIG_DEFINITIONS: ConfigDefinition[] = [
     description: "定义装备、售价、占用槽位和词条属性。",
   },
   {
+    key: "skillTemplates",
+    category: "content",
+    label: "技能模板",
+    description: "定义技能倍率、单轮次数、冷却、技能效果与 buff/debuff 持续回合。",
+  },
+  {
     key: "battleEnemyTemplates",
     category: "content",
     label: "怪物模板",
@@ -186,6 +194,7 @@ const ARRAY_CONFIG_KEYS: ConfigEditorKey[] = [
   "classConfigs",
   "mapConfigs",
   "itemCatalog",
+  "skillTemplates",
   "battleEnemyTemplates",
   "afkEncounterPool",
 ];
@@ -267,6 +276,10 @@ function getArrayItemSubtitle(configKey: ConfigEditorKey, item: unknown) {
     return [item.key, item.tier].filter(Boolean).join(" / ");
   }
 
+  if (configKey === "skillTemplates") {
+    return [item.key, item.category, item.quality].filter(Boolean).join(" / ");
+  }
+
   return [item.key, item.summary].filter(Boolean).join(" / ");
 }
 
@@ -316,6 +329,28 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
         skillCaps: { guard: 0, spell: 0 },
         statWeights: { agility: 1, intelligence: 1, strength: 1, vitality: 1 },
         summary: "",
+      };
+    case "skillTemplates":
+      return {
+        key: "new-skill",
+        name: "新技能",
+        iconText: "新",
+        description: "",
+        quality: "white",
+        category: "attack",
+        trigger: "random",
+        acquisitionHint: "通过技能书获取",
+        source: "learned",
+        maxLevel: 10,
+        damageMultiplier: 2,
+        levelDamageGrowth: 0.1,
+        healRatio: 0,
+        levelHealGrowth: 0,
+        guardRatio: 0,
+        levelGuardGrowth: 0,
+        maxUses: 1,
+        cooldownTurns: 0,
+        effects: [],
       };
     case "afkEncounterPool":
       return {
@@ -421,6 +456,7 @@ export default function AdminPage() {
           classConfigs: pretty(configResponse.config.classConfigs),
           mapConfigs: pretty(configResponse.config.mapConfigs),
           itemCatalog: pretty(configResponse.config.itemCatalog),
+          skillTemplates: pretty(configResponse.config.skillTemplates),
           battleEnemyTemplates: pretty(configResponse.config.battleEnemyTemplates),
           afkEncounterPool: pretty(configResponse.config.afkEncounterPool),
           afkEncounterChances: pretty(configResponse.config.afkEncounterChances),
@@ -698,6 +734,7 @@ export default function AdminPage() {
         classConfigs: pretty(response.config.classConfigs),
         mapConfigs: pretty(response.config.mapConfigs),
         itemCatalog: pretty(response.config.itemCatalog),
+        skillTemplates: pretty(response.config.skillTemplates),
         battleEnemyTemplates: pretty(response.config.battleEnemyTemplates),
         afkEncounterPool: pretty(response.config.afkEncounterPool),
         afkEncounterChances: pretty(response.config.afkEncounterChances),

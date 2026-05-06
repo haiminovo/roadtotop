@@ -29,6 +29,67 @@ export type BattleLogEntry = {
   type: string;
 };
 
+export type GameSkillCategory = "attack" | "spell" | "guard";
+export type GameSkillQuality = "white" | "green" | "blue" | "purple" | "orange";
+
+export type SkillBookEntry = {
+  skillKey: string;
+  skillName: string;
+  iconText: string;
+  description: string;
+  quality: GameSkillQuality;
+  acquisitionHint: string;
+  acquiredAt: number;
+};
+
+export type LearnedSkillEntry = {
+  key: string;
+  name: string;
+  iconText: string;
+  description: string;
+  category: GameSkillCategory;
+  level: number;
+  quality: GameSkillQuality;
+  acquisitionHint: string;
+  trigger: string;
+  equipped: boolean;
+};
+
+export type EquippedSkillEntry = Omit<LearnedSkillEntry, "equipped">;
+
+export type BattleSkillEntry = {
+  key: string;
+  name: string;
+  iconText: string;
+  description: string;
+  category: GameSkillCategory;
+  level: number;
+  quality: GameSkillQuality;
+  acquisitionHint: string;
+  trigger: string;
+  damage: number;
+  heal: number;
+  reduction: number;
+  cooldownTurns: number;
+  maxUses: number;
+  usesRemaining: number;
+  source: string;
+};
+
+export type BattleStatusEffectEntry = {
+  key: string;
+  sourceSkillKey: string;
+  sourceSkillName: string;
+  name: string;
+  description: string;
+  effectType: string;
+  target: string;
+  magnitude: number;
+  remainingTurns: number;
+  durationTurns: number;
+  summary: string;
+};
+
 export type BattleSnapshot = {
   battleId: string;
   active: boolean;
@@ -45,11 +106,15 @@ export type BattleSnapshot = {
     currentHealth: number;
     maxHealth: number;
     defenseTurns: number;
+    activeEffects: BattleStatusEffectEntry[];
     name: string;
+    totalSkillUseLimit: number;
+    totalSkillUsesRemaining: number;
     skillUsesRemaining: {
       guard: number;
       spell: number;
     };
+    skills: BattleSkillEntry[];
     stats: {
       strength: number;
       agility: number;
@@ -66,10 +131,14 @@ export type BattleSnapshot = {
     currentHealth: number;
     maxHealth: number;
     defenseTurns: number;
+    activeEffects: BattleStatusEffectEntry[];
+    totalSkillUseLimit: number;
+    totalSkillUsesRemaining: number;
     skillUsesRemaining: {
       guard: number;
       spell: number;
     };
+    skills: BattleSkillEntry[];
     stats: {
       strength: number;
       agility: number;
@@ -176,6 +245,15 @@ export type SessionSnapshot = {
       vitality: number;
     };
     bodySlotCapacities: BodySlotCapacities;
+    skillSlots: {
+      total: number;
+      used: number;
+      remaining: number;
+    };
+    battleSkillUseLimit: number;
+    equippedSkills: EquippedSkillEntry[];
+    learnedSkills: LearnedSkillEntry[];
+    skillBooks: SkillBookEntry[];
     bodySlots: Array<{
       key: string;
       label: string;

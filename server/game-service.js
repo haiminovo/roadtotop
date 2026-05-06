@@ -6,6 +6,7 @@ const {
   DEFAULT_LEVEL_TABLE,
   DEFAULT_MAP_CONFIGS,
   DEFAULT_RACE_CONFIGS,
+  DEFAULT_SKILL_TEMPLATES,
   DEFAULT_SYSTEM_BALANCE,
   refreshRuntimeGameConfig,
 } = require("./dynamic-game-config");
@@ -32,6 +33,11 @@ const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
 const MAX_RECENT_BATTLE_LOGS = 16;
 const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }];
+const PLAYER_SKILL_SLOT_BASE = 2;
+const PLAYER_SKILL_SLOT_MAX = 6;
+const PLAYER_BATTLE_SKILL_USE_BASE = 1;
+const PLAYER_BATTLE_SKILL_USE_PER_INTELLIGENCE = 4;
+const PLAYER_BATTLE_SKILL_USE_MAX_BONUS = 5;
 let MARKET_FEE_RATE_PERCENT = DEFAULT_SYSTEM_BALANCE.marketFeeRatePercent;
 let BATTLE_TRIGGER_CHANCE = DEFAULT_SYSTEM_BALANCE.battleTriggerChance;
 let ACTION_BAR_TARGET = DEFAULT_SYSTEM_BALANCE.actionBarTarget;
@@ -54,6 +60,8 @@ let classConfigs = DEFAULT_CLASS_CONFIGS;
 let mapConfigs = DEFAULT_MAP_CONFIGS;
 let afkEncounterChances = DEFAULT_AFK_ENCOUNTER_CHANCES;
 let afkEncounterPoolByMapAndTier = {};
+let skillTemplates = DEFAULT_SKILL_TEMPLATES;
+let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
 
 function applyRuntimeConfig(config) {
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
@@ -78,6 +86,8 @@ function applyRuntimeConfig(config) {
   mapConfigs = config.mapConfigs;
   afkEncounterChances = config.afkEncounterChances;
   afkEncounterPoolByMapAndTier = config.afkEncounterPoolByMapAndTier || {};
+  skillTemplates = Array.isArray(config.skillTemplates) ? config.skillTemplates : DEFAULT_SKILL_TEMPLATES;
+  skillTemplateByKey = config.skillTemplateByKey || new Map(skillTemplates.map((skill) => [skill.key, skill]));
 }
 
 async function ensureRuntimeGameConfig() {
@@ -112,6 +122,223 @@ function normalizeNumber(value) {
 function normalizeSignedNumber(value) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
+}
+
+function getSkillQualityRank(quality) {
+  return {
+    white: 1,
+    green: 2,
+    blue: 3,
+    purple: 4,
+    orange: 5,
+  }[quality] || 0;
+}
+
+function normalizeSkillLevel(level, maxLevel = 10) {
+  return clamp(normalizeNumber(level) || 1, 1, Math.max(1, normalizeNumber(maxLevel) || 10));
+}
+
+function getSkillLevelBonus(level) {
+  return Math.max(0, normalizeSkillLevel(level) - 1);
+}
+
+function calculatePlayerSkillSlotCount(intelligence) {
+  const bonus = Math.floor(normalizeNumber(intelligence) / 6);
+  return clamp(PLAYER_SKILL_SLOT_BASE + bonus, PLAYER_SKILL_SLOT_BASE, PLAYER_SKILL_SLOT_MAX);
+}
+
+function calculateBattleSkillUseLimit(intelligence) {
+  const bonus = Math.min(
+    PLAYER_BATTLE_SKILL_USE_MAX_BONUS,
+    Math.floor(normalizeNumber(intelligence) / PLAYER_BATTLE_SKILL_USE_PER_INTELLIGENCE),
+  );
+  return PLAYER_BATTLE_SKILL_USE_BASE + bonus;
+}
+
+function getSkillDefinition(skillKey) {
+  return skillTemplateByKey.get(skillKey) || null;
+}
+
+function buildDefaultPlayerSkillState(role) {
+  return {
+    acquiredBooks: [],
+    equippedSkillKeys: [],
+    learnedSkills: [],
+  };
+}
+
+function normalizePlayerSkillState(value, role = null, effectiveStats = null) {
+  const raw = value && typeof value === "object" ? value : {};
+  const fallback = buildDefaultPlayerSkillState(role);
+  const learnedSkillsRaw = Array.isArray(raw.learnedSkills) ? raw.learnedSkills : fallback.learnedSkills;
+  const acquiredBooksRaw = Array.isArray(raw.acquiredBooks) ? raw.acquiredBooks : fallback.acquiredBooks;
+
+  const learnedSkills = learnedSkillsRaw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || typeof entry.skillKey !== "string") {
+        return null;
+      }
+
+      const definition = getSkillDefinition(entry.skillKey);
+
+      if (!definition) {
+        return null;
+      }
+
+      return {
+        acquisitionHint: typeof entry.acquisitionHint === "string" && entry.acquisitionHint.trim().length > 0
+          ? entry.acquisitionHint
+          : definition.acquisitionHint,
+        learnedAt: normalizeNumber(entry.learnedAt) || Date.now(),
+        level: normalizeSkillLevel(entry.level, definition.maxLevel),
+        quality: ["white", "green", "blue", "purple", "orange"].includes(entry.quality)
+          ? entry.quality
+          : definition.quality,
+        skillKey: definition.key,
+      };
+    })
+    .filter(Boolean);
+
+  const learnedSkillKeySet = new Set(learnedSkills.map((entry) => entry.skillKey));
+
+  const acquiredBooks = acquiredBooksRaw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || typeof entry.skillKey !== "string") {
+        return null;
+      }
+
+      const definition = getSkillDefinition(entry.skillKey);
+
+      if (!definition) {
+        return null;
+      }
+
+      return {
+        acquiredAt: normalizeNumber(entry.acquiredAt) || Date.now(),
+        acquisitionHint: typeof entry.acquisitionHint === "string" && entry.acquisitionHint.trim().length > 0
+          ? entry.acquisitionHint
+          : definition.acquisitionHint,
+        quality: ["white", "green", "blue", "purple", "orange"].includes(entry.quality)
+          ? entry.quality
+          : definition.quality,
+        skillKey: definition.key,
+      };
+    })
+    .filter(Boolean);
+
+  const equippedSkillKeysRaw = Array.isArray(raw.equippedSkillKeys) ? raw.equippedSkillKeys : fallback.equippedSkillKeys;
+  const stats = effectiveStats || getRoleEffectiveStats(role || {}, []);
+  const skillSlotCount = calculatePlayerSkillSlotCount(stats.intelligence);
+  const equippedSkillKeys = [];
+
+  equippedSkillKeysRaw.forEach((skillKey) => {
+    if (
+      typeof skillKey === "string"
+      && learnedSkillKeySet.has(skillKey)
+      && getSkillDefinition(skillKey)
+      && !equippedSkillKeys.includes(skillKey)
+      && equippedSkillKeys.length < skillSlotCount
+    ) {
+      equippedSkillKeys.push(skillKey);
+    }
+  });
+
+  learnedSkills.sort((left, right) => {
+    const qualityDelta = getSkillQualityRank(right.quality) - getSkillQualityRank(left.quality);
+
+    if (qualityDelta !== 0) {
+      return qualityDelta;
+    }
+
+    return right.level - left.level;
+  });
+
+  acquiredBooks.sort((left, right) => right.acquiredAt - left.acquiredAt);
+
+  return {
+    acquiredBooks,
+    equippedSkillKeys,
+    learnedSkills,
+  };
+}
+
+function buildPlayerSkillCollection(role, backpack = []) {
+  const stats = getRoleEffectiveStats(role, backpack);
+  const normalizedState = normalizePlayerSkillState(role.skill_state, role, stats);
+  const learnedSkillMap = new Map(normalizedState.learnedSkills.map((entry) => [entry.skillKey, entry]));
+  const skillSlotCount = calculatePlayerSkillSlotCount(stats.intelligence);
+  const battleSkillUseLimit = calculateBattleSkillUseLimit(stats.intelligence);
+  const equippedSkills = normalizedState.equippedSkillKeys
+    .map((skillKey) => {
+      const definition = getSkillDefinition(skillKey);
+      const learned = learnedSkillMap.get(skillKey);
+
+      if (!definition || !learned) {
+        return null;
+      }
+
+      return {
+        ...definition,
+        acquisitionHint: learned.acquisitionHint,
+        level: learned.level,
+        quality: learned.quality,
+      };
+    })
+    .filter(Boolean);
+
+  const learnedSkills = normalizedState.learnedSkills
+    .map((entry) => {
+      const definition = getSkillDefinition(entry.skillKey);
+
+      if (!definition) {
+        return null;
+      }
+
+      return {
+        ...definition,
+        acquisitionHint: entry.acquisitionHint,
+        equipped: normalizedState.equippedSkillKeys.includes(entry.skillKey),
+        learnedAt: entry.learnedAt,
+        level: entry.level,
+        quality: entry.quality,
+      };
+    })
+    .filter(Boolean);
+
+  const skillBooks = normalizedState.acquiredBooks
+    .map((entry) => {
+      const definition = getSkillDefinition(entry.skillKey);
+
+      if (!definition) {
+        return null;
+      }
+
+      return {
+        acquisitionHint: entry.acquisitionHint,
+        acquiredAt: entry.acquiredAt,
+        description: definition.description,
+        iconText: definition.iconText,
+        quality: entry.quality,
+        skillKey: definition.key,
+        skillName: definition.name,
+      };
+    })
+    .filter(Boolean);
+
+  role.skill_state = {
+    acquiredBooks: normalizedState.acquiredBooks,
+    equippedSkillKeys: equippedSkills.map((skill) => skill.key),
+    learnedSkills: normalizedState.learnedSkills,
+  };
+
+  return {
+    battleSkillUseLimit,
+    equippedSkills,
+    learnedSkills,
+    skillBooks,
+    skillSlotCount,
+    skillSlotsRemaining: Math.max(0, skillSlotCount - equippedSkills.length),
+  };
 }
 
 function migrateLegacyRoleExp(role) {
@@ -649,6 +876,340 @@ function calculateDodgeChance(agility) {
   return clamp(normalizeNumber(agility) / 50, 0, 0.75);
 }
 
+function summarizeBattleEffect(effect) {
+  if (!effect) {
+    return "";
+  }
+
+  const amount = Number(effect.magnitude) || 0;
+
+  switch (effect.effectType) {
+    case "attack_up":
+      return `攻击提升 ${Math.round(amount * 100)}%`;
+    case "attack_down":
+      return `攻击降低 ${Math.round(amount * 100)}%`;
+    case "defense_up":
+      return `防御提升 ${Math.round(amount * 100)}%`;
+    case "defense_down":
+      return `防御降低 ${Math.round(amount * 100)}%`;
+    case "damage_over_time":
+      return `持续掉血 ${Math.round(amount * 100)}%`;
+    case "heal_over_time":
+      return `持续回血 ${Math.round(amount * 100)}%`;
+    case "intelligence_up":
+      return `智力提升 ${normalizeSignedNumber(amount)}`;
+    case "intelligence_down":
+      return `智力降低 ${normalizeSignedNumber(amount)}`;
+    case "vitality_up":
+      return `体质提升 ${normalizeSignedNumber(amount)}`;
+    case "vitality_down":
+      return `体质降低 ${normalizeSignedNumber(amount)}`;
+    case "agility_up":
+      return `敏捷提升 ${normalizeSignedNumber(amount)}`;
+    case "agility_down":
+      return `敏捷降低 ${normalizeSignedNumber(amount)}`;
+    default:
+      return effect.name || "状态效果";
+  }
+}
+
+function normalizeBattleEffects(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      return {
+        key: typeof entry.key === "string" ? entry.key : `effect-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        sourceSkillKey: typeof entry.sourceSkillKey === "string" ? entry.sourceSkillKey : "",
+        sourceSkillName: typeof entry.sourceSkillName === "string" ? entry.sourceSkillName : "",
+        name: typeof entry.name === "string" ? entry.name : "状态",
+        description: typeof entry.description === "string" ? entry.description : "",
+        effectType: typeof entry.effectType === "string" ? entry.effectType : "attack_up",
+        target: typeof entry.target === "string" ? entry.target : "enemy",
+        magnitude: Number(entry.magnitude) || 0,
+        remainingTurns: Math.max(0, normalizeNumber(entry.remainingTurns)),
+        durationTurns: Math.max(1, normalizeNumber(entry.durationTurns) || 1),
+        summary: typeof entry.summary === "string" ? entry.summary : "",
+      };
+    })
+    .filter(Boolean);
+}
+
+function getCombatantStatModifiers(combatant) {
+  const modifiers = {
+    strengthFlat: 0,
+    agilityFlat: 0,
+    intelligenceFlat: 0,
+    vitalityFlat: 0,
+    attackRate: 0,
+    defenseRate: 0,
+  };
+
+  for (const effect of combatant.activeEffects || []) {
+    const magnitude = Number(effect.magnitude) || 0;
+
+    switch (effect.effectType) {
+      case "attack_up":
+        modifiers.attackRate += magnitude;
+        break;
+      case "attack_down":
+        modifiers.attackRate -= magnitude;
+        break;
+      case "defense_up":
+        modifiers.defenseRate += magnitude;
+        break;
+      case "defense_down":
+        modifiers.defenseRate -= magnitude;
+        break;
+      case "agility_up":
+        modifiers.agilityFlat += magnitude;
+        break;
+      case "agility_down":
+        modifiers.agilityFlat -= magnitude;
+        break;
+      case "intelligence_up":
+        modifiers.intelligenceFlat += magnitude;
+        break;
+      case "intelligence_down":
+        modifiers.intelligenceFlat -= magnitude;
+        break;
+      case "vitality_up":
+        modifiers.vitalityFlat += magnitude;
+        break;
+      case "vitality_down":
+        modifiers.vitalityFlat -= magnitude;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return modifiers;
+}
+
+function getCombatantEffectiveStats(combatant) {
+  const modifiers = getCombatantStatModifiers(combatant);
+
+  return {
+    strength: Math.max(1, normalizeNumber(combatant.stats.strength) + normalizeSignedNumber(modifiers.strengthFlat)),
+    agility: Math.max(1, normalizeNumber(combatant.stats.agility) + normalizeSignedNumber(modifiers.agilityFlat)),
+    intelligence: Math.max(1, normalizeNumber(combatant.stats.intelligence) + normalizeSignedNumber(modifiers.intelligenceFlat)),
+    vitality: Math.max(1, normalizeNumber(combatant.stats.vitality) + normalizeSignedNumber(modifiers.vitalityFlat)),
+    attackRate: modifiers.attackRate,
+    defenseRate: modifiers.defenseRate,
+  };
+}
+
+function applySkillEffects(battleState, actor, defender, skill, timestamp) {
+  const effects = Array.isArray(skill?.effects) ? skill.effects : [];
+
+  effects.forEach((effectTemplate, index) => {
+    const target = effectTemplate.target === "self" || effectTemplate.target === "ally"
+      ? actor
+      : defender;
+    const effect = {
+      key: `${skill.key}-${effectTemplate.key}-${timestamp}-${index}`,
+      sourceSkillKey: skill.key,
+      sourceSkillName: skill.name,
+      name: effectTemplate.name,
+      description: effectTemplate.description || "",
+      effectType: effectTemplate.effectType,
+      target: effectTemplate.target,
+      magnitude: Number(effectTemplate.magnitude) || 0,
+      remainingTurns: Math.max(1, normalizeNumber(effectTemplate.durationTurns) || 1),
+      durationTurns: Math.max(1, normalizeNumber(effectTemplate.durationTurns) || 1),
+      summary: summarizeBattleEffect(effectTemplate),
+    };
+
+    target.activeEffects = [...(target.activeEffects || []), effect];
+    addBattleLog(
+      battleState,
+      `${target.name} 获得状态【${effect.name}】(${effect.summary})，持续 ${effect.durationTurns} 回合。`,
+      "effect",
+      timestamp,
+    );
+  });
+}
+
+function tickCombatantEffects(battleState, combatant, timestamp) {
+  if (!Array.isArray(combatant.activeEffects) || combatant.activeEffects.length === 0) {
+    return;
+  }
+
+  const effectiveStats = getCombatantEffectiveStats(combatant);
+
+  combatant.activeEffects.forEach((effect) => {
+    const magnitude = Number(effect.magnitude) || 0;
+
+    if (effect.effectType === "damage_over_time") {
+      const damage = Math.max(1, Math.round(effectiveStats.vitality * magnitude));
+      combatant.currentHealth = Math.max(0, combatant.currentHealth - damage);
+      addBattleLog(battleState, `${combatant.name} 受到【${effect.name}】影响，损失 ${damage} 点生命。`, "dot", timestamp);
+    }
+
+    if (effect.effectType === "heal_over_time") {
+      const heal = Math.max(1, Math.round(effectiveStats.vitality * magnitude));
+      combatant.currentHealth = Math.min(combatant.maxHealth, combatant.currentHealth + heal);
+      addBattleLog(battleState, `${combatant.name} 受到【${effect.name}】影响，恢复 ${heal} 点生命。`, "hot", timestamp);
+    }
+  });
+
+  const remainingEffects = [];
+
+  combatant.activeEffects.forEach((effect) => {
+    const nextTurns = Math.max(0, normalizeNumber(effect.remainingTurns) - 1);
+
+    if (nextTurns > 0) {
+      remainingEffects.push({
+        ...effect,
+        remainingTurns: nextTurns,
+      });
+      return;
+    }
+
+    addBattleLog(battleState, `${combatant.name} 的状态【${effect.name}】已消失。`, "effect-expire", timestamp);
+  });
+
+  combatant.activeEffects = remainingEffects;
+}
+
+function getSkillBaseUsesByCategory(category) {
+  if (category === "spell") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function getSkillBaseUses(skill) {
+  return getSkillBaseUsesByCategory(skill?.category);
+}
+
+function summarizeSkillUses(skills) {
+  return skills.reduce((summary, skill) => {
+    if (skill.category === "guard") {
+      summary.guard += normalizeNumber(skill.usesRemaining);
+    }
+
+    if (skill.category === "spell") {
+      summary.spell += normalizeNumber(skill.usesRemaining);
+    }
+
+    return summary;
+  }, { guard: 0, spell: 0 });
+}
+
+function buildEnemySkillLoadout(enemy) {
+  const skills = [];
+  const spellDefinition = getSkillDefinition("enemy-chaos-spell");
+  const guardDefinition = getSkillDefinition("enemy-brace");
+
+  if (spellDefinition && normalizeNumber(enemy.skillCaps?.spell) > 0) {
+    skills.push({
+      ...spellDefinition,
+      level: Math.max(1, Math.ceil(normalizeNumber(enemy.level) / 3)),
+      maxUses: normalizeNumber(enemy.skillCaps.spell),
+      source: "enemy",
+    });
+  }
+
+  if (guardDefinition && normalizeNumber(enemy.skillCaps?.guard) > 0) {
+    skills.push({
+      ...guardDefinition,
+      level: Math.max(1, Math.ceil(normalizeNumber(enemy.level) / 4)),
+      maxUses: normalizeNumber(enemy.skillCaps.guard),
+      source: "enemy",
+    });
+  }
+
+  return skills;
+}
+
+function buildBattleSkills(skills, stats, side) {
+  return skills.map((skill) => {
+    const levelBonus = getSkillLevelBonus(skill.level);
+    const maxUses = normalizeNumber(skill.maxUses || getSkillBaseUses(skill));
+    const damageMultiplier = Number(skill.damageMultiplier) || 0;
+    const levelDamageGrowth = Number(skill.levelDamageGrowth) || 0;
+    const healRatio = Number(skill.healRatio) || 0;
+    const levelHealGrowth = Number(skill.levelHealGrowth) || 0;
+    const guardRatio = Number(skill.guardRatio) || 0;
+    const levelGuardGrowth = Number(skill.levelGuardGrowth) || 0;
+    const damage = skill.category === "spell"
+      ? Math.max(1, Math.round(stats.intelligence * (damageMultiplier + levelBonus * levelDamageGrowth)))
+      : skill.category === "attack"
+        ? Math.max(1, Math.round(stats.strength * (damageMultiplier + levelBonus * levelDamageGrowth)))
+        : 0;
+    const heal = skill.category === "guard"
+      ? Math.max(
+        side === "player" ? 10 : 8,
+        Math.round(((healRatio || (side === "player" ? PLAYER_HEAL_RATIO : ENEMY_HEAL_RATIO)) + levelBonus * levelHealGrowth) * normalizeNumber(stats.vitality) * 4.8),
+      )
+      : 0;
+    const reduction = skill.category === "guard"
+      ? clamp((guardRatio || (side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)) + levelBonus * levelGuardGrowth, 0, 0.9)
+      : 0;
+
+    return {
+      acquisitionHint: skill.acquisitionHint || "",
+      category: skill.category,
+      cooldownTurns: normalizeNumber(skill.cooldownTurns || (skill.category === "guard"
+        ? (side === "player" ? PLAYER_GUARD_COOLDOWN_TURNS : ENEMY_GUARD_COOLDOWN_TURNS)
+        : 0)),
+      damage,
+      description: skill.description || "",
+      heal,
+      iconText: skill.iconText || skill.name?.slice(0, 1) || "技",
+      key: skill.key,
+      level: normalizeSkillLevel(skill.level, skill.maxLevel),
+      maxUses,
+      name: skill.name,
+      effects: Array.isArray(skill.effects) ? skill.effects : [],
+      quality: skill.quality || "white",
+      reduction,
+      source: skill.source || (side === "player" ? "learned" : "enemy"),
+      trigger: skill.trigger || "random",
+      usesRemaining: maxUses,
+    };
+  });
+}
+
+function pickBattleSkill(actor, target) {
+  const usableSkills = Array.isArray(actor.skills)
+    ? actor.skills.filter((skill) => normalizeNumber(skill.usesRemaining) > 0)
+    : [];
+  const actorHealthRatio = actor.maxHealth > 0 ? actor.currentHealth / actor.maxHealth : 0;
+  const targetHealthRatio = target.maxHealth > 0 ? target.currentHealth / target.maxHealth : 0;
+  const guardSkill = usableSkills.find((skill) => skill.category === "guard");
+  const spellSkill = usableSkills.find((skill) => skill.category === "spell");
+  const attackSkill = usableSkills.find((skill) => skill.category === "attack");
+  const guardThreshold = actor.side === "player" ? PLAYER_GUARD_HEALTH_THRESHOLD : ENEMY_GUARD_HEALTH_THRESHOLD;
+
+  if (guardSkill && actorHealthRatio < guardThreshold && actor.guardCooldownTurns <= 0) {
+    return guardSkill;
+  }
+
+  if (spellSkill && targetHealthRatio < 0.2) {
+    return spellSkill;
+  }
+
+  if (spellSkill) {
+    const spellChance = actor.stats.intelligence >= INTELLIGENCE_SPELL_BONUS_THRESHOLD ? SPELL_BASE_CHANCE : 0.35;
+
+    if (Math.random() < spellChance) {
+      return spellSkill;
+    }
+  }
+
+  return attackSkill || null;
+}
+
 function buildBattleCombatant({
   currentHealth,
   intelligence,
@@ -656,9 +1217,35 @@ function buildBattleCombatant({
   maxHealth,
   name,
   side,
+  skills,
+  totalSkillUseLimit,
+  totalSkillUsesRemaining,
   skillUsesRemaining,
   stats,
 }) {
+  const normalizedSkills = Array.isArray(skills)
+    ? skills.map((skill) => ({
+      acquisitionHint: typeof skill.acquisitionHint === "string" ? skill.acquisitionHint : "",
+      category: skill.category === "guard" || skill.category === "spell" || skill.category === "attack" ? skill.category : "attack",
+      cooldownTurns: normalizeNumber(skill.cooldownTurns),
+      damage: normalizeNumber(skill.damage),
+      description: typeof skill.description === "string" ? skill.description : "",
+      heal: normalizeNumber(skill.heal),
+      iconText: typeof skill.iconText === "string" ? skill.iconText : "技",
+      key: typeof skill.key === "string" ? skill.key : makeBattleId(),
+      level: normalizeSkillLevel(skill.level),
+      maxUses: normalizeNumber(skill.maxUses),
+      name: typeof skill.name === "string" ? skill.name : "未知技能",
+      effects: Array.isArray(skill.effects) ? skill.effects : [],
+      quality: ["white", "green", "blue", "purple", "orange"].includes(skill.quality) ? skill.quality : "white",
+      reduction: clamp(Number(skill.reduction) || 0, 0, 0.9),
+      source: typeof skill.source === "string" ? skill.source : side === "player" ? "learned" : "enemy",
+      trigger: typeof skill.trigger === "string" ? skill.trigger : "random",
+      usesRemaining: normalizeNumber(skill.usesRemaining),
+    }))
+    : [];
+  const summary = skillUsesRemaining || summarizeSkillUses(normalizedSkills);
+
   return {
     actionBar: 0,
     currentHealth: normalizeNumber(currentHealth),
@@ -669,9 +1256,13 @@ function buildBattleCombatant({
     maxHealth: normalizeNumber(maxHealth),
     name,
     side,
+    activeEffects: normalizeBattleEffects([]),
+    skills: normalizedSkills,
+    totalSkillUseLimit: normalizeNumber(totalSkillUseLimit),
+    totalSkillUsesRemaining: normalizeNumber(totalSkillUsesRemaining),
     skillUsesRemaining: {
-      guard: normalizeNumber(skillUsesRemaining?.guard),
-      spell: normalizeNumber(skillUsesRemaining?.spell),
+      guard: normalizeNumber(summary?.guard),
+      spell: normalizeNumber(summary?.spell),
     },
     stats: {
       strength: normalizeNumber(stats.strength),
@@ -744,8 +1335,13 @@ function createEnemyProfile(role, backpack = [], mapKey = null) {
 
 function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.now()) {
   const player = getPlayerBattleProfile(role, backpack);
+  const playerSkillCollection = buildPlayerSkillCollection(role, backpack);
   const enemy = createEnemyProfile(role, backpack, mapKey);
   const battleId = makeBattleId();
+  const playerBattleSkills = buildBattleSkills(playerSkillCollection.equippedSkills, player.stats, "player");
+  const enemyBattleSkills = buildBattleSkills(buildEnemySkillLoadout(enemy), enemy.stats, "enemy");
+  const playerTotalSkillUseLimit = playerSkillCollection.battleSkillUseLimit;
+  const enemyTotalSkillUseLimit = enemyBattleSkills.reduce((total, skill) => total + normalizeNumber(skill.maxUses), 0);
 
   return {
     active: true,
@@ -768,10 +1364,9 @@ function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.
       maxHealth: player.maxHealth,
       name: player.name,
       side: "player",
-      skillUsesRemaining: {
-        guard: 0,
-        spell: 0,
-      },
+      skills: playerBattleSkills,
+      totalSkillUseLimit: playerTotalSkillUseLimit,
+      totalSkillUsesRemaining: playerTotalSkillUseLimit,
       stats: player.stats,
     }),
     status: "active",
@@ -784,7 +1379,9 @@ function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.
       maxHealth: enemy.maxHealth,
       name: enemy.name,
       side: "enemy",
-      skillUsesRemaining: enemy.skillCaps,
+      skills: enemyBattleSkills,
+      totalSkillUseLimit: enemyTotalSkillUseLimit,
+      totalSkillUsesRemaining: enemyTotalSkillUseLimit,
       stats: enemy.stats,
     }),
   };
@@ -822,6 +1419,7 @@ function normalizeBattleState(value) {
     },
     enemyCombatant: {
       actionBar: normalizeNumber(value.enemyCombatant?.actionBar),
+      activeEffects: normalizeBattleEffects(value.enemyCombatant?.activeEffects),
       currentHealth: normalizeNumber(value.enemyCombatant?.currentHealth),
       defenseTurns: normalizeNumber(value.enemyCombatant?.defenseTurns),
       guardCooldownTurns: normalizeNumber(value.enemyCombatant?.guardCooldownTurns),
@@ -830,6 +1428,9 @@ function normalizeBattleState(value) {
       maxHealth: normalizeNumber(value.enemyCombatant?.maxHealth),
       name: typeof value.enemyCombatant?.name === "string" ? value.enemyCombatant.name : "未知敌人",
       side: "enemy",
+      skills: Array.isArray(value.enemyCombatant?.skills) ? value.enemyCombatant.skills : [],
+      totalSkillUseLimit: normalizeNumber(value.enemyCombatant?.totalSkillUseLimit),
+      totalSkillUsesRemaining: normalizeNumber(value.enemyCombatant?.totalSkillUsesRemaining),
       skillUsesRemaining: {
         guard: normalizeNumber(value.enemyCombatant?.skillUsesRemaining?.guard),
         spell: normalizeNumber(value.enemyCombatant?.skillUsesRemaining?.spell),
@@ -852,6 +1453,7 @@ function normalizeBattleState(value) {
       : null,
     player: {
       actionBar: normalizeNumber(value.player?.actionBar),
+      activeEffects: normalizeBattleEffects(value.player?.activeEffects),
       currentHealth: normalizeNumber(value.player?.currentHealth),
       defenseTurns: normalizeNumber(value.player?.defenseTurns),
       guardCooldownTurns: normalizeNumber(value.player?.guardCooldownTurns),
@@ -860,6 +1462,9 @@ function normalizeBattleState(value) {
       maxHealth: normalizeNumber(value.player?.maxHealth),
       name: typeof value.player?.name === "string" ? value.player.name : "我方",
       side: "player",
+      skills: Array.isArray(value.player?.skills) ? value.player.skills : [],
+      totalSkillUseLimit: normalizeNumber(value.player?.totalSkillUseLimit),
+      totalSkillUsesRemaining: normalizeNumber(value.player?.totalSkillUsesRemaining),
       skillUsesRemaining: {
         guard: normalizeNumber(value.player?.skillUsesRemaining?.guard),
         spell: normalizeNumber(value.player?.skillUsesRemaining?.spell),
@@ -908,58 +1513,60 @@ function maybeConsumeDefense(combatant) {
 }
 
 function decideBattleAction(actor, target) {
-  const actorHealthRatio = actor.maxHealth > 0 ? actor.currentHealth / actor.maxHealth : 0;
-  const targetHealthRatio = target.maxHealth > 0 ? target.currentHealth / target.maxHealth : 0;
-  const guardThreshold = actor.side === "player" ? PLAYER_GUARD_HEALTH_THRESHOLD : ENEMY_GUARD_HEALTH_THRESHOLD;
-  const canUseGuard = actor.side === "player" || actor.skillUsesRemaining.guard > 0;
-  const canUseSpell = actor.side === "player" || actor.skillUsesRemaining.spell > 0;
+  const skill = pickBattleSkill(actor, target);
+  const effectiveStats = getCombatantEffectiveStats(actor);
 
-  if (actorHealthRatio < guardThreshold && actor.guardCooldownTurns <= 0 && canUseGuard) {
+  if (skill?.category === "guard") {
     return {
       action: "guard",
-      amount: actor.side === "player"
-        ? Math.max(10, Math.round(actor.maxHealth * PLAYER_HEAL_RATIO))
-        : Math.max(8, Math.round(actor.maxHealth * ENEMY_HEAL_RATIO)),
-      guardRatio: actor.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO,
+      amount: skill.heal,
+      guardRatio: skill.reduction,
+      skill,
     };
   }
 
-  if (targetHealthRatio < 0.2 && canUseSpell) {
+  if (skill?.category === "spell") {
     return {
       action: "spell",
-      damage: calculateSpellDamage(actor.stats.intelligence),
+      damage: skill.damage,
+      skill,
     };
   }
 
-  const spellChance = actor.stats.intelligence >= INTELLIGENCE_SPELL_BONUS_THRESHOLD ? SPELL_BASE_CHANCE : 0.35;
-
-  if (canUseSpell && Math.random() < spellChance) {
+  if (skill?.category === "attack") {
     return {
-      action: "spell",
-      damage: calculateSpellDamage(actor.stats.intelligence),
+      action: "attack",
+      damage: skill.damage,
+      skill,
     };
   }
 
   return {
     action: "attack",
-    damage: calculatePhysicalDamage(actor.stats.strength),
+    damage: calculatePhysicalDamage(effectiveStats.strength),
   };
 }
 
 function applyBattleDamage(attacker, defender, battleAction) {
-  if (Math.random() < calculateDodgeChance(defender.stats.agility)) {
+  const attackerEffectiveStats = getCombatantEffectiveStats(attacker);
+  const defenderEffectiveStats = getCombatantEffectiveStats(defender);
+  const attackRate = clamp(1 + attackerEffectiveStats.attackRate, 0.1, 5);
+  const defenseRateBonus = clamp(defenderEffectiveStats.defenseRate, -0.8, 0.8);
+
+  if (Math.random() < calculateDodgeChance(defenderEffectiveStats.agility)) {
     return {
       didDodge: true,
       damage: 0,
     };
   }
 
-  const reductionRate = calculateDamageReduction(defender.stats.vitality) + (
+  const reductionRate = calculateDamageReduction(defenderEffectiveStats.vitality) + defenseRateBonus + (
     defender.defenseTurns > 0
       ? (defender.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)
       : 0
   );
-  const damage = Math.max(1, Math.round(battleAction.damage * (1 - clamp(reductionRate, 0, 0.9))));
+  const scaledDamage = battleAction.damage * attackRate;
+  const damage = Math.max(1, Math.round(scaledDamage * (1 - clamp(reductionRate, 0, 0.9))));
 
   defender.currentHealth = Math.max(0, defender.currentHealth - damage);
   return {
@@ -979,19 +1586,39 @@ function resolveBattleAction(battleState, actingSide, timestamp) {
   actor.actionBar = 0;
   battleState.turnCount += 1;
   actor.guardCooldownTurns = Math.max(0, actor.guardCooldownTurns - 1);
+  tickCombatantEffects(battleState, actor, timestamp);
+
+  if (actor.currentHealth <= 0) {
+    battleState.active = false;
+    battleState.status = "finished";
+    battleState.winner = getOpponentSide(actingSide);
+    battleState.outcome = {
+      loser: actor.side,
+      summary: `${actor.name} 被持续状态击倒。`,
+      winner: getOpponentSide(actingSide),
+    };
+    addBattleLog(battleState, battleState.outcome.summary, "result", timestamp);
+    return;
+  }
 
   const decision = decideBattleAction(actor, defender);
+  const usedSkill = decision.skill || null;
 
   if (decision.action === "guard") {
     actor.currentHealth = Math.min(actor.maxHealth, actor.currentHealth + decision.amount);
     actor.defenseTurns = 1;
-    actor.guardCooldownTurns = actor.side === "player" ? PLAYER_GUARD_COOLDOWN_TURNS : ENEMY_GUARD_COOLDOWN_TURNS;
-    if (actor.side === "enemy") {
-      actor.skillUsesRemaining.guard = Math.max(0, actor.skillUsesRemaining.guard - 1);
+    actor.guardCooldownTurns = normalizeNumber(usedSkill?.cooldownTurns || (actor.side === "player" ? PLAYER_GUARD_COOLDOWN_TURNS : ENEMY_GUARD_COOLDOWN_TURNS));
+    if (usedSkill && normalizeNumber(usedSkill.usesRemaining) > 0) {
+      usedSkill.usesRemaining = Math.max(0, usedSkill.usesRemaining - 1);
+      actor.totalSkillUsesRemaining = Math.max(0, actor.totalSkillUsesRemaining - 1);
+      actor.skillUsesRemaining = summarizeSkillUses(actor.skills);
+    }
+    if (usedSkill) {
+      applySkillEffects(battleState, actor, defender, usedSkill, timestamp);
     }
     addBattleLog(
       battleState,
-      `${actor.name} 进入防御姿态并恢复了 ${decision.amount} 点生命。`,
+      `${actor.name} 施放 ${usedSkill?.name || "防御姿态"}，恢复了 ${decision.amount} 点生命并进入防御状态。`,
       "guard",
       timestamp,
     );
@@ -1003,21 +1630,27 @@ function resolveBattleAction(battleState, actingSide, timestamp) {
     damage: decision.damage,
   });
 
-  if (decision.action === "spell" && actor.side === "enemy") {
-    actor.skillUsesRemaining.spell = Math.max(0, actor.skillUsesRemaining.spell - 1);
+  if (usedSkill && normalizeNumber(usedSkill.usesRemaining) > 0) {
+    usedSkill.usesRemaining = Math.max(0, usedSkill.usesRemaining - 1);
+    actor.totalSkillUsesRemaining = Math.max(0, actor.totalSkillUsesRemaining - 1);
+    actor.skillUsesRemaining = summarizeSkillUses(actor.skills);
+  }
+
+  if (usedSkill) {
+    applySkillEffects(battleState, actor, defender, usedSkill, timestamp);
   }
 
   if (damageResult.didDodge) {
     addBattleLog(
       battleState,
-      `${actor.name}${decision.action === "spell" ? " 施放法术" : " 发动普攻"}，但被 ${defender.name} 闪避了。`,
+      `${actor.name}${usedSkill ? ` 施放 ${usedSkill.name}` : decision.action === "spell" ? " 施放法术" : " 发动普攻"}，但被 ${defender.name} 闪避了。`,
       "dodge",
       timestamp,
     );
   } else {
     addBattleLog(
       battleState,
-      `${actor.name}${decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害。`,
+      `${actor.name}${usedSkill ? ` 施放 ${usedSkill.name}` : decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害。`,
       decision.action,
       timestamp,
     );
@@ -1559,6 +2192,7 @@ async function persistRole(client, role) {
         gold = $5,
         aether_crystal = $6,
         current_health = $7,
+        skill_state = $8::jsonb,
         updated_at = NOW()
       WHERE role_id = $1
     `,
@@ -1570,6 +2204,7 @@ async function persistRole(client, role) {
       normalizeNumber(role.gold),
       normalizeNumber(role.aether_crystal),
       normalizeNumber(role.current_health),
+      JSON.stringify(normalizePlayerSkillState(role.skill_state, role)),
     ],
   );
 }
@@ -1882,12 +2517,13 @@ async function findRoleByUserId(userId) {
         exp_curve_version,
         gold,
         aether_crystal,
-        strength,
-        agility,
-        intelligence,
-        vitality,
-        current_health,
-        avatar_seed
+      strength,
+      agility,
+      intelligence,
+      vitality,
+      current_health,
+      skill_state,
+      avatar_seed
       FROM "role"
       WHERE user_id = $1
     `,
@@ -2008,6 +2644,7 @@ function buildSnapshot(data, options = {}) {
   const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
   const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
+  const skillCollection = buildPlayerSkillCollection(data.role, data.backpack);
   const maxHealth = getRoleMaxHealth(data.role, data.backpack);
   const battleState = normalizeBattleState(data.afk.battle_state);
   const currentHealth = isBattleActive(battleState)
@@ -2046,6 +2683,36 @@ function buildSnapshot(data, options = {}) {
       stats: effectiveStats,
       bodySlotCapacities,
       bodySlots,
+      skillSlots: {
+        total: skillCollection.skillSlotCount,
+        used: skillCollection.equippedSkills.length,
+        remaining: skillCollection.skillSlotsRemaining,
+      },
+      battleSkillUseLimit: skillCollection.battleSkillUseLimit,
+      equippedSkills: skillCollection.equippedSkills.map((skill) => ({
+        acquisitionHint: skill.acquisitionHint,
+        category: skill.category,
+        description: skill.description,
+        iconText: skill.iconText,
+        key: skill.key,
+        level: skill.level,
+        name: skill.name,
+        quality: skill.quality,
+        trigger: skill.trigger,
+      })),
+      learnedSkills: skillCollection.learnedSkills.map((skill) => ({
+        acquisitionHint: skill.acquisitionHint,
+        category: skill.category,
+        description: skill.description,
+        equipped: Boolean(skill.equipped),
+        iconText: skill.iconText,
+        key: skill.key,
+        level: skill.level,
+        name: skill.name,
+        quality: skill.quality,
+        trigger: skill.trigger,
+      })),
+      skillBooks: skillCollection.skillBooks,
     },
     backpack: data.backpack.map((item) => ({
       backpackId: item.backpack_id,
@@ -2091,7 +2758,11 @@ function buildSnapshot(data, options = {}) {
           currentHealth,
           maxHealth,
           defenseTurns: battleState.player.defenseTurns,
+          activeEffects: battleState.player.activeEffects || [],
+          totalSkillUseLimit: battleState.player.totalSkillUseLimit,
+          totalSkillUsesRemaining: battleState.player.totalSkillUsesRemaining,
           skillUsesRemaining: battleState.player.skillUsesRemaining,
+          skills: battleState.player.skills || [],
           stats: battleState.player.stats,
           name: battleState.player.name,
         },
@@ -2104,7 +2775,11 @@ function buildSnapshot(data, options = {}) {
           currentHealth: battleState.enemyCombatant.currentHealth,
           maxHealth: battleState.enemyCombatant.maxHealth,
           defenseTurns: battleState.enemyCombatant.defenseTurns,
+          activeEffects: battleState.enemyCombatant.activeEffects || [],
+          totalSkillUseLimit: battleState.enemyCombatant.totalSkillUseLimit,
+          totalSkillUsesRemaining: battleState.enemyCombatant.totalSkillUsesRemaining,
           skillUsesRemaining: battleState.enemyCombatant.skillUsesRemaining,
+          skills: battleState.enemyCombatant.skills || [],
           stats: battleState.enemyCombatant.stats,
         },
         logs: battleState.logs,

@@ -6,9 +6,11 @@
     "dev": "concurrently -k -s first \"pnpm dev:web\" \"pnpm dev:ws\"",
     "dev:web": "next dev --turbopack",
     "dev:ws": "node --watch server/start-websocket.js",
+    "start:web": "next start",
+    "start:ws": "node server/start-websocket.js",
     "db:init": "node server/init-db.js",
     "build": "next build",
-    "start": "next start",
+    "start": "concurrently -k -s first \"pnpm start:web\" \"pnpm start:ws\"",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

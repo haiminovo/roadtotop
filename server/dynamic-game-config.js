@@ -204,6 +204,191 @@ const DEFAULT_BATTLE_ENEMIES = [
   },
 ];
 
+const DEFAULT_SKILL_TEMPLATES = [
+  {
+    key: "focus-strike",
+    name: "凝神重击",
+    iconText: "斩",
+    description: "集中精神后进行更狠的一击，是最容易入门的主动技能。",
+    quality: "white",
+    category: "attack",
+    trigger: "random",
+    acquisitionHint: "野外奇遇和训练系技能书都可能获取。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.15,
+    levelDamageGrowth: 0.08,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 1,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "focus-strike-defense-break",
+        name: "破绽压制",
+        description: "命中后削弱敌方防御。",
+        effectType: "defense_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.12,
+      },
+    ],
+  },
+  {
+    key: "iron-guard",
+    name: "铁壁守势",
+    iconText: "御",
+    description: "摆出稳固架势，回复生命并获得短暂减伤。",
+    quality: "green",
+    category: "guard",
+    trigger: "low-health",
+    acquisitionHint: "战斗奇遇与守护型怪物掉落的技能书中较常见。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 0,
+    levelDamageGrowth: 0,
+    healRatio: 0.2,
+    levelHealGrowth: 0.02,
+    guardRatio: 0.48,
+    levelGuardGrowth: 0.02,
+    maxUses: 1,
+    cooldownTurns: 2,
+    effects: [
+      {
+        key: "iron-guard-defense-up",
+        name: "铁壁",
+        description: "提高自身防御。",
+        effectType: "defense_up",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 0.45,
+      },
+      {
+        key: "iron-guard-vitality-up",
+        name: "稳固呼吸",
+        description: "短暂强化体质。",
+        effectType: "vitality_up",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 4,
+      },
+    ],
+  },
+  {
+    key: "arcane-burst",
+    name: "奥术爆裂",
+    iconText: "奥",
+    description: "压缩法力形成爆裂法球，擅长稳定收尾。",
+    quality: "blue",
+    category: "spell",
+    trigger: "enemy-low-health",
+    acquisitionHint: "法师初始传承，也可从月陨遗迹奇遇中重新参悟。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.8,
+    levelDamageGrowth: 0.12,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 2,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "arcane-burst-dot",
+        name: "奥能灼蚀",
+        description: "持续灼烧敌人。",
+        effectType: "damage_over_time",
+        target: "enemy",
+        durationTurns: 3,
+        magnitude: 0.22,
+      },
+      {
+        key: "arcane-burst-int-down",
+        name: "法感紊乱",
+        description: "降低敌方智力。",
+        effectType: "intelligence_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 3,
+      },
+    ],
+  },
+  {
+    key: "enemy-chaos-spell",
+    name: "混沌咒击",
+    iconText: "咒",
+    description: "怪物凝聚混乱能量发动法术攻击。",
+    quality: "green",
+    category: "spell",
+    trigger: "enemy-low-health",
+    acquisitionHint: "怪物天赋",
+    source: "enemy",
+    maxLevel: 10,
+    damageMultiplier: 2.4,
+    levelDamageGrowth: 0.1,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 2,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "enemy-chaos-spell-dot",
+        name: "混乱侵蚀",
+        description: "对目标造成持续伤害。",
+        effectType: "damage_over_time",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.16,
+      },
+    ],
+  },
+  {
+    key: "enemy-brace",
+    name: "野性护体",
+    iconText: "守",
+    description: "怪物本能驱动的防御姿态。",
+    quality: "white",
+    category: "guard",
+    trigger: "low-health",
+    acquisitionHint: "怪物天赋",
+    source: "enemy",
+    maxLevel: 10,
+    damageMultiplier: 0,
+    levelDamageGrowth: 0,
+    healRatio: 0.08,
+    levelHealGrowth: 0.01,
+    guardRatio: 0.35,
+    levelGuardGrowth: 0.02,
+    maxUses: 1,
+    cooldownTurns: 3,
+    effects: [
+      {
+        key: "enemy-brace-defense-up",
+        name: "野性皮膜",
+        description: "提升自身防御。",
+        effectType: "defense_up",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 0.3,
+      },
+      {
+        key: "enemy-brace-hot",
+        name: "生命回涌",
+        description: "每回合恢复生命。",
+        effectType: "heal_over_time",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 0.08,
+      },
+    ],
+  },
+];
+
 const DEFAULT_ITEM_CATALOG = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
@@ -281,6 +466,31 @@ function asRarity(value) {
     || value === "orange"
     ? value
     : "white";
+}
+
+function asSkillCategory(value) {
+  return value === "attack" || value === "spell" || value === "guard" ? value : "attack";
+}
+
+function asSkillEffectType(value) {
+  return value === "attack_up"
+    || value === "attack_down"
+    || value === "defense_up"
+    || value === "defense_down"
+    || value === "damage_over_time"
+    || value === "heal_over_time"
+    || value === "intelligence_up"
+    || value === "intelligence_down"
+    || value === "vitality_up"
+    || value === "vitality_down"
+    || value === "agility_up"
+    || value === "agility_down"
+    ? value
+    : "attack_up";
+}
+
+function asSkillEffectTarget(value) {
+  return value === "self" || value === "ally" || value === "enemy" ? value : "enemy";
 }
 
 function asEncounterTier(value) {
@@ -514,6 +724,72 @@ function normalizeBattleEnemies(value) {
   return normalized.length > 0 ? normalized : DEFAULT_BATTLE_ENEMIES;
 }
 
+function normalizeSkillEffects(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry, index) => {
+      const source = asObject(entry);
+
+      if (!source || !asString(source.key).trim()) {
+        return null;
+      }
+
+      return {
+        key: asString(source.key).trim(),
+        name: asString(source.name, `效果 ${index + 1}`),
+        description: asString(source.description),
+        effectType: asSkillEffectType(source.effectType),
+        target: asSkillEffectTarget(source.target),
+        durationTurns: Math.max(1, asInt(source.durationTurns, 1)),
+        magnitude: asNumber(source.magnitude, 0),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeSkillTemplates(value) {
+  if (!Array.isArray(value)) {
+    return DEFAULT_SKILL_TEMPLATES;
+  }
+
+  const normalized = value
+    .map((entry) => {
+      const source = asObject(entry);
+
+      if (!source || !asString(source.key).trim()) {
+        return null;
+      }
+
+      return {
+        key: asString(source.key).trim(),
+        name: asString(source.name),
+        iconText: asString(source.iconText),
+        description: asString(source.description),
+        quality: asRarity(source.quality),
+        category: asSkillCategory(source.category),
+        trigger: asString(source.trigger, "random"),
+        acquisitionHint: asString(source.acquisitionHint),
+        source: source.source === "enemy" ? "enemy" : "learned",
+        maxLevel: Math.max(1, asInt(source.maxLevel, 10)),
+        damageMultiplier: asNumber(source.damageMultiplier, 0),
+        levelDamageGrowth: asNumber(source.levelDamageGrowth, 0),
+        healRatio: asNumber(source.healRatio, 0),
+        levelHealGrowth: asNumber(source.levelHealGrowth, 0),
+        guardRatio: asNumber(source.guardRatio, 0),
+        levelGuardGrowth: asNumber(source.levelGuardGrowth, 0),
+        maxUses: Math.max(0, asInt(source.maxUses, 0)),
+        cooldownTurns: Math.max(0, asInt(source.cooldownTurns, 0)),
+        effects: normalizeSkillEffects(source.effects),
+      };
+    })
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : DEFAULT_SKILL_TEMPLATES;
+}
+
 function normalizeSystemBalance(value) {
   const source = asObject(value);
 
@@ -610,6 +886,7 @@ function buildRuntimeConfig(source) {
     afkEncounterPoolByMapAndTier: buildAfkEncounterPoolByMapAndTier(afkEncounterPool, source.mapConfigs),
     battleEnemyTemplatesByMap: buildBattleEnemyTemplatesByMap(source.battleEnemyTemplates, source.mapConfigs),
     itemSeedById: new Map(itemCatalog.map((item) => [item.itemId, item])),
+    skillTemplateByKey: new Map(source.skillTemplates.map((skill) => [skill.key, skill])),
   };
 }
 
@@ -622,6 +899,7 @@ let cachedRuntimeConfig = buildRuntimeConfig({
   levelTable: DEFAULT_LEVEL_TABLE,
   mapConfigs: DEFAULT_MAP_CONFIGS,
   raceConfigs: DEFAULT_RACE_CONFIGS,
+  skillTemplates: DEFAULT_SKILL_TEMPLATES,
   systemBalance: DEFAULT_SYSTEM_BALANCE,
 });
 
@@ -666,6 +944,7 @@ async function getDynamicGameConfig() {
     levelTable: DEFAULT_LEVEL_TABLE,
     mapConfigs: normalizeMaps(configByKey.get("maps")),
     raceConfigs: normalizeRaces(configByKey.get("races")),
+    skillTemplates: normalizeSkillTemplates(configByKey.get("skill-templates")),
     systemBalance: normalizeSystemBalance(configByKey.get("system-balance")),
   };
 }
@@ -692,6 +971,7 @@ module.exports = {
   DEFAULT_LEVEL_TABLE,
   DEFAULT_MAP_CONFIGS,
   DEFAULT_RACE_CONFIGS,
+  DEFAULT_SKILL_TEMPLATES,
   DEFAULT_SYSTEM_BALANCE,
   loadRuntimeGameConfig,
   refreshRuntimeGameConfig,

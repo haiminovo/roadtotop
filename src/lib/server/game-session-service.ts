@@ -67,6 +67,7 @@ type RoleRow = {
   intelligence: number;
   vitality: number;
   current_health: number;
+  skill_state?: unknown;
   avatar_seed: string;
 };
 
@@ -386,6 +387,8 @@ applyRuntimeConfig({
   levelTable,
   mapConfigs: defaultMapConfigs,
   raceConfigs: defaultRaceConfigs,
+  skillTemplates: [],
+  skillTemplateByKey: new Map(),
   systemBalance: {
     actionBarTarget: 100,
     battleTriggerChance: 0.2,
@@ -1634,6 +1637,7 @@ async function findRoleByUserId(userId: string) {
         intelligence,
         vitality,
         current_health,
+        skill_state,
         avatar_seed
       FROM "role"
       WHERE user_id = $1
