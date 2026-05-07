@@ -1,6 +1,5 @@
 const { query, withTransaction } = require("./db");
 const {
-  DEFAULT_AFK_ENCOUNTER_CHANCES,
   DEFAULT_CLASS_CONFIGS,
   DEFAULT_ITEM_CATALOG,
   DEFAULT_LEVEL_TABLE,
@@ -58,7 +57,6 @@ let itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
 let raceConfigs = DEFAULT_RACE_CONFIGS;
 let classConfigs = DEFAULT_CLASS_CONFIGS;
 let mapConfigs = DEFAULT_MAP_CONFIGS;
-let afkEncounterChances = DEFAULT_AFK_ENCOUNTER_CHANCES;
 let skillTemplates = DEFAULT_SKILL_TEMPLATES;
 let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
 let eventRules = [];
@@ -84,7 +82,6 @@ function applyRuntimeConfig(config) {
   raceConfigs = config.raceConfigs;
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
-  afkEncounterChances = config.afkEncounterChances;
   eventRules = Array.isArray(config.eventRules) ? config.eventRules : [];
   skillTemplates = Array.isArray(config.skillTemplates) ? config.skillTemplates : DEFAULT_SKILL_TEMPLATES;
   skillTemplateByKey = config.skillTemplateByKey || new Map(skillTemplates.map((skill) => [skill.key, skill]));
@@ -983,6 +980,31 @@ function evaluateEventRules(triggerType, context = {}) {
   });
 
   return matches;
+}
+
+function getEncounterRatesFromEventRules() {
+  const rates = {
+    common: 0,
+    rare: 0,
+    legendary: 0,
+  };
+
+  eventRules.forEach((rule) => {
+    if (rule?.enabled === false || rule?.trigger?.type !== "afk_tick") {
+      return;
+    }
+    const tier = rule?.encounter?.tier;
+    if (tier !== "common" && tier !== "rare" && tier !== "legendary") {
+      return;
+    }
+    const chance = Number(rule.chance);
+    if (!Number.isFinite(chance) || chance <= 0) {
+      return;
+    }
+    rates[tier] += chance;
+  });
+
+  return rates;
 }
 
 function clamp(value, min, max) {
@@ -3197,7 +3219,7 @@ function buildSnapshot(data, options = {}) {
         logs: battleState.logs,
       } : null,
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
-      encounterRates: afkEncounterChances,
+      encounterRates: getEncounterRatesFromEventRules(),
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
     },
     market: data.market,
@@ -3237,7 +3259,7 @@ function buildBootstrapSnapshot(user, market) {
         aetherCrystal: 0,
         exp: 0,
       },
-      encounterRates: afkEncounterChances,
+      encounterRates: getEncounterRatesFromEventRules(),
       recentEncounters: [],
     },
     market,

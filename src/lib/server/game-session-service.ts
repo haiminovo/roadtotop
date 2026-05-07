@@ -11,12 +11,9 @@ import {
   getMaxHealth,
   LEVEL_CURVE_VERSION,
   MAX_OFFLINE_SECONDS,
-  afkEncounterChances as defaultAfkEncounterChances,
-  afkEncounterPool as defaultAfkEncounterPool,
   classConfigs as defaultClassConfigs,
   mapConfigs as defaultMapConfigs,
   raceConfigs as defaultRaceConfigs,
-  type AfkEncounterConfig,
   type AfkEncounterReward,
   type BodySlotCapacities,
   type BodySlotType,
@@ -35,6 +32,7 @@ import {
   getBodySlotTypeLabelRuntime,
   getLevelTable,
   refreshRuntimeGameConfig,
+  type GameEventRule,
   type RuntimeItemSeed,
 } from "@/lib/server/dynamic-game-config";
 import { ApiError } from "@/lib/server/http";
@@ -372,15 +370,14 @@ const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }] as const
 }>;
 let itemSeeds: ItemSeed[] = [];
 let itemSeedById = new Map<string, ItemSeed>();
-let afkEncounterChances = defaultAfkEncounterChances;
-let afkEncounterPoolByMapAndTier: Record<string, Record<EncounterTier, AfkEncounterConfig[]>> = {};
+let eventRules: GameEventRule[] = [];
 let classConfigs: ClassConfig[] = defaultClassConfigs;
 let mapConfigs: MapConfig[] = defaultMapConfigs;
 let raceConfigs: RaceConfig[] = defaultRaceConfigs;
 
 applyRuntimeConfig({
-  afkEncounterChances: defaultAfkEncounterChances,
-  afkEncounterPool: defaultAfkEncounterPool,
+  afkEncounterChances: { common: 0, legendary: 0, rare: 0 },
+  afkEncounterPool: [],
   afkEncounterPoolByMapAndTier: {},
   battleEnemyTemplates: [],
   battleEnemyTemplatesByMap: {},
@@ -415,8 +412,7 @@ function applyRuntimeConfig(config: Awaited<ReturnType<typeof refreshRuntimeGame
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
   itemSeeds = config.itemCatalog as ItemSeed[];
   itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
-  afkEncounterChances = config.afkEncounterChances;
-  afkEncounterPoolByMapAndTier = config.afkEncounterPoolByMapAndTier;
+  eventRules = Array.isArray(config.eventRules) ? config.eventRules : [];
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
   raceConfigs = config.raceConfigs;
@@ -833,32 +829,6 @@ function buildRoleBodySlots(role: Pick<RoleRow, "race_key">, backpack: BackpackR
   });
 }
 
-function resolveEncounterRewardItems(reward: AfkEncounterReward): EncounterGrantedItem[] {
-  return (reward.items ?? [])
-    .map((itemReward) => {
-      const quantity = normalizeNumber(itemReward.quantity);
-      const itemSeed = itemSeedById.get(itemReward.itemId);
-
-      if (!itemSeed || quantity <= 0) {
-        return null;
-      }
-
-      return {
-        itemId: itemSeed.itemId,
-        quantity,
-        name: itemSeed.name,
-        rarity: itemSeed.rarity,
-        iconKey: itemSeed.iconKey,
-        slot: itemSeed.slot,
-        slotUsage: itemSeed.slotUsage,
-        description: itemSeed.description,
-        sellPrice: itemSeed.sellPrice,
-        stats: itemSeed.stats,
-      } satisfies EncounterGrantedItem;
-    })
-    .filter((item): item is EncounterGrantedItem => Boolean(item));
-}
-
 function applyEncounterItemsToBackpack(backpack: BackpackRow[], itemDrops: EncounterGrantedItem[]) {
   if (itemDrops.length === 0) {
     return false;
@@ -987,32 +957,173 @@ function normalizeEncounterLog(value: unknown): AfkEncounterLogEntry[] {
   return entries.slice(0, MAX_RECENT_ENCOUNTERS);
 }
 
-function pickRandomEncounter(tier: EncounterTier, mapKey: string | null) {
-  const pool = mapKey
-    ? afkEncounterPoolByMapAndTier[mapKey]?.[tier] ?? []
-    : afkEncounterPoolByMapAndTier[mapConfigs[0]?.key ?? ""]?.[tier] ?? [];
-
-  if (pool.length === 0) {
-    return null;
-  }
-
-  return pool[Math.floor(Math.random() * pool.length)] ?? null;
+function getSortedEventRulesByTrigger(triggerType: "afk_tick" | "enemy_kill") {
+  return eventRules
+    .filter((rule) => rule?.enabled !== false && rule?.trigger?.type === triggerType)
+    .slice()
+    .sort((left, right) => normalizeSignedNumber(left?.priority) - normalizeSignedNumber(right?.priority));
 }
 
-function resolveEncounterTierByRoll(roll: number): EncounterTier | null {
-  if (roll < afkEncounterChances.legendary) {
-    return "legendary";
+function ruleMatchesTrigger(rule: GameEventRule, context: { mapKey?: string | null; enemyKey?: string }) {
+  const trigger = rule?.trigger ?? {};
+
+  if (Array.isArray(trigger.mapKeys) && trigger.mapKeys.length > 0) {
+    if (!context.mapKey || !trigger.mapKeys.includes(context.mapKey)) {
+      return false;
+    }
   }
 
-  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare) {
-    return "rare";
+  if (Array.isArray(trigger.enemyKeys) && trigger.enemyKeys.length > 0) {
+    if (!context.enemyKey || !trigger.enemyKeys.includes(context.enemyKey)) {
+      return false;
+    }
   }
 
-  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare + afkEncounterChances.common) {
-    return "common";
+  return true;
+}
+
+function toBackpackItemDrop(itemSeed: ItemSeed, quantity: number): EncounterGrantedItem {
+  return {
+    itemId: itemSeed.itemId,
+    quantity,
+    name: itemSeed.name,
+    rarity: itemSeed.rarity,
+    iconKey: itemSeed.iconKey,
+    slot: itemSeed.slot,
+    slotUsage: itemSeed.slotUsage,
+    description: itemSeed.description,
+    sellPrice: itemSeed.sellPrice,
+    stats: itemSeed.stats,
+  };
+}
+
+function applyRuleAction(
+  action: GameEventRule["actions"][number],
+  accumulator: {
+    gold: number;
+    aetherCrystal: number;
+    exp: number;
+    healthDelta: number;
+    itemDrops: EncounterGrantedItem[];
+  },
+) {
+  const actionChance = action?.chance === undefined ? 1 : Number(action.chance);
+
+  if (!Number.isFinite(actionChance) || actionChance <= 0 || Math.random() >= actionChance) {
+    return;
   }
 
-  return null;
+  switch (action.type) {
+    case "grant_gold":
+      accumulator.gold += normalizeNumber(action.amount ?? 0);
+      break;
+    case "grant_aether":
+      accumulator.aetherCrystal += normalizeNumber(action.amount ?? 0);
+      break;
+    case "grant_exp":
+      accumulator.exp += normalizeNumber(action.amount ?? 0);
+      break;
+    case "adjust_health":
+      accumulator.healthDelta += normalizeSignedNumber(action.amount ?? 0);
+      break;
+    case "grant_item": {
+      if (typeof action.itemId !== "string" || !action.itemId.trim()) {
+        return;
+      }
+      const itemSeed = itemSeedById.get(action.itemId);
+      if (!itemSeed) {
+        return;
+      }
+      let quantity = 0;
+      if (Number.isFinite(Number(action.quantity))) {
+        quantity = Math.max(1, normalizeNumber(action.quantity as number));
+      } else {
+        const min = Math.max(1, normalizeNumber(action.min ?? 1));
+        const max = Math.max(min, normalizeNumber(action.max ?? min));
+        quantity = min + Math.floor(Math.random() * (max - min + 1));
+      }
+      if (quantity <= 0) {
+        return;
+      }
+      accumulator.itemDrops.push(toBackpackItemDrop(itemSeed, quantity));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function evaluateEventRules(
+  triggerType: "afk_tick" | "enemy_kill",
+  context: { mapKey?: string | null; enemyKey?: string } = {},
+) {
+  const matches: Array<{
+    rule: GameEventRule;
+    reward: {
+      gold: number;
+      aetherCrystal: number;
+      exp: number;
+      healthDelta: number;
+      itemDrops: EncounterGrantedItem[];
+    };
+  }> = [];
+
+  const rules = getSortedEventRulesByTrigger(triggerType);
+
+  rules.forEach((rule) => {
+    if (!ruleMatchesTrigger(rule, context)) {
+      return;
+    }
+
+    const chance = Number(rule.chance);
+    if (!Number.isFinite(chance) || chance <= 0 || Math.random() >= chance) {
+      return;
+    }
+
+    const reward = {
+      gold: 0,
+      aetherCrystal: 0,
+      exp: 0,
+      healthDelta: 0,
+      itemDrops: [] as EncounterGrantedItem[],
+    };
+
+    (Array.isArray(rule.actions) ? rule.actions : []).forEach((action) => {
+      if (!action || typeof action !== "object") {
+        return;
+      }
+      applyRuleAction(action, reward);
+    });
+
+    matches.push({ rule, reward });
+  });
+
+  return matches;
+}
+
+function getEncounterRatesFromEventRules() {
+  const rates: Record<EncounterTier, number> = {
+    common: 0,
+    rare: 0,
+    legendary: 0,
+  };
+
+  eventRules.forEach((rule) => {
+    if (rule?.enabled === false || rule?.trigger?.type !== "afk_tick") {
+      return;
+    }
+    const tier = rule.encounter?.tier;
+    if (tier !== "common" && tier !== "rare" && tier !== "legendary") {
+      return;
+    }
+    const chance = Number(rule.chance);
+    if (!Number.isFinite(chance) || chance <= 0) {
+      return;
+    }
+    rates[tier] += chance;
+  });
+
+  return rates;
 }
 
 function buildEncounterDelta(executions: number, settledAt: number, mapKey: string | null) {
@@ -1025,45 +1136,44 @@ function buildEncounterDelta(executions: number, settledAt: number, mapKey: stri
   };
 
   for (let index = 0; index < executions; index += 1) {
-    const tier = resolveEncounterTierByRoll(Math.random());
+    const matches = evaluateEventRules("afk_tick", {
+      mapKey: mapKey || null,
+    });
 
-    if (!tier) {
-      continue;
-    }
+    matches.forEach((match) => {
+      const reward: AfkEncounterReward = {
+        gold: normalizeNumber(match.reward.gold),
+        aetherCrystal: normalizeNumber(match.reward.aetherCrystal),
+        exp: normalizeNumber(match.reward.exp),
+        ...(normalizeSignedNumber(match.reward.healthDelta) !== 0
+          ? { healthDelta: normalizeSignedNumber(match.reward.healthDelta) }
+          : {}),
+        items: match.reward.itemDrops.map((item) => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          name: item.name,
+          rarity: item.rarity,
+        })),
+      };
 
-    const encounter = pickRandomEncounter(tier, mapKey);
+      delta.gold += reward.gold;
+      delta.aetherCrystal += reward.aetherCrystal;
+      delta.exp += reward.exp;
+      delta.itemDrops.push(...match.reward.itemDrops);
 
-    if (!encounter) {
-      continue;
-    }
-
-    const rewardItems = resolveEncounterRewardItems(encounter.reward);
-    const healthDelta = normalizeSignedNumber(encounter.reward.healthDelta ?? 0);
-    const reward: AfkEncounterReward = {
-      gold: normalizeNumber(encounter.reward.gold),
-      aetherCrystal: normalizeNumber(encounter.reward.aetherCrystal),
-      exp: normalizeNumber(encounter.reward.exp),
-      ...(healthDelta !== 0 ? { healthDelta } : {}),
-      items: rewardItems.map((item) => ({
-        itemId: item.itemId,
-        quantity: item.quantity,
-        name: item.name,
-        rarity: item.rarity,
-      })),
-    };
-
-    delta.gold += reward.gold;
-    delta.aetherCrystal += reward.aetherCrystal;
-    delta.exp += reward.exp;
-    delta.itemDrops.push(...rewardItems);
-    delta.encounters.push({
-      id: makeId("encounter"),
-      key: encounter.key,
-      tier,
-      title: encounter.title,
-      description: encounter.description,
-      reward,
-      triggeredAt: settledAt,
+      if (match.rule?.encounter?.title && match.rule?.encounter?.description) {
+        delta.encounters.push({
+          id: makeId("encounter"),
+          key: typeof match.rule.key === "string" ? match.rule.key : `event-${Date.now()}`,
+          tier: match.rule.encounter.tier === "common" || match.rule.encounter.tier === "rare" || match.rule.encounter.tier === "legendary"
+            ? match.rule.encounter.tier
+            : "common",
+          title: match.rule.encounter.title,
+          description: match.rule.encounter.description,
+          reward,
+          triggeredAt: settledAt,
+        });
+      }
     });
   }
 
@@ -1915,7 +2025,7 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
         exp: data.afk.pending_exp,
       },
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
-      encounterRates: afkEncounterChances,
+      encounterRates: getEncounterRatesFromEventRules(),
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
     },
     market: data.market,
@@ -2214,7 +2324,7 @@ export async function getGuestBootstrap(
           aetherCrystal: 0,
           exp: 0,
         },
-        encounterRates: afkEncounterChances,
+        encounterRates: getEncounterRatesFromEventRules(),
         recentEncounters: [],
       },
       market: await getMarketSnapshotForRole(null),

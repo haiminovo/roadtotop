@@ -134,7 +134,7 @@ export const zhCN = {
       encounterLogTitle: "自己触发的奇遇",
       encounterLogSummary: "每次完整执行动作后都会在服务端做一次奇遇判定，部分奇遇会直接掉血或回血，血量归零会立刻掉 1 级。",
       encounterEmpty: "这里会显示你最近触发的奇遇。当前还没有记录，继续挂机跑完整轮次就有机会刷出来。",
-      encounterRatesHint: "完成每一次完整动作执行后，服务端都会分别以普通 6%、稀有 0.6%、传说 0.05% 的概率判定奇遇。",
+      encounterRatesHint: "完成每一次完整动作执行后，服务端会按“统一事件池”中的挂机触发规则判定奇遇与奖励。",
       backpackTitle: "背包",
       inventoryCount: "物品数",
       equipmentCount: "装备数",
