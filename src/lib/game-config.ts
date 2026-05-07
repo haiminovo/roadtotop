@@ -1,9 +1,10 @@
-export type RaceKey = "human" | "elf" | "dwarf";
-export type ClassKey = "warrior" | "mage" | "farmer";
+export type RaceKey = "human" | "elf" | "dwarf" | "orc" | "lizardfolk" | "moonkin";
+export type ClassKey = "warrior" | "mage" | "farmer" | "ranger" | "priest" | "rogue";
 export type MapKey = string;
 export type PanelKey = "role" | "backpack" | "afk" | "market";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
+export type GameItemType = "equipment" | "skill_book" | "material";
 export type BodySlotType = "head" | "hand" | "torso" | "legs" | "feet" | "neck" | "accessory";
 export type BodySlotCapacities = Record<BodySlotType, number>;
 
@@ -49,6 +50,8 @@ export type AfkEncounterReward = {
     quantity: number;
     name?: string;
     rarity?: ItemRarity;
+    itemType?: GameItemType;
+    skillKey?: string;
   }>;
 };
 
@@ -101,6 +104,27 @@ export const raceConfigs: RaceConfig[] = [
     stats: { strength: 7, agility: 3, intelligence: 3, vitality: 7 },
     bodySlotAdjustments: { accessory: -1 },
   },
+  {
+    key: "orc",
+    label: "兽人",
+    summary: "力量与体质极强，能以更凶悍的方式推进战斗。",
+    stats: { strength: 8, agility: 4, intelligence: 2, vitality: 6 },
+    bodySlotAdjustments: { hand: 1, accessory: -1 },
+  },
+  {
+    key: "lizardfolk",
+    label: "蜥蜴人",
+    summary: "爆发速度与生存能力兼具，擅长拉扯和持续作战。",
+    stats: { strength: 4, agility: 8, intelligence: 4, vitality: 6 },
+    bodySlotAdjustments: { feet: 1 },
+  },
+  {
+    key: "moonkin",
+    label: "月裔",
+    summary: "智力成长极高，偏向法术和控制流派。",
+    stats: { strength: 2, agility: 4, intelligence: 9, vitality: 5 },
+    bodySlotAdjustments: { neck: 1 },
+  },
 ];
 
 export const classConfigs: ClassConfig[] = [
@@ -125,6 +149,27 @@ export const classConfigs: ClassConfig[] = [
     starterItemId: "field-hoe",
     stats: { strength: 2, agility: 2, intelligence: 1, vitality: 4 },
   },
+  {
+    key: "ranger",
+    label: "游侠",
+    summary: "偏敏捷与机动，擅长抢节奏和持续输出。",
+    starterItemId: "training-bow",
+    stats: { strength: 2, agility: 5, intelligence: 1, vitality: 2 },
+  },
+  {
+    key: "priest",
+    label: "祭司",
+    summary: "法术与续航更稳，适合中后期滚雪球。",
+    starterItemId: "whisper-wand",
+    stats: { strength: 1, agility: 1, intelligence: 4, vitality: 3 },
+  },
+  {
+    key: "rogue",
+    label: "潜行者",
+    summary: "上手快、爆发高，适合喜欢高风险高收益的玩家。",
+    starterItemId: "bronze-longsword",
+    stats: { strength: 3, agility: 5, intelligence: 1, vitality: 1 },
+  },
 ];
 
 export const mapConfigs: MapConfig[] = [
@@ -147,9 +192,9 @@ export const mapConfigs: MapConfig[] = [
 ];
 
 export const afkEncounterChances: Record<EncounterTier, number> = {
-  common: 0.1,
-  rare: 0.01,
-  legendary: 0.001,
+  common: 0.06,
+  rare: 0.006,
+  legendary: 0.0005,
 };
 
 export const afkEncounterPool: AfkEncounterConfig[] = [
@@ -224,6 +269,72 @@ export const afkEncounterPool: AfkEncounterConfig[] = [
     title: "星辉秘匣",
     description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
     reward: { gold: 1280, aetherCrystal: 12, exp: 188, healthDelta: 32, items: [{ itemId: "dawnfire-pendant", quantity: 1 }] },
+  },
+  {
+    key: "fallen-watchtower",
+    mapKeys: ["palmia-wilds"],
+    tier: "common",
+    title: "坍塌哨塔",
+    description: "你在破败哨塔间翻找，只捡到一袋零钱和几页残旧记录。",
+    reward: { gold: 44, aetherCrystal: 0, exp: 10, items: [{ itemId: "material-wolf-fang", quantity: 1 }] },
+  },
+  {
+    key: "herbal-hollow",
+    mapKeys: ["palmia-wilds"],
+    tier: "common",
+    title: "草药浅坑",
+    description: "地面草药气味浓重，你顺手调配出止痛药膏，缓住了伤势。",
+    reward: { gold: 8, aetherCrystal: 1, exp: 10, healthDelta: 16 },
+  },
+  {
+    key: "old-snare-line",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
+    tier: "common",
+    title: "旧捕索线",
+    description: "你险些踩中废弃捕索，躲开后仍被擦伤，幸好补给还算完整。",
+    reward: { gold: 30, aetherCrystal: 0, exp: 9, healthDelta: -8 },
+  },
+  {
+    key: "echoing-crevice",
+    mapKeys: ["moonfall-ruins"],
+    tier: "rare",
+    title: "回响裂隙",
+    description: "你在裂隙深处听见规律回响，顺着回声找到了隐藏晶簇。",
+    reward: { gold: 112, aetherCrystal: 5, exp: 52, healthDelta: -12, items: [{ itemId: "material-crystal-shard", quantity: 2 }] },
+  },
+  {
+    key: "ashen-cache",
+    mapKeys: ["moonfall-ruins"],
+    tier: "rare",
+    title: "烬灰补给箱",
+    description: "被灰烬掩埋的军用补给箱仍能开启，里面残存着完好的护具。",
+    reward: { gold: 146, aetherCrystal: 2, exp: 34, items: [{ itemId: "runic-vest", quantity: 1 }] },
+  },
+  {
+    key: "moonshard-choir",
+    mapKeys: ["moonfall-ruins"],
+    tier: "legendary",
+    title: "月晶圣咏",
+    description: "遍地碎晶突然共鸣，你在短暂失神中领悟并汲取了古老力量。",
+    reward: {
+      gold: 1560,
+      aetherCrystal: 20,
+      exp: 260,
+      healthDelta: 48,
+      items: [
+        { itemId: "stormglass-staff", quantity: 1 },
+        { itemId: "skillbook-arcane-burst", quantity: 1 },
+        { itemId: "material-moon-dust", quantity: 2 },
+      ],
+    },
+  },
+  {
+    key: "sunken-arsenal",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
+    tier: "legendary",
+    title: "沉没军械所",
+    description: "塌陷地窟深处藏着旧王朝军械，一件完好的传奇武装被你带走。",
+    reward: { gold: 1488, aetherCrystal: 15, exp: 238, healthDelta: -20, items: [{ itemId: "knightwatch-mail", quantity: 1 }] },
   },
 ];
 

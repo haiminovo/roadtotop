@@ -62,6 +62,60 @@ let afkEncounterChances = DEFAULT_AFK_ENCOUNTER_CHANCES;
 let afkEncounterPoolByMapAndTier = {};
 let skillTemplates = DEFAULT_SKILL_TEMPLATES;
 let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
+const MATERIAL_DROP_POOL_BY_ENEMY_KEY = {
+  "stray-wolf": [
+    { itemId: "material-wolf-fang", chance: 0.35, min: 1, max: 2 },
+  ],
+  "bandit-scout": [
+    { itemId: "material-wolf-fang", chance: 0.25, min: 1, max: 1 },
+    { itemId: "material-crystal-shard", chance: 0.12, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "material-crystal-shard", chance: 0.3, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.08, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "material-wolf-fang", chance: 0.22, min: 1, max: 2 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "material-crystal-shard", chance: 0.34, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.12, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "material-wolf-fang", chance: 0.28, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.06, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "material-crystal-shard", chance: 0.36, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.15, min: 1, max: 1 },
+  ],
+};
+
+const SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY = {
+  "stray-wolf": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "bandit-scout": [
+    { itemId: "skillbook-focus-strike", chance: 0.06, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "skillbook-arcane-burst", chance: 0.04, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "skillbook-arcane-burst", chance: 0.05, min: 1, max: 1 },
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "skillbook-iron-guard", chance: 0.06, min: 1, max: 1 },
+    { itemId: "skillbook-arcane-burst", chance: 0.06, min: 1, max: 1 },
+  ],
+};
 
 function applyRuntimeConfig(config) {
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
@@ -124,6 +178,16 @@ function normalizeSignedNumber(value) {
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
 }
 
+function normalizeItemType(value) {
+  return value === "skill_book" || value === "material" || value === "equipment"
+    ? value
+    : "equipment";
+}
+
+function normalizeSkillKey(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
 function getSkillQualityRank(quality) {
   return {
     white: 1,
@@ -159,7 +223,7 @@ function getSkillDefinition(skillKey) {
   return skillTemplateByKey.get(skillKey) || null;
 }
 
-function buildDefaultPlayerSkillState(role) {
+function buildDefaultPlayerSkillState() {
   return {
     acquiredBooks: [],
     equippedSkillKeys: [],
@@ -481,6 +545,10 @@ function getBackpackEquippedCount(backpackRow) {
   return (backpackRow.equipped_slot_groups || []).length;
 }
 
+function isEquipmentItem(backpackRow) {
+  return normalizeItemType(backpackRow?.item_type) === "equipment";
+}
+
 function getRoleEffectiveStats(role, backpack = []) {
   const nextStats = {
     strength: normalizeNumber(role.strength),
@@ -490,6 +558,10 @@ function getRoleEffectiveStats(role, backpack = []) {
   };
 
   backpack.forEach((item) => {
+    if (!isEquipmentItem(item)) {
+      return;
+    }
+
     const equippedCount = getBackpackEquippedCount(item);
 
     if (equippedCount <= 0 || !item.stat_json) {
@@ -503,6 +575,42 @@ function getRoleEffectiveStats(role, backpack = []) {
   });
 
   return nextStats;
+}
+
+function addLearnedSkillFromBook(role, skillKey, options = {}) {
+  const definition = getSkillDefinition(skillKey);
+
+  if (!definition) {
+    throw new Error("技能书对应的技能不存在，无法学习。");
+  }
+
+  const now = options.now || Date.now();
+  const sourceHint = typeof options.acquisitionHint === "string" && options.acquisitionHint.trim().length > 0
+    ? options.acquisitionHint.trim()
+    : `通过技能书 ${options.bookName || definition.name} 学会。`;
+  const normalizedState = normalizePlayerSkillState(role.skill_state, role);
+  const existing = normalizedState.learnedSkills.find((entry) => entry.skillKey === definition.key);
+
+  if (existing) {
+    throw new Error("该技能已经学会，无需重复学习。");
+  }
+
+  normalizedState.learnedSkills.push({
+    skillKey: definition.key,
+    level: 1,
+    quality: definition.quality,
+    acquisitionHint: sourceHint,
+    learnedAt: now,
+  });
+
+  normalizedState.acquiredBooks.push({
+    skillKey: definition.key,
+    quality: definition.quality,
+    acquisitionHint: sourceHint,
+    acquiredAt: now,
+  });
+
+  role.skill_state = normalizePlayerSkillState(normalizedState, role);
 }
 
 function normalizeEquippedSlotGroups(value) {
@@ -549,6 +657,10 @@ function getBodySlotIndex(slotKey) {
 }
 
 function allocateEquipmentSlots(role, backpack, item) {
+  if (!isEquipmentItem(item)) {
+    throw new Error("只有装备类型物品才能穿戴。");
+  }
+
   if (item.quantity <= getBackpackEquippedCount(item)) {
     throw new Error("这件物品已经没有可装备的数量了。");
   }
@@ -628,6 +740,10 @@ function allocateEquipmentSlots(role, backpack, item) {
 }
 
 function removeOneEquippedGroup(backpackItem) {
+  if (!isEquipmentItem(backpackItem)) {
+    throw new Error("只有装备类型物品才能卸下。");
+  }
+
   if (!backpackItem.equipped_slot_groups || backpackItem.equipped_slot_groups.length === 0) {
     throw new Error("这件物品当前没有处于装备状态。");
   }
@@ -689,6 +805,8 @@ function resolveEncounterRewardItems(reward) {
         quantity,
         name: itemSeed.name,
         rarity: itemSeed.rarity,
+        itemType: normalizeItemType(itemSeed.itemType),
+        skillKey: normalizeSkillKey(itemSeed.skillKey),
         slot: itemSeed.slot,
         slotUsage: itemSeed.slotUsage,
         description: itemSeed.description,
@@ -723,6 +841,8 @@ function applyEncounterItemsToBackpack(backpack, itemDrops) {
       equipped_slot_groups: [],
       name: itemDrop.name,
       rarity: itemDrop.rarity,
+      item_type: itemDrop.itemType,
+      skill_key: itemDrop.skillKey,
       slot: itemDrop.slot,
       slot_usage: itemDrop.slotUsage,
       description: itemDrop.description,
@@ -862,10 +982,6 @@ function makeBattleId() {
 
 function calculatePhysicalDamage(strength) {
   return Math.max(1, Math.round(normalizeNumber(strength) * 2));
-}
-
-function calculateSpellDamage(intelligence) {
-  return Math.max(1, Math.round(normalizeNumber(intelligence) * 2.5));
 }
 
 function calculateDamageReduction(vitality) {
@@ -1144,28 +1260,94 @@ function summarizeSkillUses(skills) {
   }, { guard: 0, spell: 0 });
 }
 
+function pickRandomEntries(entries, count) {
+  const pool = Array.isArray(entries) ? [...entries] : [];
+  const picks = [];
+  const targetCount = Math.max(0, normalizeNumber(count));
+
+  while (pool.length > 0 && picks.length < targetCount) {
+    const index = Math.floor(Math.random() * pool.length);
+    picks.push(pool[index]);
+    pool.splice(index, 1);
+  }
+
+  return picks;
+}
+
+function buildEnemySkillState(skillDefinition, enemy, maxUsesOverride = null) {
+  return {
+    ...skillDefinition,
+    level: Math.max(1, Math.ceil(normalizeNumber(enemy.level) / (skillDefinition.category === "guard" ? 4 : 3))),
+    maxUses: maxUsesOverride !== null ? normalizeNumber(maxUsesOverride) : normalizeNumber(skillDefinition.maxUses || getSkillBaseUses(skillDefinition)),
+    source: "enemy",
+  };
+}
+
 function buildEnemySkillLoadout(enemy) {
+  const enemySkillTemplates = skillTemplates.filter(
+    (skill) => skill && (skill.category === "guard" || skill.category === "spell"),
+  );
+  const poolByCategory = {
+    guard: enemySkillTemplates.filter((skill) => skill.category === "guard"),
+    spell: enemySkillTemplates.filter((skill) => skill.category === "spell"),
+  };
+  const skillCaps = {
+    guard: normalizeNumber(enemy.skillCaps?.guard),
+    spell: normalizeNumber(enemy.skillCaps?.spell),
+  };
   const skills = [];
-  const spellDefinition = getSkillDefinition("enemy-chaos-spell");
-  const guardDefinition = getSkillDefinition("enemy-brace");
+  const selectedKeys = new Set();
+  const fixedSkillKeys = Array.isArray(enemy.fixedSkillKeys)
+    ? enemy.fixedSkillKeys.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+  const fallbackFixedSkillKeys = [];
 
-  if (spellDefinition && normalizeNumber(enemy.skillCaps?.spell) > 0) {
-    skills.push({
-      ...spellDefinition,
-      level: Math.max(1, Math.ceil(normalizeNumber(enemy.level) / 3)),
-      maxUses: normalizeNumber(enemy.skillCaps.spell),
-      source: "enemy",
-    });
+  if (skillCaps.guard > 0) {
+    fallbackFixedSkillKeys.push("enemy-brace");
+  } else if (skillCaps.spell > 0) {
+    fallbackFixedSkillKeys.push("enemy-chaos-spell");
   }
 
-  if (guardDefinition && normalizeNumber(enemy.skillCaps?.guard) > 0) {
-    skills.push({
-      ...guardDefinition,
-      level: Math.max(1, Math.ceil(normalizeNumber(enemy.level) / 4)),
-      maxUses: normalizeNumber(enemy.skillCaps.guard),
-      source: "enemy",
+  const resolvedFixedSkillKeys = fixedSkillKeys.length > 0 ? fixedSkillKeys : fallbackFixedSkillKeys;
+  const usedSlotsByCategory = { guard: 0, spell: 0 };
+
+  resolvedFixedSkillKeys.forEach((skillKey) => {
+    const skillDefinition = getSkillDefinition(skillKey);
+
+    if (!skillDefinition || selectedKeys.has(skillDefinition.key)) {
+      return;
+    }
+
+    if (skillDefinition.category !== "guard" && skillDefinition.category !== "spell") {
+      return;
+    }
+
+    if (usedSlotsByCategory[skillDefinition.category] >= skillCaps[skillDefinition.category]) {
+      return;
+    }
+
+    skills.push(buildEnemySkillState(skillDefinition, enemy));
+    selectedKeys.add(skillDefinition.key);
+    usedSlotsByCategory[skillDefinition.category] += 1;
+  });
+
+  (["guard", "spell"]).forEach((categoryKey) => {
+    const category = categoryKey;
+    const remainingSlots = Math.max(0, skillCaps[category] - usedSlotsByCategory[category]);
+
+    if (remainingSlots <= 0) {
+      return;
+    }
+
+    const randomPool = poolByCategory[category].filter((skill) => !selectedKeys.has(skill.key));
+    const randomSkills = pickRandomEntries(randomPool, remainingSlots);
+
+    randomSkills.forEach((skillDefinition) => {
+      skills.push(buildEnemySkillState(skillDefinition, enemy));
+      selectedKeys.add(skillDefinition.key);
+      usedSlotsByCategory[category] += 1;
     });
-  }
+  });
 
   return skills;
 }
@@ -1225,9 +1407,18 @@ function pickBattleSkill(actor, target) {
     : [];
   const actorHealthRatio = actor.maxHealth > 0 ? actor.currentHealth / actor.maxHealth : 0;
   const targetHealthRatio = target.maxHealth > 0 ? target.currentHealth / target.maxHealth : 0;
-  const guardSkill = usableSkills.find((skill) => skill.category === "guard");
-  const spellSkill = usableSkills.find((skill) => skill.category === "spell");
-  const attackSkill = usableSkills.find((skill) => skill.category === "attack");
+  const guardSkills = usableSkills.filter((skill) => skill.category === "guard");
+  const spellSkills = usableSkills.filter((skill) => skill.category === "spell");
+  const attackSkills = usableSkills.filter((skill) => skill.category === "attack");
+  const guardSkill = guardSkills.length > 0
+    ? guardSkills[Math.floor(Math.random() * guardSkills.length)]
+    : null;
+  const spellSkill = spellSkills.length > 0
+    ? spellSkills[Math.floor(Math.random() * spellSkills.length)]
+    : null;
+  const attackSkill = attackSkills.length > 0
+    ? attackSkills[Math.floor(Math.random() * attackSkills.length)]
+    : null;
   const guardThreshold = actor.side === "player" ? PLAYER_GUARD_HEALTH_THRESHOLD : ENEMY_GUARD_HEALTH_THRESHOLD;
 
   if (guardSkill && actorHealthRatio < guardThreshold && actor.guardCooldownTurns <= 0) {
@@ -1362,6 +1553,9 @@ function createEnemyProfile(role, backpack = [], mapKey = null) {
     level,
     name: template.name,
     summary: template.summary,
+    fixedSkillKeys: Array.isArray(template.fixedSkillKeys)
+      ? template.fixedSkillKeys.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+      : [],
     skillCaps: {
       guard: normalizeNumber(template.skillCaps?.guard),
       spell: normalizeNumber(template.skillCaps?.spell),
@@ -1443,6 +1637,9 @@ function normalizeBattleState(value) {
       level: normalizeNumber(enemy.level),
       name: typeof enemy.name === "string" ? enemy.name : "未知敌人",
       summary: typeof enemy.summary === "string" ? enemy.summary : "",
+      fixedSkillKeys: Array.isArray(enemy.fixedSkillKeys)
+        ? enemy.fixedSkillKeys.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+        : [],
       skillCaps: {
         guard: normalizeNumber(enemy.skillCaps?.guard),
         spell: normalizeNumber(enemy.skillCaps?.spell),
@@ -1754,6 +1951,53 @@ function handleBattleOutcome(role, battleState, backpack = []) {
   return true;
 }
 
+function rollEnemyDropEntries(enemyKey, pool = {}) {
+  const entries = Array.isArray(pool[enemyKey]) ? pool[enemyKey] : [];
+  const drops = [];
+
+  entries.forEach((entry) => {
+    const chance = Number(entry?.chance) || 0;
+    if (chance <= 0 || Math.random() >= chance) {
+      return;
+    }
+
+    const seed = itemSeedById.get(entry.itemId);
+    if (!seed) {
+      return;
+    }
+
+    const min = Math.max(1, normalizeNumber(entry.min || 1));
+    const max = Math.max(min, normalizeNumber(entry.max || min));
+    const quantity = min + Math.floor(Math.random() * (max - min + 1));
+    if (quantity <= 0) {
+      return;
+    }
+
+    drops.push({
+      itemId: seed.itemId,
+      quantity,
+      name: seed.name,
+      rarity: seed.rarity,
+      itemType: normalizeItemType(seed.itemType),
+      skillKey: normalizeSkillKey(seed.skillKey),
+      slot: seed.slot,
+      slotUsage: seed.slotUsage,
+      description: seed.description,
+      sellPrice: seed.sellPrice,
+      stats: seed.stats,
+    });
+  });
+
+  return drops;
+}
+
+function rollBattleDrops(enemyKey) {
+  return [
+    ...rollEnemyDropEntries(enemyKey, MATERIAL_DROP_POOL_BY_ENEMY_KEY),
+    ...rollEnemyDropEntries(enemyKey, SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY),
+  ];
+}
+
 function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   const now = options.now || Date.now();
   const battleState = normalizeBattleState(afk.battle_state);
@@ -1765,6 +2009,7 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
       battleState,
       didMutateAfk: false,
       didMutateRole: false,
+      itemDrops: [],
       finished: false,
     };
   }
@@ -1779,11 +2024,13 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
       battleState,
       didMutateAfk: false,
       didMutateRole: false,
+      itemDrops: [],
       finished: false,
     };
   }
 
   let didMutateRole = false;
+  let itemDrops = [];
 
   for (let second = 0; second < elapsedSeconds; second += 1) {
     if (!isBattleActive(battleState)) {
@@ -1827,6 +2074,18 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
     didMutateRole = handleBattleOutcome(role, battleState, backpack) || didMutateRole;
   }
 
+  if (!isBattleActive(battleState) && battleState.outcome?.winner === "player") {
+    itemDrops = rollBattleDrops(battleState.enemy?.key);
+    if (itemDrops.length > 0) {
+      addBattleLog(
+        battleState,
+        `战斗掉落：${itemDrops.map((drop) => `${drop.name} x${drop.quantity}`).join("、")}`,
+        "drop",
+        Date.now(),
+      );
+    }
+  }
+
   battleState.enemy.currentHealth = battleState.enemyCombatant.currentHealth;
   afk.battle_state = battleState;
 
@@ -1835,6 +2094,7 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
     battleState,
     didMutateAfk: true,
     didMutateRole,
+    itemDrops,
     finished: !isBattleActive(battleState),
   };
 }
@@ -1920,7 +2180,10 @@ function buildEncounterDelta(executions, settledAt, mapKey = null) {
           quantity: itemReward.quantity,
           name: itemSeed.name,
           rarity: itemSeed.rarity,
+          itemType: normalizeItemType(itemSeed.itemType),
+          skillKey: normalizeSkillKey(itemSeed.skillKey),
           slot: itemSeed.slot,
+          slotUsage: itemSeed.slotUsage,
           description: itemSeed.description,
           sellPrice: itemSeed.sellPrice,
           stats: itemSeed.stats,
@@ -2016,6 +2279,7 @@ function createSimulationSummary() {
     didMutateBackpack: false,
     didMutateRole: false,
     itemDrops: [],
+    battleItemDrops: [],
   };
 }
 
@@ -2189,6 +2453,11 @@ function settleAfkState(data, options = {}) {
       const battleProgress = resolveBattleProgress(data.role, data.afk, data.backpack, { now: simulatedTimestamp });
       summary.didMutateAfk = battleProgress.didMutateAfk || summary.didMutateAfk;
       summary.didMutateRole = battleProgress.didMutateRole || summary.didMutateRole;
+      if (battleProgress.itemDrops.length > 0) {
+        summary.didMutateBackpack = applyEncounterItemsToBackpack(data.backpack, battleProgress.itemDrops) || summary.didMutateBackpack;
+        summary.itemDrops.push(...battleProgress.itemDrops);
+        summary.battleItemDrops.push(...battleProgress.itemDrops);
+      }
       continue;
     }
 
@@ -2637,6 +2906,8 @@ async function requireDashboardData(guestToken) {
           backpack.equipped_slot_groups,
           item.name,
           item.rarity,
+          item.item_type,
+          item.skill_key,
           item.slot,
           item.slot_usage,
           item.description,
@@ -2662,8 +2933,13 @@ async function requireDashboardData(guestToken) {
   backpackResult.rows.forEach((item) => {
     const itemSeed = itemSeedById.get(item.item_id);
     if (itemSeed) {
+      item.item_type = normalizeItemType(itemSeed.itemType);
+      item.skill_key = normalizeSkillKey(itemSeed.skillKey);
       item.slot = itemSeed.slot;
       item.slot_usage = itemSeed.slotUsage;
+    } else {
+      item.item_type = normalizeItemType(item.item_type);
+      item.skill_key = normalizeSkillKey(item.skill_key);
     }
     item.equipped_slot_groups = normalizeEquippedSlotGroups(item.equipped_slot_groups);
     item.equipped = item.equipped_slot_groups.length > 0;
@@ -2759,6 +3035,8 @@ function buildSnapshot(data, options = {}) {
     backpack: data.backpack.map((item) => ({
       backpackId: item.backpack_id,
       itemId: item.item_id,
+      itemType: normalizeItemType(item.item_type),
+      skillKey: normalizeSkillKey(item.skill_key),
       quantity: item.quantity,
       equipped: item.equipped,
       equippedCount: getBackpackEquippedCount(item),
@@ -3090,6 +3368,10 @@ async function equipBackpackItemForGuest(guestToken, backpackId) {
     throw new Error("要装备的物品不存在。");
   }
 
+  if (!isEquipmentItem(matchedItem)) {
+    throw new Error("该物品不是装备类型，无法穿戴。");
+  }
+
   allocateEquipmentSlots(data.role, data.backpack, matchedItem);
   sortBackpackRows(data.backpack);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
@@ -3119,6 +3401,10 @@ async function unequipBackpackItemForGuest(guestToken, backpackId) {
     throw new Error("要脱下的物品不存在。");
   }
 
+  if (!isEquipmentItem(matchedItem)) {
+    throw new Error("该物品不是装备类型，无法卸下。");
+  }
+
   removeOneEquippedGroup(matchedItem);
   sortBackpackRows(data.backpack);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
@@ -3128,6 +3414,91 @@ async function unequipBackpackItemForGuest(guestToken, backpackId) {
       await persistRole(client, data.role);
     }
     await persistBackpackEquipState(client, data.backpack);
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
+async function learnSkillBookForGuest(guestToken, backpackId) {
+  await ensureRuntimeGameConfig();
+  const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
+
+  if (!normalizedBackpackId) {
+    throw new Error("缺少背包物品标识。");
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
+
+  if (!matchedItem) {
+    throw new Error("要学习的技能书不存在。");
+  }
+
+  if (normalizeItemType(matchedItem.item_type) !== "skill_book") {
+    throw new Error("该物品不是技能书，无法学习。");
+  }
+
+  const skillKey = normalizeSkillKey(matchedItem.skill_key);
+
+  if (!skillKey) {
+    throw new Error("该技能书缺少技能定义，无法学习。");
+  }
+
+  await withTransaction(async (client) => {
+    const lockedItemResult = await client.query(
+      `
+        SELECT
+          backpack.backpack_id,
+          backpack.item_id,
+          backpack.quantity,
+          item.name,
+          item.item_type,
+          item.skill_key
+        FROM backpack
+        JOIN item ON item.item_id = backpack.item_id
+        WHERE backpack.role_id = $1 AND backpack.backpack_id = $2
+        FOR UPDATE
+      `,
+      [data.role.role_id, matchedItem.backpack_id],
+    );
+    const lockedItem = lockedItemResult.rows[0];
+
+    if (!lockedItem) {
+      throw new Error("要学习的技能书不存在。");
+    }
+
+    if (normalizeItemType(lockedItem.item_type) !== "skill_book") {
+      throw new Error("该物品不是技能书，无法学习。");
+    }
+
+    const lockedSkillKey = normalizeSkillKey(lockedItem.skill_key);
+    if (!lockedSkillKey) {
+      throw new Error("该技能书缺少技能定义，无法学习。");
+    }
+
+    addLearnedSkillFromBook(data.role, lockedSkillKey, {
+      acquisitionHint: `通过技能书 ${lockedItem.name} 学会。`,
+      bookName: lockedItem.name,
+    });
+
+    if (normalizeNumber(lockedItem.quantity) <= 1) {
+      const deleted = await deleteBackpackEntry(client, data.role.role_id, lockedItem.backpack_id);
+
+      if (!deleted) {
+        throw new Error("技能书消耗失败，请稍后重试。");
+      }
+    } else {
+      await client.query(
+        `
+          UPDATE backpack
+          SET quantity = quantity - 1, updated_at = NOW()
+          WHERE backpack_id = $1 AND role_id = $2 AND quantity > 0
+        `,
+        [lockedItem.backpack_id, data.role.role_id],
+      );
+    }
+
+    await persistRole(client, data.role);
   });
 
   return getSessionSnapshot(guestToken);
@@ -3158,6 +3529,10 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
     throw new Error("要上架的物品不存在。");
   }
 
+  if (!isEquipmentItem(matchedItem)) {
+    throw new Error("只有装备类型物品才能上架市场。");
+  }
+
   if (matchedItem.quantity <= (matchedItem.equipped_slot_groups || []).length) {
     throw new Error("这件物品没有可上架的剩余数量。");
   }
@@ -3173,6 +3548,8 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
           backpack.equipped_slot_groups,
           item.name,
           item.rarity,
+          item.item_type,
+          item.skill_key,
           item.slot,
           item.slot_usage,
           item.description,
@@ -3189,6 +3566,10 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
 
     if (!lockedBackpackItem) {
       throw new Error("要上架的物品不存在。");
+    }
+
+    if (!isEquipmentItem(lockedBackpackItem)) {
+      throw new Error("只有装备类型物品才能上架市场。");
     }
 
     lockedBackpackItem.equipped_slot_groups = normalizeEquippedSlotGroups(lockedBackpackItem.equipped_slot_groups);
@@ -3474,5 +3855,6 @@ module.exports = {
   claimAfkRewardForGuest,
   dropBackpackItemForGuest,
   equipBackpackItemForGuest,
+  learnSkillBookForGuest,
   unequipBackpackItemForGuest,
 };

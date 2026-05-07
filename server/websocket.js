@@ -18,6 +18,7 @@ const {
   dropBackpackItemForGuest,
   equipBackpackItemForGuest,
   getSessionSnapshot,
+  learnSkillBookForGuest,
   startAfkForGuest,
   stopAfkForGuest,
   unequipBackpackItemForGuest,
@@ -234,6 +235,15 @@ async function handleBackpackUnequip(connection, session, packet) {
   sendSnapshot(connection, snapshot, "unequip");
 }
 
+async function handleBackpackLearnSkillBook(connection, session, packet) {
+  const backpackId = typeof packet.payload?.backpackId === "string"
+    ? packet.payload.backpackId
+    : "";
+  const snapshot = await learnSkillBookForGuest(session.guestToken, backpackId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "learn-skill-book");
+}
+
 async function handleMarketCreate(connection, session, packet) {
   const backpackId = typeof packet.payload?.backpackId === "string"
     ? packet.payload.backpackId
@@ -322,6 +332,11 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:backpack:unequip") {
     await handleBackpackUnequip(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:backpack:learn-skill-book") {
+    await handleBackpackLearnSkillBook(connection, session, packet);
     return;
   }
 

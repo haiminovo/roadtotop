@@ -195,6 +195,8 @@ function itemGlyph(name: string) {
 const EMPTY_BACKPACK: Array<{
   backpackId: string;
   itemId: string;
+  itemType: "equipment" | "skill_book" | "material";
+  skillKey: string | null;
   quantity: number;
   equipped: boolean;
   equippedCount: number;
@@ -209,7 +211,7 @@ const EMPTY_BACKPACK: Array<{
 }> = [];
 
 type BackpackItem = typeof EMPTY_BACKPACK[number];
-type ItemActionKey = "drop" | "equip" | "unequip" | "sell";
+type ItemActionKey = "drop" | "equip" | "unequip" | "sell" | "learn";
 type PendingItemAction = {
   actionKey: ItemActionKey;
   backpackId: string;
@@ -269,15 +271,19 @@ function getAvailableItemActions(item: BackpackItem, messages: I18nMessages = DE
   const equippedCount = item.equippedCount ?? 0;
   const sellableQuantity = Math.max(0, item.quantity - equippedCount);
 
-  if (item.quantity > equippedCount) {
+  if (item.itemType === "equipment" && item.quantity > equippedCount) {
     actions.push(getItemActionDefinition("equip", messages));
   }
 
-  if (equippedCount > 0) {
+  if (item.itemType === "equipment" && equippedCount > 0) {
     actions.push(getItemActionDefinition("unequip", messages));
   }
 
-  if (sellableQuantity > 0) {
+  if (item.itemType === "skill_book" && sellableQuantity > 0) {
+    actions.push(getItemActionDefinition("learn", messages));
+  }
+
+  if (item.itemType === "equipment" && sellableQuantity > 0) {
     actions.push(getItemActionDefinition("sell", messages));
   }
 
@@ -1718,6 +1724,7 @@ function MainDashboard() {
     error,
     registerAccount,
     isRealtimeReady,
+    learnSkillBook,
     selectedMapKey,
     selectMap,
     setActivePanel,
@@ -1812,10 +1819,10 @@ function MainDashboard() {
   const actionItem = backpack.find((item) => item.backpackId === itemActionBackpackId);
   const marketSellItem = backpack.find((item) => item.backpackId === marketSellBackpackId);
   const marketListings = snapshot?.market.listings ?? [];
-  const marketSellableQuantity = marketSellItem
+  const marketSellableQuantity = marketSellItem && marketSellItem.itemType === "equipment"
     ? Math.max(0, marketSellItem.quantity - (marketSellItem.equippedCount ?? 0))
     : 0;
-  const marketReferenceListing = marketSellItem
+  const marketReferenceListing = marketSellItem && marketSellItem.itemType === "equipment"
     ? marketListings.find((listing) => listing.itemId === marketSellItem.itemId) ?? null
     : null;
   const marketReferencePrice = marketReferenceListing?.price ?? null;
@@ -2040,6 +2047,13 @@ function MainDashboard() {
                 ].join(" ")}
                 disabled={isRealtimeActionDisabled}
                 onClick={() => {
+                  if (action.actionKey === "learn") {
+                    void learnSkillBook(actionItem.backpackId).then(() => {
+                      setItemActionBackpackId(null);
+                    }).catch(() => {});
+                    return;
+                  }
+
                   if (action.actionKey === "equip") {
                     void equipBackpackItem(actionItem.backpackId).then(() => {
                       setItemActionBackpackId(null);
@@ -2054,9 +2068,13 @@ function MainDashboard() {
                     return;
                   }
 
-                  if (action.actionKey === "sell") {
-                    setItemActionBackpackId(null);
-                    setMarketSellBackpackId(actionItem.backpackId);
+                if (action.actionKey === "sell") {
+                  if (actionItem.itemType !== "equipment") {
+                    return;
+                  }
+
+                  setItemActionBackpackId(null);
+                  setMarketSellBackpackId(actionItem.backpackId);
                     const currentMarketPrice =
                       snapshot.market.listings.find((listing) => listing.itemId === actionItem.itemId)?.price
                       ?? null;
@@ -2234,6 +2252,7 @@ function MainDashboard() {
               className="flex-1 rounded-[1rem] bg-amber-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={
                 isRealtimeActionDisabled
+                || marketSellItem.itemType !== "equipment"
                 || Number(marketSellPrice) <= 0
                 || Number(marketSellQuantity) <= 0
                 || Number(marketSellQuantity) > marketSellableQuantity

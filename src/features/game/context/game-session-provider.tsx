@@ -629,6 +629,18 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, sendSocketMessage]);
 
+  const learnSkillBook = useCallback(async (backpackId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:backpack:learn-skill-book", { backpackId });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "学习技能书失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
   const unequipBackpackItem = useCallback(async (backpackId: string) => {
     try {
       setStatus("saving");
@@ -675,6 +687,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       error,
       guestLogin,
       isRealtimeReady,
+      learnSkillBook,
       registerAccount,
       sendChatMessage,
       selectedMapKey,
@@ -703,6 +716,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       error,
       guestLogin,
       isRealtimeReady,
+      learnSkillBook,
       registerAccount,
       sendChatMessage,
       selectedMapKey,

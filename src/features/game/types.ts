@@ -3,6 +3,7 @@ import type {
   BodySlotCapacities,
   BodySlotType,
   ClassConfig,
+  GameItemType,
   MapConfig,
   EncounterTier,
   PanelKey,
@@ -152,6 +153,8 @@ export type BattleSnapshot = {
 export type BackpackEntry = {
   backpackId: string;
   itemId: string;
+  itemType: GameItemType;
+  skillKey: string | null;
   quantity: number;
   equipped: boolean;
   equippedCount: number;
@@ -333,6 +336,7 @@ export type GameSessionContextValue = {
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
   equipBackpackItem: (backpackId: string) => Promise<void>;
+  learnSkillBook: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;
   isRealtimeReady: boolean;

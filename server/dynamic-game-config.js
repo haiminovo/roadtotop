@@ -35,6 +35,27 @@ const DEFAULT_RACE_CONFIGS = [
     stats: { strength: 7, agility: 3, intelligence: 3, vitality: 7 },
     bodySlotAdjustments: { accessory: -1 },
   },
+  {
+    key: "orc",
+    label: "兽人",
+    summary: "力量与体质极强，能以更凶悍的方式推进战斗。",
+    stats: { strength: 8, agility: 4, intelligence: 2, vitality: 6 },
+    bodySlotAdjustments: { hand: 1, accessory: -1 },
+  },
+  {
+    key: "lizardfolk",
+    label: "蜥蜴人",
+    summary: "爆发速度与生存能力兼具，擅长拉扯和持续作战。",
+    stats: { strength: 4, agility: 8, intelligence: 4, vitality: 6 },
+    bodySlotAdjustments: { feet: 1 },
+  },
+  {
+    key: "moonkin",
+    label: "月裔",
+    summary: "智力成长极高，偏向法术和控制流派。",
+    stats: { strength: 2, agility: 4, intelligence: 9, vitality: 5 },
+    bodySlotAdjustments: { neck: 1 },
+  },
 ];
 
 const DEFAULT_CLASS_CONFIGS = [
@@ -59,6 +80,27 @@ const DEFAULT_CLASS_CONFIGS = [
     starterItemId: "field-hoe",
     stats: { strength: 2, agility: 2, intelligence: 1, vitality: 4 },
   },
+  {
+    key: "ranger",
+    label: "游侠",
+    summary: "偏敏捷与机动，擅长抢节奏和持续输出。",
+    starterItemId: "training-bow",
+    stats: { strength: 2, agility: 5, intelligence: 1, vitality: 2 },
+  },
+  {
+    key: "priest",
+    label: "祭司",
+    summary: "法术与续航更稳，适合中后期滚雪球。",
+    starterItemId: "whisper-wand",
+    stats: { strength: 1, agility: 1, intelligence: 4, vitality: 3 },
+  },
+  {
+    key: "rogue",
+    label: "潜行者",
+    summary: "上手快、爆发高，适合喜欢高风险高收益的玩家。",
+    starterItemId: "bronze-longsword",
+    stats: { strength: 3, agility: 5, intelligence: 1, vitality: 1 },
+  },
 ];
 
 const DEFAULT_MAP_CONFIGS = [
@@ -81,9 +123,9 @@ const DEFAULT_MAP_CONFIGS = [
 ];
 
 const DEFAULT_AFK_ENCOUNTER_CHANCES = {
-  common: 0.1,
-  rare: 0.01,
-  legendary: 0.001,
+  common: 0.06,
+  rare: 0.006,
+  legendary: 0.0005,
 };
 
 const DEFAULT_AFK_ENCOUNTER_POOL = [
@@ -159,6 +201,72 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
     description: "古老封印在你面前自行开启，匣中溢出的星光化作了惊人的收获。",
     reward: { gold: 1280, aetherCrystal: 12, exp: 188, healthDelta: 32, items: [{ itemId: "dawnfire-pendant", quantity: 1 }] },
   },
+  {
+    key: "fallen-watchtower",
+    mapKeys: ["palmia-wilds"],
+    tier: "common",
+    title: "坍塌哨塔",
+    description: "你在破败哨塔间翻找，只捡到一袋零钱和几页残旧记录。",
+    reward: { gold: 44, aetherCrystal: 0, exp: 10, items: [{ itemId: "material-wolf-fang", quantity: 1 }] },
+  },
+  {
+    key: "herbal-hollow",
+    mapKeys: ["palmia-wilds"],
+    tier: "common",
+    title: "草药浅坑",
+    description: "地面草药气味浓重，你顺手调配出止痛药膏，缓住了伤势。",
+    reward: { gold: 8, aetherCrystal: 1, exp: 10, healthDelta: 16 },
+  },
+  {
+    key: "old-snare-line",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
+    tier: "common",
+    title: "旧捕索线",
+    description: "你险些踩中废弃捕索，躲开后仍被擦伤，幸好补给还算完整。",
+    reward: { gold: 30, aetherCrystal: 0, exp: 9, healthDelta: -8 },
+  },
+  {
+    key: "echoing-crevice",
+    mapKeys: ["moonfall-ruins"],
+    tier: "rare",
+    title: "回响裂隙",
+    description: "你在裂隙深处听见规律回响，顺着回声找到了隐藏晶簇。",
+    reward: { gold: 112, aetherCrystal: 5, exp: 52, healthDelta: -12, items: [{ itemId: "material-crystal-shard", quantity: 2 }] },
+  },
+  {
+    key: "ashen-cache",
+    mapKeys: ["moonfall-ruins"],
+    tier: "rare",
+    title: "烬灰补给箱",
+    description: "被灰烬掩埋的军用补给箱仍能开启，里面残存着完好的护具。",
+    reward: { gold: 146, aetherCrystal: 2, exp: 34, items: [{ itemId: "runic-vest", quantity: 1 }] },
+  },
+  {
+    key: "moonshard-choir",
+    mapKeys: ["moonfall-ruins"],
+    tier: "legendary",
+    title: "月晶圣咏",
+    description: "遍地碎晶突然共鸣，你在短暂失神中领悟并汲取了古老力量。",
+    reward: {
+      gold: 1560,
+      aetherCrystal: 20,
+      exp: 260,
+      healthDelta: 48,
+      items: [
+        { itemId: "stormglass-staff", quantity: 1 },
+        { itemId: "skillbook-arcane-burst", quantity: 1 },
+        { itemId: "material-moon-dust", quantity: 2 },
+      ],
+    },
+  },
+  {
+    key: "sunken-arsenal",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
+    tier: "legendary",
+    title: "沉没军械所",
+    description: "塌陷地窟深处藏着旧王朝军械，一件完好的传奇武装被你带走。",
+    reward: { gold: 1488, aetherCrystal: 15, exp: 238, healthDelta: -20, items: [{ itemId: "knightwatch-mail", quantity: 1 }] },
+  },
 ];
 
 const DEFAULT_BATTLE_ENEMIES = [
@@ -201,6 +309,22 @@ const DEFAULT_BATTLE_ENEMIES = [
     summary: "驻守在遗迹深处的残损傀儡，会用晶片爆发压制血线。",
     skillCaps: { guard: 2, spell: 2 },
     statWeights: { agility: 0.9, intelligence: 1.1, strength: 1.05, vitality: 1.2 },
+  },
+  {
+    key: "gloomfang-panther",
+    mapKeys: ["palmia-wilds", "moonfall-ruins"],
+    name: "黯牙影豹",
+    summary: "会利用地形突袭，攻势凌厉且具有压制力。",
+    skillCaps: { guard: 1, spell: 1 },
+    statWeights: { agility: 1.25, intelligence: 0.7, strength: 1.05, vitality: 0.95 },
+  },
+  {
+    key: "sunken-warden",
+    mapKeys: ["moonfall-ruins"],
+    name: "沉渊看守者",
+    summary: "古代重甲守卫，节奏慢但每次出手都极具威胁。",
+    skillCaps: { guard: 2, spell: 1 },
+    statWeights: { agility: 0.7, intelligence: 0.8, strength: 1.25, vitality: 1.35 },
   },
 ];
 
@@ -348,6 +472,126 @@ const DEFAULT_SKILL_TEMPLATES = [
     ],
   },
   {
+    key: "venom-thrust",
+    name: "毒牙突刺",
+    iconText: "毒",
+    description: "突进刺击后附带毒素，能在后续回合持续压低对手血线。",
+    quality: "blue",
+    category: "attack",
+    trigger: "random",
+    acquisitionHint: "可通过稀有奇遇与潜行者系技能书获得。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.25,
+    levelDamageGrowth: 0.11,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 1,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "venom-thrust-dot",
+        name: "毒液侵蚀",
+        description: "持续造成伤害。",
+        effectType: "damage_over_time",
+        target: "enemy",
+        durationTurns: 3,
+        magnitude: 0.2,
+      },
+      {
+        key: "venom-thrust-agi-down",
+        name: "筋络麻痹",
+        description: "降低敌方敏捷。",
+        effectType: "agility_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 3,
+      },
+    ],
+  },
+  {
+    key: "moon-prayer",
+    name: "月祷庇佑",
+    iconText: "祷",
+    description: "祈愿月辉护体，短时间内恢复生命并提高防御。",
+    quality: "purple",
+    category: "guard",
+    trigger: "low-health",
+    acquisitionHint: "祭司职业传承或传说奇遇技能书。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 0,
+    levelDamageGrowth: 0,
+    healRatio: 0.26,
+    levelHealGrowth: 0.03,
+    guardRatio: 0.52,
+    levelGuardGrowth: 0.02,
+    maxUses: 1,
+    cooldownTurns: 2,
+    effects: [
+      {
+        key: "moon-prayer-defense-up",
+        name: "圣辉护障",
+        description: "提高自身防御。",
+        effectType: "defense_up",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 0.42,
+      },
+      {
+        key: "moon-prayer-hot",
+        name: "余晖回流",
+        description: "每回合恢复生命。",
+        effectType: "heal_over_time",
+        target: "self",
+        durationTurns: 2,
+        magnitude: 0.1,
+      },
+    ],
+  },
+  {
+    key: "storm-lance",
+    name: "风暴穿枪",
+    iconText: "岚",
+    description: "凝聚风压与雷弧投射，命中后压制对手攻势。",
+    quality: "purple",
+    category: "spell",
+    trigger: "enemy-low-health",
+    acquisitionHint: "月陨遗迹深层奇遇与高阶法术书。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 3.05,
+    levelDamageGrowth: 0.14,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 2,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "storm-lance-attack-down",
+        name: "雷殛压制",
+        description: "降低敌方攻击。",
+        effectType: "attack_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.18,
+      },
+      {
+        key: "storm-lance-int-down",
+        name: "法流紊乱",
+        description: "降低敌方智力。",
+        effectType: "intelligence_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 4,
+      },
+    ],
+  },
+  {
     key: "enemy-chaos-spell",
     name: "混沌咒击",
     iconText: "咒",
@@ -421,29 +665,36 @@ const DEFAULT_SKILL_TEMPLATES = [
 ];
 
 const DEFAULT_ITEM_CATALOG = [
-  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
-  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
-  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
-  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
-  { itemId: "training-bow", name: "练习短弓", rarity: "white", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
-  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
-  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
-  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
-  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
-  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
-  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
-  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
-  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
-  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
-  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
-  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
-  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
+  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
+  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
+  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
+  { itemId: "training-bow", name: "练习短弓", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
+  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", itemType: "equipment", skillKey: null, slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
+  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
+  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
+  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
+  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
+  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
+  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
+  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
+  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
+  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
+  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
+  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
+  { itemId: "obsidian-edge", name: "黑曜断刃", rarity: "orange", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "淬火黑曜石锻成的利刃，兼具穿透力与稳定性。", sellPrice: 338, stats: { strength: 6, agility: 2 } },
+  { itemId: "skillbook-focus-strike", name: "技能书·凝神重击", rarity: "white", itemType: "skill_book", skillKey: "focus-strike", slot: "accessory", slotUsage: 1, description: "记录了基础斩击心法的技能书。学习后可掌握凝神重击。", sellPrice: 28, stats: {} },
+  { itemId: "skillbook-iron-guard", name: "技能书·铁壁守势", rarity: "green", itemType: "skill_book", skillKey: "iron-guard", slot: "accessory", slotUsage: 1, description: "记载守势要诀的技能书。学习后可掌握铁壁守势。", sellPrice: 60, stats: {} },
+  { itemId: "skillbook-arcane-burst", name: "技能书·奥术爆裂", rarity: "blue", itemType: "skill_book", skillKey: "arcane-burst", slot: "accessory", slotUsage: 1, description: "封存奥术结构的技能书。学习后可掌握奥术爆裂。", sellPrice: 110, stats: {} },
+  { itemId: "material-wolf-fang", name: "狼牙", rarity: "white", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "常见野兽掉落材料，可用于后续制作与任务。", sellPrice: 6, stats: {} },
+  { itemId: "material-crystal-shard", name: "碎晶片", rarity: "green", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "奇遇与遗迹怪物常见材料，带有微弱能量。", sellPrice: 12, stats: {} },
+  { itemId: "material-moon-dust", name: "月尘", rarity: "blue", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。", sellPrice: 24, stats: {} },
 ];
 
 const DEFAULT_SYSTEM_BALANCE = {
   marketFeeRatePercent: 10,
-  battleTriggerChance: 0.2,
+  battleTriggerChance: 0.24,
   actionBarTarget: 100,
   playerHealRatio: 0.18,
   playerGuardRatio: 0.45,
@@ -497,6 +748,12 @@ function asRarity(value) {
     || value === "orange"
     ? value
     : "white";
+}
+
+function asItemType(value) {
+  return value === "skill_book" || value === "material" || value === "equipment"
+    ? value
+    : "equipment";
 }
 
 function asSkillCategory(value) {
@@ -570,11 +827,8 @@ function normalizeStats(value) {
 }
 
 function normalizeRaces(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_RACE_CONFIGS;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
 
@@ -590,17 +844,29 @@ function normalizeRaces(value) {
         bodySlotAdjustments: normalizeBodySlotAdjustments(source.bodySlotAdjustments),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_RACE_CONFIGS];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_RACE_CONFIGS;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeClasses(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_CLASS_CONFIGS;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
 
@@ -616,17 +882,29 @@ function normalizeClasses(value) {
         stats: normalizeStats(source.stats),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_CLASS_CONFIGS];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_CLASS_CONFIGS;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeMaps(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_MAP_CONFIGS;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
 
@@ -643,9 +921,24 @@ function normalizeMaps(value) {
         expPerMinute: asNumber(source.expPerMinute, 0),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_MAP_CONFIGS];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_MAP_CONFIGS;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeEncounterChances(value) {
@@ -655,11 +948,17 @@ function normalizeEncounterChances(value) {
     return DEFAULT_AFK_ENCOUNTER_CHANCES;
   }
 
-  return {
+  const next = {
     common: asNumber(source.common, DEFAULT_AFK_ENCOUNTER_CHANCES.common),
     rare: asNumber(source.rare, DEFAULT_AFK_ENCOUNTER_CHANCES.rare),
     legendary: asNumber(source.legendary, DEFAULT_AFK_ENCOUNTER_CHANCES.legendary),
   };
+
+  if (next.common === 0.1 && next.rare === 0.01 && next.legendary === 0.001) {
+    return DEFAULT_AFK_ENCOUNTER_CHANCES;
+  }
+
+  return next;
 }
 
 function normalizeEncounterReward(value) {
@@ -679,6 +978,8 @@ function normalizeEncounterReward(value) {
         quantity: Math.max(1, asInt(item.quantity, 1)),
         name: asString(item.name) || undefined,
         rarity: asRarity(item.rarity),
+        itemType: asItemType(item.itemType),
+        skillKey: asString(item.skillKey).trim() || undefined,
       });
     }
   }
@@ -693,11 +994,8 @@ function normalizeEncounterReward(value) {
 }
 
 function normalizeEncounters(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_AFK_ENCOUNTER_POOL;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
 
@@ -714,17 +1012,29 @@ function normalizeEncounters(value) {
         reward: normalizeEncounterReward(source.reward),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_AFK_ENCOUNTER_POOL];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_AFK_ENCOUNTER_POOL;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeBattleEnemies(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_BATTLE_ENEMIES;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
       const skillCaps = asObject(source?.skillCaps);
@@ -739,6 +1049,11 @@ function normalizeBattleEnemies(value) {
         ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
         name: asString(source.name),
         summary: asString(source.summary),
+        fixedSkillKeys: Array.isArray(source.fixedSkillKeys)
+          ? source.fixedSkillKeys
+            .map((entry) => asString(entry).trim())
+            .filter(Boolean)
+          : undefined,
         skillCaps: {
           guard: asInt(skillCaps?.guard, 0),
           spell: asInt(skillCaps?.spell, 0),
@@ -751,9 +1066,24 @@ function normalizeBattleEnemies(value) {
         },
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_BATTLE_ENEMIES];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_BATTLE_ENEMIES;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeSkillEffects(value) {
@@ -783,11 +1113,8 @@ function normalizeSkillEffects(value) {
 }
 
 function normalizeSkillTemplates(value) {
-  if (!Array.isArray(value)) {
-    return DEFAULT_SKILL_TEMPLATES;
-  }
-
-  const normalized = value
+  const normalized = Array.isArray(value)
+    ? value
     .map((entry) => {
       const source = asObject(entry);
 
@@ -817,9 +1144,24 @@ function normalizeSkillTemplates(value) {
         effects: normalizeSkillEffects(source.effects),
       };
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_SKILL_TEMPLATES];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
 
-  return normalized.length > 0 ? normalized : DEFAULT_SKILL_TEMPLATES;
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
 }
 
 function normalizeSystemBalance(value) {
@@ -857,6 +1199,25 @@ function normalizeSystemBalance(value) {
     playerGuardCooldownTurns: asInt(source.playerGuardCooldownTurns, DEFAULT_SYSTEM_BALANCE.playerGuardCooldownTurns),
     enemyGuardCooldownTurns: asInt(source.enemyGuardCooldownTurns, DEFAULT_SYSTEM_BALANCE.enemyGuardCooldownTurns),
   };
+}
+
+function mergeItemCatalog(itemCatalog) {
+  const merged = [...DEFAULT_ITEM_CATALOG];
+  const indexById = new Map(merged.map((item, index) => [item.itemId, index]));
+
+  itemCatalog.forEach((item) => {
+    const existingIndex = indexById.get(item.itemId);
+
+    if (existingIndex === undefined) {
+      indexById.set(item.itemId, merged.length);
+      merged.push(item);
+      return;
+    }
+
+    merged[existingIndex] = item;
+  });
+
+  return merged;
 }
 
 function createEncounterTierBucket() {
@@ -946,6 +1307,8 @@ async function getDynamicGameConfig() {
         item_id,
         name,
         rarity,
+        item_type,
+        skill_key,
         slot,
         slot_usage,
         description,
@@ -963,16 +1326,18 @@ async function getDynamicGameConfig() {
     afkEncounterPool: normalizeEncounters(configByKey.get("afk-encounters")),
     battleEnemyTemplates: normalizeBattleEnemies(configByKey.get("battle-enemies")),
     classConfigs: normalizeClasses(configByKey.get("classes")),
-    itemCatalog: itemResult.rows.map((item) => ({
+    itemCatalog: mergeItemCatalog(itemResult.rows.map((item) => ({
       itemId: item.item_id,
       name: item.name,
       rarity: item.rarity,
+      itemType: asItemType(item.item_type),
+      skillKey: item.skill_key || null,
       slot: item.slot,
       slotUsage: item.slot_usage,
       description: item.description,
       sellPrice: item.sell_price,
       stats: item.stat_json || {},
-    })),
+    }))),
     levelTable: DEFAULT_LEVEL_TABLE,
     mapConfigs: normalizeMaps(configByKey.get("maps")),
     raceConfigs: normalizeRaces(configByKey.get("races")),
