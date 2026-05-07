@@ -23,6 +23,15 @@ export type RewardPreview = {
   exp: number;
 };
 
+export type SecondaryStats = {
+  critChance: number;
+  critDamage: number;
+  dodgeChance: number;
+  blockChance: number;
+  blockDamageReduction: number;
+  healthRegenRate: number;
+};
+
 export type BattleLogEntry = {
   id: string;
   text: string;
@@ -122,6 +131,7 @@ export type BattleSnapshot = {
       intelligence: number;
       vitality: number;
     };
+    secondaryStats: SecondaryStats;
   };
   enemy: {
     key: string;
@@ -146,6 +156,7 @@ export type BattleSnapshot = {
       intelligence: number;
       vitality: number;
     };
+    secondaryStats: SecondaryStats;
   };
   logs: BattleLogEntry[];
 };
@@ -247,6 +258,7 @@ export type SessionSnapshot = {
       intelligence: number;
       vitality: number;
     };
+    secondaryStats: SecondaryStats;
     bodySlotCapacities: BodySlotCapacities;
     skillSlots: {
       total: number;

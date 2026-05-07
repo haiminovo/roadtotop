@@ -988,8 +988,20 @@ function calculateDamageReduction(vitality) {
   return clamp(normalizeNumber(vitality) / 20, 0, 0.85);
 }
 
-function calculateDodgeChance(agility) {
-  return clamp(normalizeNumber(agility) / 50, 0, 0.75);
+function calculateSecondaryStats(stats) {
+  const strength = Math.max(1, normalizeNumber(stats?.strength));
+  const agility = Math.max(1, normalizeNumber(stats?.agility));
+  const intelligence = Math.max(1, normalizeNumber(stats?.intelligence));
+  const vitality = Math.max(1, normalizeNumber(stats?.vitality));
+
+  return {
+    critChance: clamp(0.05 + agility * 0.006 + strength * 0.0015, 0.05, 0.65),
+    critDamage: clamp(1.35 + strength * 0.018 + intelligence * 0.008, 1.35, 3),
+    dodgeChance: clamp(0.02 + agility * 0.005 + intelligence * 0.0015, 0.02, 0.5),
+    blockChance: clamp(0.03 + vitality * 0.004 + strength * 0.0015, 0.03, 0.45),
+    blockDamageReduction: clamp(0.15 + vitality * 0.006 + strength * 0.003, 0.15, 0.6),
+    healthRegenRate: clamp(0.003 + vitality * 0.0009 + intelligence * 0.0004, 0, 0.04),
+  };
 }
 
 function summarizeBattleEffect(effect) {
@@ -1113,14 +1125,18 @@ function getCombatantStatModifiers(combatant) {
 
 function getCombatantEffectiveStats(combatant) {
   const modifiers = getCombatantStatModifiers(combatant);
-
-  return {
+  const baseStats = {
     strength: Math.max(1, normalizeNumber(combatant.stats.strength) + normalizeSignedNumber(modifiers.strengthFlat)),
     agility: Math.max(1, normalizeNumber(combatant.stats.agility) + normalizeSignedNumber(modifiers.agilityFlat)),
     intelligence: Math.max(1, normalizeNumber(combatant.stats.intelligence) + normalizeSignedNumber(modifiers.intelligenceFlat)),
     vitality: Math.max(1, normalizeNumber(combatant.stats.vitality) + normalizeSignedNumber(modifiers.vitalityFlat)),
+  };
+
+  return {
+    ...baseStats,
     attackRate: modifiers.attackRate,
     defenseRate: modifiers.defenseRate,
+    secondaryStats: calculateSecondaryStats(baseStats),
   };
 }
 
@@ -1193,11 +1209,28 @@ function applyInstantSkillEffects(battleState, actor, defender, skill, timestamp
 }
 
 function tickCombatantEffects(battleState, combatant, timestamp) {
+  const effectiveStats = getCombatantEffectiveStats(combatant);
+  const passiveRegen = Math.max(0, Number(effectiveStats.secondaryStats.healthRegenRate) || 0);
+
+  if (passiveRegen > 0 && combatant.currentHealth < combatant.maxHealth) {
+    const healAmount = Math.max(1, Math.round(combatant.maxHealth * passiveRegen));
+    const previousHealth = combatant.currentHealth;
+    combatant.currentHealth = Math.min(combatant.maxHealth, combatant.currentHealth + healAmount);
+    const actualHeal = Math.max(0, combatant.currentHealth - previousHealth);
+
+    if (actualHeal > 0) {
+      addBattleLog(
+        battleState,
+        `${combatant.name} 触发生命回复，恢复 ${actualHeal} 点生命。`,
+        "regen",
+        timestamp,
+      );
+    }
+  }
+
   if (!Array.isArray(combatant.activeEffects) || combatant.activeEffects.length === 0) {
     return;
   }
-
-  const effectiveStats = getCombatantEffectiveStats(combatant);
 
   combatant.activeEffects.forEach((effect) => {
     const magnitude = Number(effect.magnitude) || 0;
@@ -1788,10 +1821,14 @@ function applyBattleDamage(attacker, defender, battleAction) {
   const defenderEffectiveStats = getCombatantEffectiveStats(defender);
   const attackRate = clamp(1 + attackerEffectiveStats.attackRate, 0.1, 5);
   const defenseRateBonus = clamp(defenderEffectiveStats.defenseRate, -0.8, 0.8);
+  const attackerSecondaryStats = attackerEffectiveStats.secondaryStats || calculateSecondaryStats(attackerEffectiveStats);
+  const defenderSecondaryStats = defenderEffectiveStats.secondaryStats || calculateSecondaryStats(defenderEffectiveStats);
 
-  if (Math.random() < calculateDodgeChance(defenderEffectiveStats.agility)) {
+  if (Math.random() < defenderSecondaryStats.dodgeChance) {
     return {
       didDodge: true,
+      didCrit: false,
+      didBlock: false,
       damage: 0,
     };
   }
@@ -1801,12 +1838,23 @@ function applyBattleDamage(attacker, defender, battleAction) {
       ? (defender.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)
       : 0
   );
-  const scaledDamage = battleAction.damage * attackRate;
-  const damage = Math.max(1, Math.round(scaledDamage * (1 - clamp(reductionRate, 0, 0.9))));
+  const didCrit = Math.random() < attackerSecondaryStats.critChance;
+  const critDamageMultiplier = didCrit ? attackerSecondaryStats.critDamage : 1;
+  const scaledDamage = battleAction.damage * attackRate * critDamageMultiplier;
+  let damageAfterReduction = scaledDamage * (1 - clamp(reductionRate, 0, 0.9));
+  const didBlock = Math.random() < defenderSecondaryStats.blockChance;
+
+  if (didBlock) {
+    damageAfterReduction *= 1 - clamp(defenderSecondaryStats.blockDamageReduction, 0, 0.9);
+  }
+
+  const damage = Math.max(1, Math.round(damageAfterReduction));
 
   defender.currentHealth = Math.max(0, defender.currentHealth - damage);
   return {
     didDodge: false,
+    didCrit,
+    didBlock,
     damage,
   };
 }
@@ -1887,9 +1935,19 @@ function resolveBattleAction(battleState, actingSide, timestamp) {
     if (usedSkill) {
       applyInstantSkillEffects(battleState, actor, defender, usedSkill, timestamp);
     }
+    const battleTags = [];
+
+    if (damageResult.didCrit) {
+      battleTags.push("暴击");
+    }
+
+    if (damageResult.didBlock) {
+      battleTags.push("格挡");
+    }
+
     addBattleLog(
       battleState,
-      `${actor.name}${usedSkill ? ` 施放 ${usedSkill.name}` : decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害。`,
+      `${actor.name}${usedSkill ? ` 施放 ${usedSkill.name}` : decision.action === "spell" ? " 施放法术" : " 发动普攻"}，对 ${defender.name} 造成 ${damageResult.damage} 点伤害${battleTags.length > 0 ? `（${battleTags.join(" / ")}）` : ""}。`,
       decision.action,
       timestamp,
     );
@@ -2291,6 +2349,19 @@ function addRewardToPending(afk, reward) {
 
 function getRoleMaxHealth(role, backpack = []) {
   return getMaxHealth(getRoleEffectiveStats(role, backpack).vitality, role.level);
+}
+
+function buildCombatSecondaryStats(stats) {
+  const secondary = calculateSecondaryStats(stats);
+
+  return {
+    critChance: secondary.critChance,
+    critDamage: secondary.critDamage,
+    dodgeChance: secondary.dodgeChance,
+    blockChance: secondary.blockChance,
+    blockDamageReduction: secondary.blockDamageReduction,
+    healthRegenRate: secondary.healthRegenRate,
+  };
 }
 
 function normalizeRoleHealth(role, backpack = []) {
@@ -2962,6 +3033,7 @@ function buildSnapshot(data, options = {}) {
   const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
   const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
+  const roleSecondaryStats = buildCombatSecondaryStats(effectiveStats);
   const skillCollection = buildPlayerSkillCollection(data.role, data.backpack);
   const maxHealth = getRoleMaxHealth(data.role, data.backpack);
   const battleState = normalizeBattleState(data.afk.battle_state);
@@ -2999,6 +3071,7 @@ function buildSnapshot(data, options = {}) {
       aetherCrystal: data.role.aether_crystal,
       avatarSeed: data.role.avatar_seed,
       stats: effectiveStats,
+      secondaryStats: roleSecondaryStats,
       bodySlotCapacities,
       bodySlots,
       skillSlots: {
@@ -3084,6 +3157,7 @@ function buildSnapshot(data, options = {}) {
           skillUsesRemaining: battleState.player.skillUsesRemaining,
           skills: battleState.player.skills || [],
           stats: battleState.player.stats,
+          secondaryStats: buildCombatSecondaryStats(battleState.player.stats),
           name: battleState.player.name,
         },
         enemy: {
@@ -3101,6 +3175,7 @@ function buildSnapshot(data, options = {}) {
           skillUsesRemaining: battleState.enemyCombatant.skillUsesRemaining,
           skills: battleState.enemyCombatant.skills || [],
           stats: battleState.enemyCombatant.stats,
+          secondaryStats: buildCombatSecondaryStats(battleState.enemyCombatant.stats),
         },
         logs: battleState.logs,
       } : null,

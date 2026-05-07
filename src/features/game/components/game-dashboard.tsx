@@ -144,12 +144,40 @@ function calculateBattleSpellChancePreview(intelligence: number) {
     : BATTLE_DEFAULT_SPELL_CHANCE;
 }
 
+function formatSecondaryStatPercent(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return formatPercentValue(Math.max(0, value), locale);
+}
+
+function formatSecondaryStatMultiplier(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
+  return `${formatDecimal(Math.max(0, value), locale)}x`;
+}
+
 function slotLabel(slot: string, messages: I18nMessages = DEFAULT_MESSAGES) {
   return messages.slots[slot as keyof I18nMessages["slots"]] ?? slot;
 }
 
 function statLabel(statKey: string, messages: I18nMessages = DEFAULT_MESSAGES) {
   return messages.stats[statKey as keyof I18nMessages["stats"]] ?? statKey;
+}
+
+function itemTypeLabel(itemType: BackpackItem["itemType"], messages: I18nMessages = DEFAULT_MESSAGES) {
+  return {
+    equipment: messages.game.dashboard.itemTypeEquipment,
+    skill_book: messages.game.dashboard.itemTypeSkillBook,
+    material: messages.game.dashboard.itemTypeMaterial,
+  }[itemType];
+}
+
+function itemCategoryTone(itemType: BackpackItem["itemType"]): "emerald" | "neutral" | "sky" {
+  switch (itemType) {
+    case "equipment":
+      return "sky";
+    case "skill_book":
+      return "emerald";
+    case "material":
+    default:
+      return "neutral";
+  }
 }
 
 function bodySlotKeyLabel(
@@ -654,8 +682,11 @@ function BattleSkillSlots({
                 remaining: formatNumber(skill.usesRemaining, locale),
               })
               : formatMessage(copy.skillAttackDetail, {
-                agility: formatPercentValue(Math.max(0, Math.min(0.75, combatant.stats.agility / 50)), locale),
+                blockChance: formatSecondaryStatPercent(combatant.secondaryStats.blockChance, locale),
+                critChance: formatSecondaryStatPercent(combatant.secondaryStats.critChance, locale),
+                critDamage: formatSecondaryStatMultiplier(combatant.secondaryStats.critDamage, locale),
                 damage: formatNumber(skill.damage, locale),
+                dodgeChance: formatSecondaryStatPercent(combatant.secondaryStats.dodgeChance, locale),
                 strength: formatNumber(combatant.stats.strength, locale),
               });
           const meta = `${rarityLabel(skill.quality, messages)} · ${skillCategoryLabel(skill.category, messages)} · Lv.${formatNumber(skill.level, locale)}`;
@@ -1132,23 +1163,35 @@ function BackpackSectionList({
   selectedBackpackId: string | null;
 }) {
   const { locale, messages } = useI18n();
-  const groupedItems = backpack.reduce<Record<string, BackpackItem[]>>((accumulator, item) => {
-    const current = accumulator[item.slot] ?? [];
+  const groupedItems = backpack.reduce<Record<BackpackItem["itemType"], BackpackItem[]>>((accumulator, item) => {
+    const current = accumulator[item.itemType] ?? [];
     current.push(item);
-    accumulator[item.slot] = current;
+    accumulator[item.itemType] = current;
     return accumulator;
-  }, {});
+  }, {
+    equipment: [],
+    skill_book: [],
+    material: [],
+  });
+  const sectionOrder: Array<BackpackItem["itemType"]> = ["equipment", "skill_book", "material"];
 
   return (
     <div className="space-y-4">
-      {Object.entries(groupedItems).map(([slot, items]) => (
-        <div key={slot} className="rounded-[1rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-3">
+      {sectionOrder.map((itemType) => {
+        const items = groupedItems[itemType] ?? [];
+
+        if (items.length <= 0) {
+          return null;
+        }
+
+        return (
+          <div key={itemType} className="rounded-[1rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-300/78">{slotLabel(slot, messages)}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-300/78">{itemTypeLabel(itemType, messages)}</p>
               <p className="mt-1 text-[11px] text-slate-500">{formatNumber(items.length, locale)} {messages.common.speciesUnit}</p>
             </div>
-            <MetaBadge tone="neutral">{slotLabel(slot, messages)}</MetaBadge>
+              <MetaBadge tone={itemCategoryTone(itemType)}>{itemTypeLabel(itemType, messages)}</MetaBadge>
           </div>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
             {items.map((item) => (
@@ -1164,8 +1207,9 @@ function BackpackSectionList({
               />
             ))}
           </div>
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1288,6 +1332,9 @@ function CenterPanel({
   const isEnemyHit = Boolean(activeBattle) && battleFxNow - battleFxState.enemyHitAt < 380;
   const isPlayerPulsing = Boolean(activeBattle) && battleFxNow - battleFxState.playerPulseAt < 520;
   const isEnemyPulsing = Boolean(activeBattle) && battleFxNow - battleFxState.enemyPulseAt < 520;
+  const equipmentCount = backpack.filter((item) => item.itemType === "equipment").length;
+  const skillBookCount = backpack.filter((item) => item.itemType === "skill_book").length;
+  const materialCount = backpack.filter((item) => item.itemType === "material").length;
 
   if (!role) {
     return null;
@@ -1302,15 +1349,18 @@ function CenterPanel({
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.backpackTitle}</h2>
               <p className="mt-1 text-sm text-slate-300/72">
-                分组查看装备库存，点选任意物品后在右侧快速比较属性与用途。
+                按物品类型分组查看库存，点选任意物品后在右侧快速比较属性与用途。
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <DataPill label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
+              <DataPill label={copy.dashboard.equipmentCount} value={formatNumber(equipmentCount, locale)} />
               <DataPill
                 label={copy.dashboard.equippedCount}
                 value={formatNumber(backpack.reduce((total, item) => total + (item.equippedCount ?? 0), 0), locale)}
               />
+              <DataPill label={copy.dashboard.skillBookCount} value={formatNumber(skillBookCount, locale)} />
+              <DataPill label={copy.dashboard.materialCount} value={formatNumber(materialCount, locale)} />
             </div>
           </div>
         </div>
@@ -1370,6 +1420,12 @@ function CenterPanel({
             <DataPill label={statLabel("agility", messages)} value={formatNumber(role.stats.agility, locale)} />
             <DataPill label={statLabel("intelligence", messages)} value={formatNumber(role.stats.intelligence, locale)} />
             <DataPill label={statLabel("vitality", messages)} value={formatNumber(role.stats.vitality, locale)} />
+            <DataPill label={statLabel("critChance", messages)} value={formatSecondaryStatPercent(role.secondaryStats.critChance, locale)} />
+            <DataPill label={statLabel("critDamage", messages)} value={formatSecondaryStatMultiplier(role.secondaryStats.critDamage, locale)} />
+            <DataPill label={statLabel("dodgeChance", messages)} value={formatSecondaryStatPercent(role.secondaryStats.dodgeChance, locale)} />
+            <DataPill label={statLabel("blockChance", messages)} value={formatSecondaryStatPercent(role.secondaryStats.blockChance, locale)} />
+            <DataPill label={statLabel("blockDamageReduction", messages)} value={formatSecondaryStatPercent(role.secondaryStats.blockDamageReduction, locale)} />
+            <DataPill label={statLabel("healthRegenRate", messages)} value={formatSecondaryStatPercent(role.secondaryStats.healthRegenRate, locale)} />
           </div>
 
           <PanelSubsection className="xl:col-span-2">
@@ -1574,6 +1630,12 @@ function CenterPanel({
                 <DataPill label={copy.dashboard.skillBattleUseLimit} value={formatNumber(activeBattle.player.totalSkillUseLimit, locale)} />
                 <DataPill label={copy.dashboard.skillBattleUseRemaining} value={formatNumber(activeBattle.player.totalSkillUsesRemaining, locale)} />
               </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <DataPill label={statLabel("critChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.critChance, locale)} />
+                <DataPill label={statLabel("dodgeChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.dodgeChance, locale)} />
+                <DataPill label={statLabel("blockChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.blockChance, locale)} />
+                <DataPill label={statLabel("healthRegenRate", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.healthRegenRate, locale)} />
+              </div>
               <div className="mt-3">
                 <BattleStatusBar combatant={activeBattle.player} />
               </div>
@@ -1605,6 +1667,12 @@ function CenterPanel({
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <DataPill label={copy.dashboard.enemyLevel} value={formatNumber(activeBattle.enemy.level, locale)} />
                 <DataPill label={copy.dashboard.defenseActive} value={activeBattle.enemy.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <DataPill label={statLabel("critChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.critChance, locale)} />
+                <DataPill label={statLabel("dodgeChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.dodgeChance, locale)} />
+                <DataPill label={statLabel("blockChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.blockChance, locale)} />
+                <DataPill label={statLabel("healthRegenRate", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.healthRegenRate, locale)} />
               </div>
               <div className="mt-3">
                 <BattleStatusBar combatant={activeBattle.enemy} />
@@ -2024,6 +2092,7 @@ function MainDashboard() {
               <p className="mt-2 text-sm text-slate-300">
                 {formatMessage(copy.dashboard.actionItemMeta, {
                   equippedCount: actionItem.equippedCount ?? 0,
+                  itemType: itemTypeLabel(actionItem.itemType, messages),
                   quantity: actionItem.quantity,
                   rarity: rarityLabel(actionItem.rarity, messages),
                   slot: slotLabel(actionItem.slot, messages),
@@ -2031,7 +2100,9 @@ function MainDashboard() {
               </p>
               <p className="mt-3 text-sm leading-7 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
               <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
-              <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
+              {actionItem.itemType === "equipment" ? (
+                <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
+              ) : null}
             </div>
           </div>
 
@@ -2121,7 +2192,7 @@ function MainDashboard() {
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <DataPill label={messages.common.type} value={slotLabel(pendingActionItem.slot, messages)} />
+            <DataPill label={messages.common.type} value={itemTypeLabel(pendingActionItem.itemType, messages)} />
             <DataPill label={messages.common.rarity} value={rarityLabel(pendingActionItem.rarity, messages)} />
             <DataPill label={messages.common.sellPrice} value={formatNumber(pendingActionItem.sellPrice, locale)} />
           </div>
