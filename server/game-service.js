@@ -31,7 +31,11 @@ const DEFAULT_BODY_SLOT_CAPACITIES = {
 const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
 const MAX_RECENT_BATTLE_LOGS = 16;
-const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }];
+const MARKET_CATEGORY_OPTIONS = [
+  { key: "equipment", label: "装备" },
+  { key: "skill_book", label: "技能书" },
+  { key: "material", label: "材料" },
+];
 const PLAYER_SKILL_SLOT_BASE = 2;
 const PLAYER_SKILL_SLOT_MAX = 6;
 const PLAYER_BATTLE_SKILL_USE_BASE = 1;
@@ -60,6 +64,12 @@ let mapConfigs = DEFAULT_MAP_CONFIGS;
 let skillTemplates = DEFAULT_SKILL_TEMPLATES;
 let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
 let eventRules = [];
+
+function createServiceError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
 
 function applyRuntimeConfig(config) {
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
@@ -524,7 +534,7 @@ function addLearnedSkillFromBook(role, skillKey, options = {}) {
   const definition = getSkillDefinition(skillKey);
 
   if (!definition) {
-    throw new Error("技能书对应的技能不存在，无法学习。");
+    throw createServiceError("技能书对应的技能不存在，无法学习。", 409);
   }
 
   const now = options.now || Date.now();
@@ -535,7 +545,7 @@ function addLearnedSkillFromBook(role, skillKey, options = {}) {
   const existing = normalizedState.learnedSkills.find((entry) => entry.skillKey === definition.key);
 
   if (existing) {
-    throw new Error("该技能已经学会，无需重复学习。");
+    throw createServiceError("该技能已经学会，无需重复学习。", 409);
   }
 
   normalizedState.learnedSkills.push({
@@ -601,18 +611,18 @@ function getBodySlotIndex(slotKey) {
 
 function allocateEquipmentSlots(role, backpack, item) {
   if (!isEquipmentItem(item)) {
-    throw new Error("只有装备类型物品才能穿戴。");
+    throw createServiceError("只有装备类型物品才能穿戴。", 409);
   }
 
   if (item.quantity <= getBackpackEquippedCount(item)) {
-    throw new Error("这件物品已经没有可装备的数量了。");
+    throw createServiceError("这件物品已经没有可装备的数量了。", 409);
   }
 
   const capacities = getBodySlotCapacities(role.race_key);
   const candidateSlotKeys = buildAvailableBodySlotKeys(capacities, item.slot);
 
   if (candidateSlotKeys.length < item.slot_usage) {
-    throw new Error("当前种族没有足够的对应肢体槽位。");
+    throw createServiceError("当前种族没有足够的对应肢体槽位。", 409);
   }
 
   const occupiedSlots = new Set(
@@ -663,7 +673,7 @@ function allocateEquipmentSlots(role, backpack, item) {
   }
 
   if (releasedSlots.length < item.slot_usage) {
-    throw new Error("对应肢体部位已经被占满，无法继续装备。");
+    throw createServiceError("对应肢体部位已经被占满，无法继续装备。", 409);
   }
 
   const groupsMarkedForRelease = new Set(groupsToRelease.map((entry) => entry.group));
@@ -684,11 +694,11 @@ function allocateEquipmentSlots(role, backpack, item) {
 
 function removeOneEquippedGroup(backpackItem) {
   if (!isEquipmentItem(backpackItem)) {
-    throw new Error("只有装备类型物品才能卸下。");
+    throw createServiceError("只有装备类型物品才能卸下。", 409);
   }
 
   if (!backpackItem.equipped_slot_groups || backpackItem.equipped_slot_groups.length === 0) {
-    throw new Error("这件物品当前没有处于装备状态。");
+    throw createServiceError("这件物品当前没有处于装备状态。", 409);
   }
 
   backpackItem.equipped_slot_groups.shift();
@@ -1633,7 +1643,7 @@ function createEnemyProfile(role, backpack = [], mapKey = null) {
   const templatePool = getBattleEnemyPoolForMap(mapKey);
   const template = templatePool[Math.floor(Math.random() * templatePool.length)] || templatePool[0];
   if (!template) {
-    throw new Error("当前地图未配置可用怪物模板。");
+    throw createServiceError("当前地图未配置可用怪物模板。", 409);
   }
   const map = getMapConfig(mapKey);
   const mapLevelBonus = map ? 1 : 0;
@@ -2966,13 +2976,13 @@ async function requireDashboardData(guestToken) {
   const user = await findUserByGuestToken(guestToken);
 
   if (!user) {
-    throw new Error("游客会话不存在，请重新登录。");
+    throw createServiceError("游客会话不存在，请重新登录。", 401);
   }
 
   const role = await findRoleByUserId(user.user_id);
 
   if (!role) {
-    throw new Error("角色不存在，请先创建角色。");
+    throw createServiceError("角色不存在，请先创建角色。", 404);
   }
 
   const [afkResult, backpackResult] = await Promise.all([
@@ -3026,7 +3036,7 @@ async function requireDashboardData(guestToken) {
   const afk = afkResult.rows[0];
 
   if (!afk) {
-    throw new Error("挂机状态不存在，请重新创建角色。");
+    throw createServiceError("挂机状态不存在，请重新创建角色。", 404);
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
@@ -3280,7 +3290,7 @@ async function getSessionSnapshot(guestToken) {
   const user = await findUserByGuestToken(guestToken);
 
   if (!user) {
-    throw new Error("游客会话不存在，请重新登录。");
+    throw createServiceError("游客会话不存在，请重新登录。", 401);
   }
 
   const role = await findRoleByUserId(user.user_id);
@@ -3327,7 +3337,7 @@ async function startAfkForGuest(guestToken, mapKey) {
   const map = getMapConfig(mapKey);
 
   if (!map) {
-    throw new Error("地图不存在。");
+    throw createServiceError("地图不存在。", 404);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -3335,7 +3345,7 @@ async function startAfkForGuest(guestToken, mapKey) {
   settleAfkState(data, { now, autoApplyReward: true });
 
   if (data.afk.status === "active") {
-    throw new Error("当前已经处于挂机中，请先停止。");
+    throw createServiceError("当前已经处于挂机中，请先停止。", 409);
   }
 
   data.afk.status = "active";
@@ -3363,7 +3373,7 @@ async function stopAfkForGuest(guestToken) {
   }
 
   if (isBattleActive(data.afk.battle_state)) {
-    throw new Error("战斗进行中，暂时不能停止挂机。");
+    throw createServiceError("战斗进行中，暂时不能停止挂机。", 409);
   }
 
   data.afk.status = "idle";
@@ -3446,21 +3456,21 @@ async function dropBackpackItemForGuest(guestToken, backpackId) {
   const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw createServiceError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要丢弃的物品不存在。");
+    throw createServiceError("要丢弃的物品不存在。", 404);
   }
 
   await withTransaction(async (client) => {
     const deleted = await deleteBackpackEntry(client, data.role.role_id, normalizedBackpackId);
 
     if (!deleted) {
-      throw new Error("物品丢弃失败，请稍后重试。");
+      throw createServiceError("物品丢弃失败，请稍后重试。", 409);
     }
   });
 
@@ -3472,18 +3482,18 @@ async function equipBackpackItemForGuest(guestToken, backpackId) {
   const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw createServiceError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要装备的物品不存在。");
+    throw createServiceError("要装备的物品不存在。", 404);
   }
 
   if (!isEquipmentItem(matchedItem)) {
-    throw new Error("该物品不是装备类型，无法穿戴。");
+    throw createServiceError("该物品不是装备类型，无法穿戴。", 409);
   }
 
   allocateEquipmentSlots(data.role, data.backpack, matchedItem);
@@ -3505,18 +3515,18 @@ async function unequipBackpackItemForGuest(guestToken, backpackId) {
   const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw createServiceError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要脱下的物品不存在。");
+    throw createServiceError("要脱下的物品不存在。", 404);
   }
 
   if (!isEquipmentItem(matchedItem)) {
-    throw new Error("该物品不是装备类型，无法卸下。");
+    throw createServiceError("该物品不是装备类型，无法卸下。", 409);
   }
 
   removeOneEquippedGroup(matchedItem);
@@ -3538,24 +3548,24 @@ async function learnSkillBookForGuest(guestToken, backpackId) {
   const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw createServiceError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要学习的技能书不存在。");
+    throw createServiceError("要学习的技能书不存在。", 404);
   }
 
   if (normalizeItemType(matchedItem.item_type) !== "skill_book") {
-    throw new Error("该物品不是技能书，无法学习。");
+    throw createServiceError("该物品不是技能书，无法学习。", 409);
   }
 
   const skillKey = normalizeSkillKey(matchedItem.skill_key);
 
   if (!skillKey) {
-    throw new Error("该技能书缺少技能定义，无法学习。");
+    throw createServiceError("该技能书缺少技能定义，无法学习。", 409);
   }
 
   await withTransaction(async (client) => {
@@ -3578,16 +3588,16 @@ async function learnSkillBookForGuest(guestToken, backpackId) {
     const lockedItem = lockedItemResult.rows[0];
 
     if (!lockedItem) {
-      throw new Error("要学习的技能书不存在。");
+      throw createServiceError("要学习的技能书不存在。", 404);
     }
 
     if (normalizeItemType(lockedItem.item_type) !== "skill_book") {
-      throw new Error("该物品不是技能书，无法学习。");
+      throw createServiceError("该物品不是技能书，无法学习。", 409);
     }
 
     const lockedSkillKey = normalizeSkillKey(lockedItem.skill_key);
     if (!lockedSkillKey) {
-      throw new Error("该技能书缺少技能定义，无法学习。");
+      throw createServiceError("该技能书缺少技能定义，无法学习。", 409);
     }
 
     addLearnedSkillFromBook(data.role, lockedSkillKey, {
@@ -3599,7 +3609,7 @@ async function learnSkillBookForGuest(guestToken, backpackId) {
       const deleted = await deleteBackpackEntry(client, data.role.role_id, lockedItem.backpack_id);
 
       if (!deleted) {
-        throw new Error("技能书消耗失败，请稍后重试。");
+        throw createServiceError("技能书消耗失败，请稍后重试。", 409);
       }
     } else {
       await client.query(
@@ -3618,6 +3628,62 @@ async function learnSkillBookForGuest(guestToken, backpackId) {
   return getSessionSnapshot(guestToken);
 }
 
+async function configureSkillLoadoutForGuest(guestToken, skillKey, action) {
+  await ensureRuntimeGameConfig();
+  const normalizedSkillKey = normalizeSkillKey(skillKey);
+  const normalizedAction = action === "unequip" ? "unequip" : "equip";
+
+  if (!normalizedSkillKey) {
+    throw createServiceError("缺少技能标识。", 400);
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const definition = getSkillDefinition(normalizedSkillKey);
+
+  if (!definition) {
+    throw createServiceError("技能不存在，无法配置。", 404);
+  }
+
+  const normalizedState = normalizePlayerSkillState(data.role.skill_state, data.role);
+  const learnedSkillKeys = new Set(normalizedState.learnedSkills.map((entry) => entry.skillKey));
+
+  if (!learnedSkillKeys.has(normalizedSkillKey)) {
+    throw createServiceError("该技能尚未学会，无法配置。", 409);
+  }
+
+  const skillSlotCount = calculatePlayerSkillSlotCount(data.role.intelligence);
+  let nextEquippedSkillKeys = [...normalizedState.equippedSkillKeys];
+
+  if (normalizedAction === "equip") {
+    if (nextEquippedSkillKeys.includes(normalizedSkillKey)) {
+      return getSessionSnapshot(guestToken);
+    }
+
+    if (nextEquippedSkillKeys.length >= skillSlotCount) {
+      throw createServiceError("技能槽位已满，请先卸下其他技能。", 409);
+    }
+
+    nextEquippedSkillKeys.push(normalizedSkillKey);
+  } else {
+    if (!nextEquippedSkillKeys.includes(normalizedSkillKey)) {
+      return getSessionSnapshot(guestToken);
+    }
+
+    nextEquippedSkillKeys = nextEquippedSkillKeys.filter((entry) => entry !== normalizedSkillKey);
+  }
+
+  data.role.skill_state = normalizePlayerSkillState({
+    ...normalizedState,
+    equippedSkillKeys: nextEquippedSkillKeys,
+  }, data.role);
+
+  await withTransaction(async (client) => {
+    await persistRole(client, data.role);
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
 async function createMarketListingForGuest(guestToken, backpackId, price, quantity) {
   await ensureRuntimeGameConfig();
   const normalizedBackpackId = typeof backpackId === "string" ? backpackId.trim() : "";
@@ -3625,30 +3691,26 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
   const normalizedQuantity = normalizeNumber(quantity);
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw createServiceError("缺少背包物品标识。", 400);
   }
 
   if (normalizedPrice <= 0) {
-    throw new Error("上架价格必须大于 0。");
+    throw createServiceError("上架价格必须大于 0。", 400);
   }
 
   if (normalizedQuantity <= 0) {
-    throw new Error("上架数量必须大于 0。");
+    throw createServiceError("上架数量必须大于 0。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要上架的物品不存在。");
-  }
-
-  if (!isEquipmentItem(matchedItem)) {
-    throw new Error("只有装备类型物品才能上架市场。");
+    throw createServiceError("要上架的物品不存在。", 404);
   }
 
   if (matchedItem.quantity <= (matchedItem.equipped_slot_groups || []).length) {
-    throw new Error("这件物品没有可上架的剩余数量。");
+    throw createServiceError("这件物品没有可上架的剩余数量。", 409);
   }
 
   await withTransaction(async (client) => {
@@ -3679,29 +3741,25 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
     const lockedBackpackItem = backpackResult.rows[0];
 
     if (!lockedBackpackItem) {
-      throw new Error("要上架的物品不存在。");
-    }
-
-    if (!isEquipmentItem(lockedBackpackItem)) {
-      throw new Error("只有装备类型物品才能上架市场。");
+      throw createServiceError("要上架的物品不存在。", 404);
     }
 
     lockedBackpackItem.equipped_slot_groups = normalizeEquippedSlotGroups(lockedBackpackItem.equipped_slot_groups);
     const sellableQuantity = Math.max(0, lockedBackpackItem.quantity - getBackpackEquippedCount(lockedBackpackItem));
 
     if (sellableQuantity <= 0) {
-      throw new Error("这件物品没有可上架的剩余数量。");
+      throw createServiceError("这件物品没有可上架的剩余数量。", 409);
     }
 
     if (normalizedQuantity > sellableQuantity) {
-      throw new Error("上架数量超过了当前可出售数量。");
+      throw createServiceError("上架数量超过了当前可出售数量。", 409);
     }
 
     if (lockedBackpackItem.quantity <= normalizedQuantity) {
       const deleted = await deleteBackpackEntry(client, data.role.role_id, lockedBackpackItem.backpack_id);
 
       if (!deleted) {
-        throw new Error("上架失败，请稍后重试。");
+        throw createServiceError("上架失败，请稍后重试。", 409);
       }
     } else {
       await client.query(
@@ -3729,9 +3787,15 @@ async function createMarketListingForGuest(guestToken, backpackId, price, quanti
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, 'equipment', $4, 'active', 0, 0, NOW(), NOW())
+          VALUES ($1, $2, $3, $5, $4, 'active', 0, 0, NOW(), NOW())
         `,
-        [`listing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${index}`, data.role.role_id, lockedBackpackItem.item_id, normalizedPrice],
+        [
+          `listing-${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${index}`,
+          data.role.role_id,
+          lockedBackpackItem.item_id,
+          normalizedPrice,
+          normalizeItemType(lockedBackpackItem.item_type),
+        ],
       );
     }
   });
@@ -3744,7 +3808,7 @@ async function cancelMarketListingForGuest(guestToken, listingId) {
   const normalizedListingId = typeof listingId === "string" ? listingId.trim() : "";
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw createServiceError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -3762,11 +3826,11 @@ async function cancelMarketListingForGuest(guestToken, listingId) {
     const listing = listingResult.rows[0];
 
     if (!listing || listing.seller_role_id !== data.role.role_id) {
-      throw new Error("要下架的挂单不存在。");
+      throw createServiceError("要下架的挂单不存在。", 404);
     }
 
     if (listing.status !== "active") {
-      throw new Error("该挂单当前不能下架。");
+      throw createServiceError("该挂单当前不能下架。", 409);
     }
 
     const siblingResult = await client.query(
@@ -3807,7 +3871,7 @@ async function buyMarketListingForGuest(guestToken, listingId) {
   const normalizedListingId = typeof listingId === "string" ? listingId.trim() : "";
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw createServiceError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -3825,11 +3889,11 @@ async function buyMarketListingForGuest(guestToken, listingId) {
     const listing = listingResult.rows[0];
 
     if (!listing || listing.status !== "active") {
-      throw new Error("这件商品已经被买走或下架了。");
+      throw createServiceError("这件商品已经被买走或下架了。", 409);
     }
 
     if (listing.seller_role_id === data.role.role_id) {
-      throw new Error("不能购买自己上架的物品。");
+      throw createServiceError("不能购买自己上架的物品。", 409);
     }
 
     const cheapestResult = await client.query(
@@ -3844,7 +3908,7 @@ async function buyMarketListingForGuest(guestToken, listingId) {
     );
 
     if (cheapestResult.rows[0]?.listing_id !== listing.listing_id) {
-      throw new Error("当前只能购买这件商品中最便宜的那一件。");
+      throw createServiceError("当前只能购买这件商品中最便宜的那一件。", 409);
     }
 
     const [buyerRoleResult, sellerRoleResult, sellerAfkResult] = await Promise.all([
@@ -3877,11 +3941,11 @@ async function buyMarketListingForGuest(guestToken, listingId) {
     const sellerAfk = sellerAfkResult.rows[0];
 
     if (!buyerRole || !sellerRole || !sellerAfk) {
-      throw new Error("交易角色不存在，请稍后重试。");
+      throw createServiceError("交易角色不存在，请稍后重试。", 409);
     }
 
     if (buyerRole.gold < listing.price) {
-      throw new Error("金币不足，无法购买这件商品。");
+      throw createServiceError("金币不足，无法购买这件商品。", 409);
     }
 
     const { feeAmount, sellerReceiveAmount } = calculateMarketFee(listing.price);
@@ -3916,7 +3980,7 @@ async function dismissMarketSoldNotificationForGuest(guestToken, listingId) {
   const normalizedListingId = typeof listingId === "string" ? listingId.trim() : "";
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw createServiceError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -3934,7 +3998,7 @@ async function dismissMarketSoldNotificationForGuest(guestToken, listingId) {
     const listing = listingResult.rows[0];
 
     if (!listing || listing.seller_role_id !== data.role.role_id || listing.status !== "sold") {
-      throw new Error("要处理的出售通知不存在。");
+      throw createServiceError("要处理的出售通知不存在。", 404);
     }
 
     await client.query(
@@ -3969,6 +4033,7 @@ module.exports = {
   claimAfkRewardForGuest,
   dropBackpackItemForGuest,
   equipBackpackItemForGuest,
+  configureSkillLoadoutForGuest,
   learnSkillBookForGuest,
   unequipBackpackItemForGuest,
 };

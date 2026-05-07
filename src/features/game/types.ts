@@ -180,7 +180,7 @@ export type BackpackEntry = {
   stats: Record<string, number>;
 };
 
-export type MarketCategoryKey = "equipment";
+export type MarketCategoryKey = "equipment" | "skill_book" | "material";
 export type MarketListingStatus = "active" | "sold" | "cancelled";
 
 export type MarketListingSummary = {
@@ -349,6 +349,7 @@ export type GameSessionContextValue = {
   claimOfflineReward: () => Promise<void>;
   dropBackpackItem: (backpackId: string) => Promise<void>;
   equipBackpackItem: (backpackId: string) => Promise<void>;
+  configureSkillLoadout: (skillKey: string, action: "equip" | "unequip") => Promise<void>;
   learnSkillBook: (backpackId: string) => Promise<void>;
   dismissError: () => void;
   guestLogin: () => Promise<void>;

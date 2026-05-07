@@ -28,6 +28,7 @@ import {
 } from "@/lib/game-config";
 import type { Stats } from "@/lib/game-config";
 import { query, withTransaction } from "@/lib/server/db";
+import { ApiError } from "@/lib/server/http";
 
 type ConfigRow = {
   config_key: string;
@@ -981,7 +982,7 @@ function validateUsername(username: string) {
     || normalizedUsername.length > 20
     || !isValidUsername(normalizedUsername)
   ) {
-    throw new Error("账号需为 4 到 20 位，仅支持字母、数字和下划线。");
+    throw new ApiError("账号需为 4 到 20 位，仅支持字母、数字和下划线。", 400);
   }
 
   return normalizedUsername;
@@ -989,7 +990,7 @@ function validateUsername(username: string) {
 
 function validatePassword(password: string) {
   if (password.length < 6 || password.length > 64) {
-    throw new Error("密码需为 6 到 64 个字符。");
+    throw new ApiError("密码需为 6 到 64 个字符。", 400);
   }
 }
 
@@ -2567,7 +2568,7 @@ export async function createAdminAccount(input: AdminAccountUpsertInput) {
       );
 
       if ((existingUser.rowCount ?? 0) > 0) {
-        throw new Error("该账号名已被占用。");
+        throw new ApiError("该账号名已被占用。", 409);
       }
     }
 
@@ -2577,7 +2578,7 @@ export async function createAdminAccount(input: AdminAccountUpsertInput) {
     );
 
     if ((existingGuestToken.rowCount ?? 0) > 0) {
-      throw new Error("游客 token 已存在，请更换后重试。");
+      throw new ApiError("游客 token 已存在，请更换后重试。", 409);
     }
 
     const passwordData = accountType === "account" ? hashPassword(password) : null;
@@ -2614,7 +2615,7 @@ export async function updateAdminAccount(input: AdminAccountUpsertInput & { user
   const guestToken = input.guestToken?.trim();
 
   if (!input.userId.trim()) {
-    throw new Error("缺少账号标识。");
+    throw new ApiError("缺少账号标识。", 400);
   }
 
   await withTransaction(async (client) => {
@@ -2644,7 +2645,7 @@ export async function updateAdminAccount(input: AdminAccountUpsertInput & { user
     const current = existingResult.rows[0];
 
     if (!current) {
-      throw new Error("账号不存在。");
+      throw new ApiError("账号不存在。", 404);
     }
 
     const nextGuestToken = guestToken || current.guest_token;
@@ -2656,7 +2657,7 @@ export async function updateAdminAccount(input: AdminAccountUpsertInput & { user
       );
 
       if ((duplicateGuestToken.rowCount ?? 0) > 0) {
-        throw new Error("游客 token 已存在，请更换后重试。");
+        throw new ApiError("游客 token 已存在，请更换后重试。", 409);
       }
     }
 
@@ -2671,7 +2672,7 @@ export async function updateAdminAccount(input: AdminAccountUpsertInput & { user
       );
 
       if ((duplicateUsername.rowCount ?? 0) > 0) {
-        throw new Error("该账号名已被占用。");
+        throw new ApiError("该账号名已被占用。", 409);
       }
     }
 
@@ -2715,7 +2716,7 @@ export async function updateAdminAccount(input: AdminAccountUpsertInput & { user
 
 export async function deleteAdminAccount(userId: string) {
   if (!userId.trim()) {
-    throw new Error("缺少账号标识。");
+    throw new ApiError("缺少账号标识。", 400);
   }
 
   await query(
@@ -2771,13 +2772,13 @@ export async function createAdminRole(input: AdminRoleCreateInput) {
   const userId = input.userId.trim();
 
   if (!userId) {
-    throw new Error("缺少账号标识。");
+    throw new ApiError("缺少账号标识。", 400);
   }
 
   const roleName = input.name.trim();
 
   if (!roleName) {
-    throw new Error("角色名不能为空。");
+    throw new ApiError("角色名不能为空。", 400);
   }
 
   await withTransaction(async (client) => {
@@ -2787,7 +2788,7 @@ export async function createAdminRole(input: AdminRoleCreateInput) {
     );
 
     if ((userResult.rowCount ?? 0) === 0) {
-      throw new Error("账号不存在。");
+      throw new ApiError("账号不存在。", 404);
     }
 
     const existingRole = await client.query<{ role_id: string }>(
@@ -2796,7 +2797,7 @@ export async function createAdminRole(input: AdminRoleCreateInput) {
     );
 
     if ((existingRole.rowCount ?? 0) > 0) {
-      throw new Error("该账号已有角色。");
+      throw new ApiError("该账号已有角色。", 409);
     }
 
     await client.query(
@@ -2853,7 +2854,7 @@ export async function deleteAdminRole(roleId: string) {
   const normalizedRoleId = roleId.trim();
 
   if (!normalizedRoleId) {
-    throw new Error("缺少角色标识。");
+    throw new ApiError("缺少角色标识。", 400);
   }
 
   await query(

@@ -17,6 +17,7 @@ const {
   dismissMarketSoldNotificationForGuest,
   dropBackpackItemForGuest,
   equipBackpackItemForGuest,
+  configureSkillLoadoutForGuest,
   getSessionSnapshot,
   learnSkillBookForGuest,
   startAfkForGuest,
@@ -43,6 +44,12 @@ const httpServer = http.createServer((request, response) => {
 
 const sessions = new Map();
 
+function createServiceError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 function send(connection, message) {
   if (connection.connected) {
     connection.sendUTF(JSON.stringify(message));
@@ -52,7 +59,14 @@ function send(connection, message) {
 function sendError(connection, content) {
   send(connection, {
     type: "game:error",
-    payload: { content },
+    payload: { content, status: 400 },
+  });
+}
+
+function sendErrorWithStatus(connection, content, status = 400) {
+  send(connection, {
+    type: "game:error",
+    payload: { content, status },
   });
 }
 
@@ -168,7 +182,7 @@ async function listenOnAvailablePort(server, startPort) {
     }
   }
 
-  throw new Error(`无法为 WebSocket 服务找到可用端口，起始端口 ${startPort}，最多尝试 ${MAX_PORT_ATTEMPTS} 个端口。`);
+  throw createServiceError(`无法为 WebSocket 服务找到可用端口，起始端口 ${startPort}，最多尝试 ${MAX_PORT_ATTEMPTS} 个端口。`, 500);
 }
 
 async function handleSessionStart(connection, packet) {
@@ -177,7 +191,7 @@ async function handleSessionStart(connection, packet) {
     : "";
 
   if (!guestToken) {
-    throw new Error("缺少游客 token。");
+    throw createServiceError("缺少游客 token。", 400);
   }
 
   const snapshot = await getSessionSnapshot(guestToken);
@@ -244,6 +258,16 @@ async function handleBackpackLearnSkillBook(connection, session, packet) {
   sendSnapshot(connection, snapshot, "learn-skill-book");
 }
 
+async function handleSkillConfigureLoadout(connection, session, packet) {
+  const skillKey = typeof packet.payload?.skillKey === "string"
+    ? packet.payload.skillKey
+    : "";
+  const action = packet.payload?.action === "unequip" ? "unequip" : "equip";
+  const snapshot = await configureSkillLoadoutForGuest(session.guestToken, skillKey, action);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "skill-configure-loadout");
+}
+
 async function handleMarketCreate(connection, session, packet) {
   const backpackId = typeof packet.payload?.backpackId === "string"
     ? packet.payload.backpackId
@@ -302,7 +326,7 @@ async function handlePacket(connection, packet) {
   const session = getSession(connection);
 
   if (!session) {
-    throw new Error("会话尚未初始化。");
+    throw createServiceError("会话尚未初始化。", 401);
   }
 
   if (packet.type === "game:afk:start") {
@@ -337,6 +361,11 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === "game:backpack:learn-skill-book") {
     await handleBackpackLearnSkillBook(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === "game:skill:configure-loadout") {
+    await handleSkillConfigureLoadout(connection, session, packet);
     return;
   }
 
@@ -382,7 +411,10 @@ async function handleIncomingMessage(connection, message) {
   try {
     await handlePacket(connection, packet);
   } catch (error) {
-    sendError(connection, error instanceof Error ? error.message : "服务端处理请求时出错。");
+    const status = error && typeof error === "object" && "status" in error
+      ? Number(error.status) || 500
+      : 500;
+    sendErrorWithStatus(connection, error instanceof Error ? error.message : "服务端处理请求时出错。", status);
   }
 }
 

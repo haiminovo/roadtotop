@@ -86,6 +86,8 @@ type AfkRow = {
 type BackpackRow = {
   backpack_id: string;
   item_id: string;
+  item_type?: "equipment" | "skill_book" | "material";
+  skill_key?: string | null;
   quantity: number;
   equipped: boolean;
   equipped_slot_groups: string[][];
@@ -100,7 +102,7 @@ type BackpackRow = {
 };
 
 type MarketListingStatus = "active" | "sold" | "cancelled";
-type MarketCategoryKey = "equipment";
+type MarketCategoryKey = "equipment" | "skill_book" | "material";
 
 type MarketListingRow = {
   listing_id: string;
@@ -240,6 +242,47 @@ type RoleBodySlotView = {
   };
 };
 
+type SecondaryStats = {
+  critChance: number;
+  critDamage: number;
+  dodgeChance: number;
+  blockChance: number;
+  blockDamageReduction: number;
+  healthRegenRate: number;
+};
+
+type SkillSlotsSummary = {
+  total: number;
+  used: number;
+  remaining: number;
+};
+
+type EquippedSkillEntry = {
+  key: string;
+  name: string;
+  iconText: string;
+  description: string;
+  category: "attack" | "spell" | "guard";
+  level: number;
+  quality: "white" | "green" | "blue" | "purple" | "orange";
+  acquisitionHint: string;
+  trigger: string;
+};
+
+type LearnedSkillEntry = EquippedSkillEntry & {
+  equipped: boolean;
+};
+
+type SkillBookEntry = {
+  skillKey: string;
+  skillName: string;
+  iconText: string;
+  description: string;
+  quality: "white" | "green" | "blue" | "purple" | "orange";
+  acquisitionHint: string;
+  acquiredAt: number;
+};
+
 type AfkEncounterLogEntry = {
   id: string;
   key: string;
@@ -293,12 +336,21 @@ export type GameSessionSnapshot = {
       intelligence: number;
       vitality: number;
     };
+    secondaryStats: SecondaryStats;
+    skillSlots: SkillSlotsSummary;
+    battleSkillUseLimit: number;
+    equippedSkills: EquippedSkillEntry[];
+    learnedSkills: LearnedSkillEntry[];
+    skillBooks: SkillBookEntry[];
     bodySlotCapacities: BodySlotCapacities;
     bodySlots: RoleBodySlotView[];
   };
   backpack: Array<{
     backpackId: string;
     itemId: string;
+    itemType: "equipment" | "skill_book" | "material";
+    skillKey: string | null;
+    iconKey: string | null;
     quantity: number;
     equipped: boolean;
     equippedCount: number;
@@ -330,6 +382,7 @@ export type GameSessionSnapshot = {
       expPerMinute: number;
     };
     pendingReward: RewardPreview;
+    battle: null;
     estimatedHourlyReward: RewardPreview;
     encounterRates: Record<EncounterTier, number>;
     recentEncounters: AfkEncounterLogEntry[];
@@ -364,7 +417,11 @@ const MIN_PASSWORD_LENGTH = 6;
 const MIN_USERNAME_LENGTH = 4;
 const MAX_USERNAME_LENGTH = 20;
 let MARKET_FEE_RATE_PERCENT = 10;
-const MARKET_CATEGORY_OPTIONS = [{ key: "equipment", label: "装备" }] as const satisfies Array<{
+const MARKET_CATEGORY_OPTIONS = [
+  { key: "equipment", label: "装备" },
+  { key: "skill_book", label: "技能书" },
+  { key: "material", label: "材料" },
+] as const satisfies Array<{
   key: MarketCategoryKey;
   label: string;
 }>;
@@ -462,7 +519,7 @@ function validateUsername(username: string) {
     || normalizedUsername.length > MAX_USERNAME_LENGTH
     || !isValidUsername(normalizedUsername)
   ) {
-    throw new Error("账号需为 4 到 20 位，仅支持字母、数字和下划线。");
+    throw new ApiError("账号需为 4 到 20 位，仅支持字母、数字和下划线。", 400);
   }
 
   return normalizedUsername;
@@ -470,7 +527,7 @@ function validateUsername(username: string) {
 
 function validatePassword(password: string) {
   if (password.length < MIN_PASSWORD_LENGTH || password.length > 64) {
-    throw new Error("密码需为 6 到 64 个字符。");
+    throw new ApiError("密码需为 6 到 64 个字符。", 400);
   }
 }
 
@@ -507,6 +564,48 @@ function normalizeNumber(value: number) {
 function normalizeSignedNumber(value: number) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeItemType(value: unknown): "equipment" | "skill_book" | "material" {
+  if (value === "skill_book" || value === "material") {
+    return value;
+  }
+
+  return "equipment";
+}
+
+function normalizeSkillKey(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function calculateSecondaryStats(stats: {
+  strength: number;
+  agility: number;
+  intelligence: number;
+  vitality: number;
+}): SecondaryStats {
+  const strength = Math.max(1, Number(stats.strength) || 0);
+  const agility = Math.max(1, Number(stats.agility) || 0);
+  const intelligence = Math.max(1, Number(stats.intelligence) || 0);
+  const vitality = Math.max(1, Number(stats.vitality) || 0);
+
+  return {
+    critChance: clamp(0.05 + agility * 0.006 + strength * 0.0015, 0.05, 0.65),
+    critDamage: clamp(1.35 + strength * 0.018 + intelligence * 0.008, 1.35, 3),
+    dodgeChance: clamp(0.02 + agility * 0.005 + intelligence * 0.0015, 0.02, 0.5),
+    blockChance: clamp(0.03 + vitality * 0.004 + strength * 0.0015, 0.03, 0.45),
+    blockDamageReduction: clamp(0.15 + vitality * 0.006 + strength * 0.003, 0.15, 0.6),
+    healthRegenRate: clamp(0.003 + vitality * 0.0009 + intelligence * 0.0004, 0, 0.04),
+  };
 }
 
 function migrateLegacyRoleExp(role: RoleRow) {
@@ -704,14 +803,14 @@ function allocateEquipmentSlots(
   item: Pick<BackpackRow, "backpack_id" | "slot" | "slot_usage" | "quantity" | "equipped_slot_groups" | "equipped">,
 ) {
   if (item.quantity <= getBackpackEquippedCount(item)) {
-    throw new Error("这件物品已经没有可装备的数量了。");
+    throw new ApiError("这件物品已经没有可装备的数量了。", 409);
   }
 
   const capacities = getBodySlotCapacities(role.race_key);
   const candidateSlotKeys = buildAvailableBodySlotKeys(capacities, item.slot);
 
   if (candidateSlotKeys.length < item.slot_usage) {
-    throw new Error("当前种族没有足够的对应肢体槽位。");
+    throw new ApiError("当前种族没有足够的对应肢体槽位。", 409);
   }
 
   const occupiedSlots = new Set(
@@ -762,7 +861,7 @@ function allocateEquipmentSlots(
   }
 
   if (releasedSlots.length < item.slot_usage) {
-    throw new Error("对应肢体部位已经被占满，无法继续装备。");
+    throw new ApiError("对应肢体部位已经被占满，无法继续装备。", 409);
   }
 
   const groupsMarkedForRelease = new Set(groupsToRelease.map((entry) => entry.group));
@@ -783,7 +882,7 @@ function allocateEquipmentSlots(
 
 function removeOneEquippedGroup(backpackItem: BackpackRow) {
   if (backpackItem.equipped_slot_groups.length === 0) {
-    throw new Error("这件物品当前没有处于装备状态。");
+    throw new ApiError("这件物品当前没有处于装备状态。", 409);
   }
 
   backpackItem.equipped_slot_groups.shift();
@@ -1787,13 +1886,13 @@ async function requireDashboardData(guestToken: string) {
   const user = await findUserByGuestToken(guestToken);
 
   if (!user) {
-    throw new Error("游客会话不存在，请重新登录。");
+    throw new ApiError("游客会话不存在，请重新登录。", 401);
   }
 
   const role = await findRoleByUserId(user.user_id);
 
   if (!role) {
-    throw new Error("角色不存在，请先创建角色。");
+    throw new ApiError("角色不存在，请先创建角色。", 404);
   }
 
   const [afkResult, backpackResult] = await Promise.all([
@@ -1826,6 +1925,8 @@ async function requireDashboardData(guestToken: string) {
           backpack.equipped_slot_groups,
           item.name,
           item.rarity,
+          item.item_type,
+          item.skill_key,
           item.icon_key,
           item.slot,
           item.slot_usage,
@@ -1844,7 +1945,7 @@ async function requireDashboardData(guestToken: string) {
   const afk = afkResult.rows[0];
 
   if (!afk) {
-    throw new Error("挂机状态不存在，请重新创建角色。");
+    throw new ApiError("挂机状态不存在，请重新创建角色。", 404);
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
@@ -1887,14 +1988,14 @@ export async function equipBackpackItem(guestToken: string, backpackId: string) 
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw new ApiError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要装备的物品不存在。");
+    throw new ApiError("要装备的物品不存在。", 404);
   }
 
   allocateEquipmentSlots(data.role, data.backpack, matchedItem);
@@ -1916,14 +2017,14 @@ export async function unequipBackpackItem(guestToken: string, backpackId: string
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw new ApiError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要脱下的物品不存在。");
+    throw new ApiError("要脱下的物品不存在。", 404);
   }
 
   removeOneEquippedGroup(matchedItem);
@@ -1946,6 +2047,7 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
   const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
   const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
+  const secondaryStats = calculateSecondaryStats(effectiveStats);
   const maxHealth = getRoleMaxHealth(data.role, data.backpack);
   const currentHealth = Math.min(maxHealth, normalizeNumber(data.role.current_health));
 
@@ -1979,19 +2081,31 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       aetherCrystal: data.role.aether_crystal,
       avatarSeed: data.role.avatar_seed,
       stats: effectiveStats,
+      secondaryStats,
+      skillSlots: {
+        total: 0,
+        used: 0,
+        remaining: 0,
+      },
+      battleSkillUseLimit: 0,
+      equippedSkills: [],
+      learnedSkills: [],
+      skillBooks: [],
       bodySlotCapacities,
       bodySlots,
     },
     backpack: data.backpack.map((item) => ({
       backpackId: item.backpack_id,
       itemId: item.item_id,
+      itemType: normalizeItemType(item.item_type),
+      skillKey: normalizeSkillKey(item.skill_key),
+      iconKey: item.icon_key,
       quantity: item.quantity,
       equipped: item.equipped,
       equippedCount: getBackpackEquippedCount(item),
       equippedSlotGroups: item.equipped_slot_groups,
       name: item.name,
       rarity: item.rarity,
-      iconKey: item.icon_key,
       slot: item.slot,
       slotUsage: item.slot_usage,
       description: item.description,
@@ -2024,6 +2138,7 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
         aetherCrystal: data.afk.pending_aether_crystal,
         exp: data.afk.pending_exp,
       },
+      battle: null,
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
       encounterRates: getEncounterRatesFromEventRules(),
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
@@ -2084,7 +2199,7 @@ export async function loginAccount(input: AccountLoginInput): Promise<GuestLogin
     || !user.password_salt
     || !verifyPassword(input.password, user.password_hash, user.password_salt)
   ) {
-    throw new Error("账号或密码错误。");
+    throw new ApiError("账号或密码错误。", 401);
   }
 
   await query(
@@ -2108,13 +2223,13 @@ export async function registerGuestAccount(input: AccountRegistrationInput) {
   const data = await requireDashboardData(input.guestToken);
 
   if (data.user.account_type === "account") {
-    throw new Error("当前角色已经绑定账号。");
+    throw new ApiError("当前角色已经绑定账号。", 409);
   }
 
   const existingUser = await findUserByUsername(normalizedUsername);
 
   if (existingUser) {
-    throw new Error("该账号名已被占用。");
+    throw new ApiError("该账号名已被占用。", 409);
   }
 
   const { passwordHash, passwordSalt } = hashPassword(input.password);
@@ -2141,7 +2256,7 @@ export async function deleteAccountRole(guestToken: string) {
   const data = await requireDashboardData(guestToken);
 
   if (data.user.account_type !== "account") {
-    throw new Error("只有已注册账号可以删除角色。");
+    throw new ApiError("只有已注册账号可以删除角色。", 403);
   }
 
   await withTransaction(async (client) => {
@@ -2164,23 +2279,23 @@ export async function createRoleForGuest(input: {
   const trimmedName = input.name.trim();
 
   if (!race || !roleClass) {
-    throw new Error("种族或职业配置不存在。");
+    throw new ApiError("种族或职业配置不存在。", 404);
   }
 
   if (trimmedName.length < 2 || trimmedName.length > 12) {
-    throw new Error("角色名需为 2 到 12 个字符。");
+    throw new ApiError("角色名需为 2 到 12 个字符。", 400);
   }
 
   const user = await findUserByGuestToken(input.guestToken);
 
   if (!user) {
-    throw new Error("游客会话失效，请重新登录。");
+    throw new ApiError("游客会话失效，请重新登录。", 401);
   }
 
   const existingRole = await findRoleByUserId(user.user_id);
 
   if (existingRole) {
-    throw new Error("该游客账号已经创建过角色。");
+    throw new ApiError("该游客账号已经创建过角色。", 409);
   }
 
   const roleId = makeId("role");
@@ -2318,6 +2433,7 @@ export async function getGuestBootstrap(
           aetherCrystal: 0,
           exp: 0,
         },
+        battle: null,
         estimatedHourlyReward: {
           seconds: 3600,
           gold: 0,
@@ -2515,21 +2631,21 @@ export async function dropBackpackItem(guestToken: string, backpackId: string) {
   const normalizedBackpackId = backpackId.trim();
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw new ApiError("缺少背包物品标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要丢弃的物品不存在。");
+    throw new ApiError("要丢弃的物品不存在。", 404);
   }
 
   await withTransaction(async (client) => {
     const deleted = await deleteBackpackEntry(client, data.role.role_id, normalizedBackpackId);
 
     if (!deleted) {
-      throw new Error("物品丢弃失败，请稍后重试。");
+      throw new ApiError("物品丢弃失败，请稍后重试。", 409);
     }
   });
 
@@ -2543,26 +2659,26 @@ export async function createMarketListing(guestToken: string, backpackId: string
   const normalizedQuantity = normalizeNumber(quantity);
 
   if (!normalizedBackpackId) {
-    throw new Error("缺少背包物品标识。");
+    throw new ApiError("缺少背包物品标识。", 400);
   }
 
   if (normalizedPrice <= 0) {
-    throw new Error("上架价格必须大于 0。");
+    throw new ApiError("上架价格必须大于 0。", 400);
   }
 
   if (normalizedQuantity <= 0) {
-    throw new Error("上架数量必须大于 0。");
+    throw new ApiError("上架数量必须大于 0。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
   const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
 
   if (!matchedItem) {
-    throw new Error("要上架的物品不存在。");
+    throw new ApiError("要上架的物品不存在。", 404);
   }
 
   if (matchedItem.quantity <= (matchedItem.equipped_slot_groups?.length ?? 0)) {
-    throw new Error("这件物品没有可上架的剩余数量。");
+    throw new ApiError("这件物品没有可上架的剩余数量。", 409);
   }
 
   await withTransaction(async (client) => {
@@ -2593,7 +2709,7 @@ export async function createMarketListing(guestToken: string, backpackId: string
     const lockedRole = roleResult.rows[0];
 
     if (!lockedRole) {
-      throw new Error("角色不存在，请先创建角色。");
+      throw new ApiError("角色不存在，请先创建角色。", 404);
     }
 
     const backpackResult = await client.query<BackpackRow>(
@@ -2611,7 +2727,8 @@ export async function createMarketListing(guestToken: string, backpackId: string
           item.slot_usage,
           item.description,
           item.sell_price,
-          item.stat_json
+            item.stat_json,
+            item.item_type
         FROM backpack
         JOIN item ON item.item_id = backpack.item_id
         WHERE backpack.role_id = $1 AND backpack.backpack_id = $2
@@ -2622,25 +2739,25 @@ export async function createMarketListing(guestToken: string, backpackId: string
     const lockedBackpackItem = backpackResult.rows[0];
 
     if (!lockedBackpackItem) {
-      throw new Error("要上架的物品不存在。");
+      throw new ApiError("要上架的物品不存在。", 404);
     }
 
     lockedBackpackItem.equipped_slot_groups = normalizeEquippedSlotGroups(lockedBackpackItem.equipped_slot_groups);
     const sellableQuantity = Math.max(0, lockedBackpackItem.quantity - getBackpackEquippedCount(lockedBackpackItem));
 
     if (sellableQuantity <= 0) {
-      throw new Error("这件物品没有可上架的剩余数量。");
+      throw new ApiError("这件物品没有可上架的剩余数量。", 409);
     }
 
     if (normalizedQuantity > sellableQuantity) {
-      throw new Error("上架数量超过了当前可出售数量。");
+      throw new ApiError("上架数量超过了当前可出售数量。", 409);
     }
 
     if (lockedBackpackItem.quantity <= normalizedQuantity) {
       const deleted = await deleteBackpackEntry(client, lockedRole.role_id, lockedBackpackItem.backpack_id);
 
       if (!deleted) {
-        throw new Error("上架失败，请稍后重试。");
+        throw new ApiError("上架失败，请稍后重试。", 409);
       }
     } else {
       await client.query(
@@ -2668,9 +2785,9 @@ export async function createMarketListing(guestToken: string, backpackId: string
             created_at,
             updated_at
           )
-          VALUES ($1, $2, $3, 'equipment', $4, 'active', 0, 0, NOW(), NOW())
-        `,
-        [makeId("listing"), lockedRole.role_id, lockedBackpackItem.item_id, normalizedPrice],
+            VALUES ($1, $2, $3, $5, $4, 'active', 0, 0, NOW(), NOW())
+          `,
+        [makeId("listing"), lockedRole.role_id, lockedBackpackItem.item_id, normalizedPrice, lockedBackpackItem.item_type],
       );
     }
   });
@@ -2683,7 +2800,7 @@ export async function cancelMarketListing(guestToken: string, listingId: string)
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw new ApiError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -2725,11 +2842,11 @@ export async function cancelMarketListing(guestToken: string, listingId: string)
     const listing = listingResult.rows[0];
 
     if (!listing || listing.seller_role_id !== data.role.role_id) {
-      throw new Error("要下架的挂单不存在。");
+      throw new ApiError("要下架的挂单不存在。", 404);
     }
 
     if (listing.status !== "active") {
-      throw new Error("该挂单当前不能下架。");
+      throw new ApiError("该挂单当前不能下架。", 409);
     }
 
     const siblingResult = await client.query<{ listing_count: number }>(
@@ -2773,7 +2890,7 @@ export async function dismissMarketSoldNotification(guestToken: string, listingI
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw new ApiError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -2816,7 +2933,7 @@ export async function dismissMarketSoldNotification(guestToken: string, listingI
     const listing = listingResult.rows[0];
 
     if (!listing || listing.seller_role_id !== data.role.role_id || listing.status !== "sold") {
-      throw new Error("要处理的出售通知不存在。");
+      throw new ApiError("要处理的出售通知不存在。", 404);
     }
 
     await client.query(
@@ -2844,7 +2961,7 @@ export async function buyMarketListing(guestToken: string, listingId: string) {
   const normalizedListingId = listingId.trim();
 
   if (!normalizedListingId) {
-    throw new Error("缺少市场挂单标识。");
+    throw new ApiError("缺少市场挂单标识。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -2886,11 +3003,11 @@ export async function buyMarketListing(guestToken: string, listingId: string) {
     const listing = listingResult.rows[0];
 
     if (!listing || listing.status !== "active") {
-      throw new Error("这件商品已经被买走或下架了。");
+      throw new ApiError("这件商品已经被买走或下架了。", 409);
     }
 
     if (listing.seller_role_id === data.role.role_id) {
-      throw new Error("不能购买自己上架的物品。");
+      throw new ApiError("不能购买自己上架的物品。", 409);
     }
 
     const cheapestResult = await client.query<{ listing_id: string }>(
@@ -2906,7 +3023,7 @@ export async function buyMarketListing(guestToken: string, listingId: string) {
     const cheapestListingId = cheapestResult.rows[0]?.listing_id ?? null;
 
     if (cheapestListingId !== listing.listing_id) {
-      throw new Error("当前只能购买这件商品中最便宜的那一件。");
+      throw new ApiError("当前只能购买这件商品中最便宜的那一件。", 409);
     }
 
     const [buyerRoleResult, sellerAfkResult] = await Promise.all([
@@ -2960,11 +3077,11 @@ export async function buyMarketListing(guestToken: string, listingId: string) {
     const sellerAfk = sellerAfkResult.rows[0];
 
     if (!buyerRole || !sellerAfk) {
-      throw new Error("交易角色不存在，请稍后重试。");
+      throw new ApiError("交易角色不存在，请稍后重试。", 409);
     }
 
     if (buyerRole.gold < listing.price) {
-      throw new Error("金币不足，无法购买这件商品。");
+      throw new ApiError("金币不足，无法购买这件商品。", 409);
     }
 
     const { feeAmount, sellerReceiveAmount } = calculateMarketFee(listing.price);

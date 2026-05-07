@@ -13,6 +13,12 @@ const BASE_HEALTH = 50;
 const HEALTH_PER_VITALITY = 12;
 const HEALTH_PER_LEVEL = 2;
 
+function createServiceError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 function isValidChatChannel(channelKey) {
   return CHAT_CHANNELS.some((channel) => channel.key === channelKey);
 }
@@ -220,19 +226,19 @@ async function requireChatAuthor(guestToken) {
   const normalizedGuestToken = typeof guestToken === "string" ? guestToken.trim() : "";
 
   if (!normalizedGuestToken) {
-    throw new Error("缺少游客 token。");
+    throw createServiceError("缺少游客 token。", 400);
   }
 
   const user = await findUserByGuestToken(normalizedGuestToken);
 
   if (!user) {
-    throw new Error("游客会话不存在，请重新登录。");
+    throw createServiceError("游客会话不存在，请重新登录。", 401);
   }
 
   const role = await findRoleByUserId(user.user_id);
 
   if (!role) {
-    throw new Error("创建角色后才能发言。");
+    throw createServiceError("创建角色后才能发言。", 403);
   }
 
   return { role, user };
@@ -262,15 +268,15 @@ async function createChatMessageForGuest(guestToken, channelKey, content) {
   const normalizedChannelKey = typeof channelKey === "string" ? channelKey.trim() : "";
 
   if (!isValidChatChannel(normalizedChannelKey)) {
-    throw new Error("聊天频道不存在。");
+    throw createServiceError("聊天频道不存在。", 404);
   }
 
   if (!normalizedContent) {
-    throw new Error("消息内容不能为空。");
+    throw createServiceError("消息内容不能为空。", 400);
   }
 
   if (normalizedContent.length > CHAT_MESSAGE_MAX_LENGTH) {
-    throw new Error(`消息不能超过 ${CHAT_MESSAGE_MAX_LENGTH} 个字符。`);
+    throw createServiceError(`消息不能超过 ${CHAT_MESSAGE_MAX_LENGTH} 个字符。`, 400);
   }
 
   const { role, user } = await requireChatAuthor(guestToken);
@@ -304,7 +310,7 @@ async function createChatMessageForGuest(guestToken, channelKey, content) {
       const elapsedMs = Date.now() - new Date(latestMessage.created_at).getTime();
 
       if (elapsedMs < CHAT_SEND_COOLDOWN_MS) {
-        throw new Error("发言过快，请等待3秒后再试。");
+        throw createServiceError("发言过快，请等待3秒后再试。", 429);
       }
     }
 

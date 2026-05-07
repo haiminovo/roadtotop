@@ -5,7 +5,7 @@ import {
   updateAdminAccount,
   type AdminAccountUpsertInput,
 } from "@/lib/server/admin-config";
-import { jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
+import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 
 export const runtime = "nodejs";
 
@@ -38,7 +38,7 @@ export async function PUT(request: Request) {
     const body = await readJson<AdminAccountUpsertInput & { userId?: string }>(request);
 
     if (!body.userId?.trim()) {
-      throw new Error("缺少账号标识。");
+      throw new ApiError("缺少账号标识。", 400);
     }
 
     await updateAdminAccount({
@@ -57,7 +57,7 @@ export async function DELETE(request: Request) {
     const body = await readJson<DeleteBody>(request);
 
     if (!body.userId?.trim()) {
-      throw new Error("缺少账号标识。");
+      throw new ApiError("缺少账号标识。", 400);
     }
 
     await deleteAdminAccount(body.userId.trim());

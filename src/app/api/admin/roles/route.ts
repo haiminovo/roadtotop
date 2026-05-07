@@ -1,4 +1,4 @@
-import { jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
+import { ApiError, jsonError, jsonOk, optionsResponse, readJson } from "@/lib/server/http";
 import {
   createAdminRole,
   deleteAdminRole,
@@ -50,7 +50,7 @@ export async function DELETE(request: Request) {
     const body = await readJson<DeleteBody>(request);
 
     if (!body.roleId?.trim()) {
-      throw new Error("缺少角色标识。");
+      throw new ApiError("缺少角色标识。", 400);
     }
 
     await deleteAdminRole(body.roleId.trim());

@@ -147,7 +147,6 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const socketRef = useRef<WebSocket | null>(null);
 
   const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot) => {
-    setError(null);
     setSnapshot(nextSnapshot);
     setStatus("ready");
     setSelectedMapKey(nextSnapshot.afk.mapKey ?? nextSnapshot.config.maps[0]?.key ?? "palmia-wilds");
@@ -161,6 +160,43 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
 
     socket.send(JSON.stringify({ payload, type }));
+  }, [locale]);
+
+  const handleRealtimeError = useCallback((statusCode: number, message?: string) => {
+    const localizedMessage = localizeErrorMessage(locale, message ?? "连接挂机服务器失败。");
+
+    if (statusCode === 401) {
+      shouldReconnectRef.current = false;
+
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+
+      clearStoredGuestToken();
+      guestTokenRef.current = null;
+      setGuestToken(null);
+      setSnapshot(null);
+      setChatMessages([]);
+      setIsRealtimeReady(false);
+      setStatus("ready");
+      setError(localizedMessage);
+      return;
+    }
+
+    if (statusCode >= 500) {
+      setStatus("error");
+      setError(localizedMessage);
+      return;
+    }
+
+    setStatus("ready");
+    setError(localizedMessage);
   }, [locale]);
 
   const connectSocket = useCallback(async (nextGuestToken: string) => {
@@ -207,14 +243,17 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
           message?: ChatMessage;
           messages?: ChatMessage[];
           content?: string;
+          status?: number;
           snapshot?: SessionSnapshot;
         };
         type: string;
       };
 
       if (packet.type === "game:error") {
-        setStatus("error");
-        setError(localizeErrorMessage(locale, packet.payload?.content ?? "连接挂机服务器失败。"));
+        const statusCode = typeof packet.payload?.status === "number"
+          ? Math.trunc(packet.payload.status)
+          : 500;
+        handleRealtimeError(statusCode, packet.payload?.content);
         return;
       }
 
@@ -267,7 +306,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       setStatus("error");
       setError(localizeErrorMessage(locale, "挂机长连接建立失败。"));
     });
-  }, [handleIncomingSnapshot, locale]);
+  }, [handleIncomingSnapshot, handleRealtimeError, locale]);
 
   const loadSessionForToken = useCallback(async (nextGuestToken: string) => {
     setStoredGuestToken(nextGuestToken);
@@ -641,6 +680,18 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, sendSocketMessage]);
 
+  const configureSkillLoadout = useCallback(async (skillKey: string, action: "equip" | "unequip") => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:skill:configure-loadout", { action, skillKey });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "配置技能失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
   const unequipBackpackItem = useCallback(async (backpackId: string) => {
     try {
       setStatus("saving");
@@ -682,6 +733,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       deleteAccountRole,
       dismissMarketSoldNotification,
       dismissError,
+      configureSkillLoadout,
       dropBackpackItem,
       equipBackpackItem,
       error,
@@ -711,6 +763,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       deleteAccountRole,
       dismissMarketSoldNotification,
       dismissError,
+      configureSkillLoadout,
       dropBackpackItem,
       equipBackpackItem,
       error,

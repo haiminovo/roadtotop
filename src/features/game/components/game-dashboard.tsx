@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Chat from "@/components/chat";
 import { getMaxHealth, type BodySlotType, type ClassKey, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
@@ -322,7 +322,7 @@ function getAvailableItemActions(item: BackpackItem, messages: I18nMessages = DE
     actions.push(getItemActionDefinition("learn", messages));
   }
 
-  if (item.itemType === "equipment" && sellableQuantity > 0) {
+  if (sellableQuantity > 0) {
     actions.push(getItemActionDefinition("sell", messages));
   }
 
@@ -361,7 +361,7 @@ function OverlayModal({
 }) {
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/72 px-4 py-6">
-      <div className="mx-auto w-full max-w-lg rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.45)] sm:p-6">
+      <div className="mx-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.45)] sm:p-6">
         {children}
       </div>
     </div>
@@ -881,14 +881,14 @@ function ItemTile({
           {messages.game.dashboard.equippedBadge}
         </span>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/12 bg-black/20 text-white">
-          <Icon className="h-4 w-4" />
-        </span>
-        <span className="mt-auto pr-10 text-xs font-medium leading-5 text-white/72">
-          {itemName}
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/12 bg-black/20 text-white">
+          <Icon className="h-8 w-8" />
         </span>
       </div>
+      <span className="pointer-events-none absolute bottom-2 left-3 right-10 truncate text-xs font-medium leading-5 text-white/72">
+        {itemName}
+      </span>
       <span className="absolute bottom-2 right-2 rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-semibold text-white/90">
         {quantity}
       </span>
@@ -1260,6 +1260,7 @@ function CenterPanel({
   currentTaskReward,
   maps,
   onRequestBuyMarketListing,
+  onConfigureSkillLoadout,
   onUnequipItem,
   onSelectItem,
   role,
@@ -1284,6 +1285,7 @@ function CenterPanel({
   };
   maps: MapConfig[];
   onRequestBuyMarketListing: (listingId: string) => void;
+  onConfigureSkillLoadout: (skillKey: string, action: "equip" | "unequip") => void;
   onUnequipItem: (backpackId: string) => void;
   onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
@@ -1300,7 +1302,7 @@ function CenterPanel({
 }) {
   const { locale, messages } = useI18n();
   const copy = messages.game;
-  const [marketCategoryFilter, setMarketCategoryFilter] = useState<"all" | "equipment">("equipment");
+  const [marketCategoryFilter, setMarketCategoryFilter] = useState<"all" | "equipment" | "skill_book" | "material">("equipment");
   const [marketRarityFilter, setMarketRarityFilter] = useState<"all" | "white" | "green" | "blue" | "purple" | "orange">("all");
   const [marketSlotFilter, setMarketSlotFilter] = useState<"all" | BodySlotType>("all");
   const [battleFxState, setBattleFxState] = useState({
@@ -1418,6 +1420,8 @@ function CenterPanel({
     const race = snapshot.config.races.find((item) => item.key === role.raceKey);
     const roleClass = snapshot.config.classes.find((item) => item.key === role.classKey);
     const bodySlots = getSafeBodySlots(role);
+    const equippedSkills = Array.isArray(role.equippedSkills) ? role.equippedSkills : [];
+    const learnedSkills = Array.isArray(role.learnedSkills) ? role.learnedSkills : [];
 
     return (
       <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
@@ -1516,6 +1520,87 @@ function CenterPanel({
               ) : null}
             </div>
           </PanelSubsection>
+
+          <PanelSubsection className="xl:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SectionEyebrow>{copy.dashboard.skillPanelTitle}</SectionEyebrow>
+              <MetaBadge tone="sky">
+                {formatMessage(copy.dashboard.skillSlotsSummary, {
+                  remaining: formatNumber(role.skillSlots.remaining, locale),
+                  total: formatNumber(role.skillSlots.total, locale),
+                  used: formatNumber(role.skillSlots.used, locale),
+                })}
+              </MetaBadge>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{copy.dashboard.equippedSkillsTitle}</p>
+              {equippedSkills.length > 0 ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {equippedSkills.map((skill) => (
+                    <div
+                      key={`equipped-${skill.key}`}
+                      className={`rounded-[0.95rem] border p-3 ${skillQualityTone(skill.quality)}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{skill.name}</p>
+                          <p className="mt-1 text-xs text-slate-300/85">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
+                        </div>
+                        <button
+                          className="min-h-10 shrink-0 rounded-[0.7rem] border border-white/15 bg-white/[0.06] px-2.5 py-1 text-xs text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!isRealtimeReady || status === "saving"}
+                          onClick={() => onConfigureSkillLoadout(skill.key, "unequip")}
+                          type="button"
+                        >
+                          {messages.game.itemActions.unequip.label}
+                        </button>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-300/78">{skill.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-400">{copy.dashboard.equippedSkillsEmpty}</p>
+              )}
+            </div>
+
+            <div className="mt-5">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{copy.dashboard.learnedSkillsTitle}</p>
+              {learnedSkills.length > 0 ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {learnedSkills.map((skill) => (
+                    <div
+                      key={`learned-${skill.key}`}
+                      className={`rounded-[0.95rem] border p-3 ${skillQualityTone(skill.quality)}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{skill.name}</p>
+                          <p className="mt-1 text-xs text-slate-300/85">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
+                        </div>
+                        {skill.equipped ? (
+                          <MetaBadge tone="emerald">{copy.dashboard.skillEquippedBadge}</MetaBadge>
+                        ) : (
+                          <button
+                            className="min-h-10 shrink-0 rounded-[0.7rem] border border-cyan-200/25 bg-cyan-300/12 px-2.5 py-1 text-xs text-cyan-50 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!isRealtimeReady || status === "saving" || role.skillSlots.remaining <= 0}
+                            onClick={() => onConfigureSkillLoadout(skill.key, "equip")}
+                            type="button"
+                          >
+                            {messages.game.itemActions.equip.label}
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-slate-300/78">{skill.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-400">{copy.dashboard.learnedSkillsEmpty}</p>
+              )}
+            </div>
+          </PanelSubsection>
         </div>
       </SectionCard>
     );
@@ -1540,7 +1625,7 @@ function CenterPanel({
             <div className="grid gap-2 sm:grid-cols-3">
               <FilterSelect
                 label={copy.market.filters.category}
-                onChange={(event) => setMarketCategoryFilter(event.target.value as "all" | "equipment")}
+                onChange={(event) => setMarketCategoryFilter(event.target.value as "all" | "equipment" | "skill_book" | "material")}
                 value={marketCategoryFilter}
               >
                 <option value="all">{messages.common.all}</option>
@@ -1837,6 +1922,7 @@ function MainDashboard() {
     dropBackpackItem,
     deleteAccountRole,
     dismissError,
+    configureSkillLoadout,
     equipBackpackItem,
     error,
     registerAccount,
@@ -1864,6 +1950,11 @@ function MainDashboard() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerUsername, setRegisterUsername] = useState("");
   const [selectedBackpackId, setSelectedBackpackId] = useState<string | null>(null);
+  const [uiNotice, setUiNotice] = useState<{
+    id: string;
+    message: string;
+    tone: "danger" | "success";
+  } | null>(null);
   const role = snapshot?.role;
   const backpack = snapshot?.backpack ?? EMPTY_BACKPACK;
   const maps = snapshot?.config.maps ?? [];
@@ -1936,10 +2027,10 @@ function MainDashboard() {
   const actionItem = backpack.find((item) => item.backpackId === itemActionBackpackId);
   const marketSellItem = backpack.find((item) => item.backpackId === marketSellBackpackId);
   const marketListings = snapshot?.market.listings ?? [];
-  const marketSellableQuantity = marketSellItem && marketSellItem.itemType === "equipment"
+  const marketSellableQuantity = marketSellItem
     ? Math.max(0, marketSellItem.quantity - (marketSellItem.equippedCount ?? 0))
     : 0;
-  const marketReferenceListing = marketSellItem && marketSellItem.itemType === "equipment"
+  const marketReferenceListing = marketSellItem
     ? marketListings.find((listing) => listing.itemId === marketSellItem.itemId) ?? null
     : null;
   const marketReferencePrice = marketReferenceListing?.price ?? null;
@@ -1978,6 +2069,31 @@ function MainDashboard() {
     }
     : { aetherCrystal: 0, exp: 0, gold: 0 };
 
+  const pushNotice = useCallback((message: string, tone: "danger" | "success") => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setUiNotice({ id, message, tone });
+  }, []);
+
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+
+    pushNotice(error, "danger");
+  }, [error, pushNotice]);
+
+  useEffect(() => {
+    if (!uiNotice) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setUiNotice((current) => (current?.id === uiNotice.id ? null : current));
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [uiNotice]);
+
   if (!snapshot || !role) {
     return null;
   }
@@ -2005,12 +2121,28 @@ function MainDashboard() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#334293_0%,#111630_30%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4 xl:h-screen xl:overflow-hidden">
-      {error ? (
-        <div className="mx-auto mb-3 flex max-w-[1600px] items-center justify-between gap-4 rounded-[1rem] border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
-          <span>{error}</span>
-          <button className="rounded-lg bg-black/20 px-3 py-2" onClick={dismissError} type="button">
-            {messages.common.close}
-          </button>
+      {uiNotice ? (
+        <div
+          className={[
+            "fixed right-4 top-4 z-50 w-[min(94vw,28rem)] rounded-[1rem] border px-4 py-3 text-sm shadow-[0_18px_55px_rgba(0,0,0,0.42)] backdrop-blur-xl",
+            uiNotice.tone === "danger"
+              ? "border-rose-300/35 bg-rose-500/22 text-rose-50"
+              : "border-emerald-300/35 bg-emerald-500/22 text-emerald-50",
+          ].join(" ")}
+        >
+          <div className="flex items-start gap-3">
+            <span className="min-w-0 flex-1 leading-6">{uiNotice.message}</span>
+            <button
+              className="shrink-0 rounded-lg bg-black/30 px-2.5 py-1.5 text-xs"
+              onClick={() => {
+                setUiNotice(null);
+                dismissError();
+              }}
+              type="button"
+            >
+              {messages.common.close}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -2021,75 +2153,79 @@ function MainDashboard() {
           <p className="mt-3 text-sm leading-7 text-slate-300">
             {formatMessage(copy.dashboard.registerSummary, { roleName: role.name })}
           </p>
-
-          <label className="mt-6 block">
-            <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
-            <input
-              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
-              onChange={(event) => setRegisterUsername(event.target.value)}
-              placeholder={copy.dashboard.registerUsernamePlaceholder}
-              value={registerUsername}
-            />
-          </label>
-
-          <label className="mt-4 block">
-            <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
-            <input
-              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
-              onChange={(event) => setRegisterPassword(event.target.value)}
-              placeholder={copy.dashboard.registerPasswordPlaceholder}
-              type="password"
-              value={registerPassword}
-            />
-          </label>
-
-          <label className="mt-4 block">
-            <span className="text-sm font-medium text-emerald-100">{copy.dashboard.registerConfirmPassword}</span>
-            <input
-              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
-              onChange={(event) => setRegisterConfirmPassword(event.target.value)}
-              placeholder={copy.dashboard.registerConfirmPasswordPlaceholder}
-              type="password"
-              value={registerConfirmPassword}
-            />
-          </label>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button
-              className="flex-1 rounded-[1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-4 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={
-                status === "saving"
-                || !registerUsername.trim()
-                || !registerPassword
-                || !registerConfirmPassword
-              }
-              onClick={() => {
-                void registerAccount({
-                  confirmPassword: registerConfirmPassword,
-                  password: registerPassword,
-                  username: registerUsername,
-                }).then(() => {
-                  setShowRegisterAccountModal(false);
-                  setRegisterUsername("");
-                  setRegisterPassword("");
-                  setRegisterConfirmPassword("");
-                }).catch(() => {});
-              }}
-              type="button"
-            >
-              {status === "saving" ? messages.common.submit : copy.dashboard.registerSubmit}
-            </button>
-            <button
-              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
-              disabled={status === "saving"}
-              onClick={() => {
+          <form
+            className="contents"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void registerAccount({
+                confirmPassword: registerConfirmPassword,
+                password: registerPassword,
+                username: registerUsername,
+              }).then(() => {
                 setShowRegisterAccountModal(false);
-              }}
-              type="button"
-            >
-              {messages.common.cancel}
-            </button>
-          </div>
+                setRegisterUsername("");
+                setRegisterPassword("");
+                setRegisterConfirmPassword("");
+              }).catch(() => {});
+            }}
+          >
+            <label className="mt-6 block">
+              <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
+              <input
+                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                onChange={(event) => setRegisterUsername(event.target.value)}
+                placeholder={copy.dashboard.registerUsernamePlaceholder}
+                value={registerUsername}
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
+              <input
+                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                onChange={(event) => setRegisterPassword(event.target.value)}
+                placeholder={copy.dashboard.registerPasswordPlaceholder}
+                type="password"
+                value={registerPassword}
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="text-sm font-medium text-emerald-100">{copy.dashboard.registerConfirmPassword}</span>
+              <input
+                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                onChange={(event) => setRegisterConfirmPassword(event.target.value)}
+                placeholder={copy.dashboard.registerConfirmPasswordPlaceholder}
+                type="password"
+                value={registerConfirmPassword}
+              />
+            </label>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                className="flex-1 rounded-[1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-4 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  status === "saving"
+                  || !registerUsername.trim()
+                  || !registerPassword
+                  || !registerConfirmPassword
+                }
+                type="submit"
+              >
+                {status === "saving" ? messages.common.submit : copy.dashboard.registerSubmit}
+              </button>
+              <button
+                className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+                disabled={status === "saving"}
+                onClick={() => {
+                  setShowRegisterAccountModal(false);
+                }}
+                type="button"
+              >
+                {messages.common.cancel}
+              </button>
+            </div>
+          </form>
         </OverlayModal>
       ) : null}
 
@@ -2132,8 +2268,8 @@ function MainDashboard() {
       {actionItem ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.itemActions}</SectionEyebrow>
-          <div className="mt-4 flex items-start gap-4">
-            <div className={`flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold ${itemAccent(actionItem.rarity)}`}>
+          <div className="mt-4 flex items-start gap-3 sm:gap-4">
+            <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold sm:h-[4.5rem] sm:w-[4.5rem] ${itemAccent(actionItem.rarity)}`}>
               {(() => {
                 const ActionItemIcon = getGameIconByKey(
                   actionItem.iconKey,
@@ -2143,8 +2279,8 @@ function MainDashboard() {
               })()}
             </div>
             <div className="min-w-0">
-              <h2 className="text-2xl font-semibold text-white">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>
-              <p className="mt-2 text-sm text-slate-300">
+              <h2 className="text-xl font-semibold leading-8 text-white sm:text-2xl">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>
+              <p className="mt-2 text-xs leading-6 text-slate-300 sm:text-sm">
                 {formatMessage(copy.dashboard.actionItemMeta, {
                   equippedCount: actionItem.equippedCount ?? 0,
                   itemType: itemTypeLabel(actionItem.itemType, messages),
@@ -2153,20 +2289,20 @@ function MainDashboard() {
                   slot: slotLabel(actionItem.slot, messages),
                 })}
               </p>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
-              <p className="mt-3 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
+              <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
               {actionItem.itemType === "equipment" ? (
-                <p className="mt-3 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
+                <p className="mt-2 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
               ) : null}
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
+          <div className="mt-5 max-h-[42vh] space-y-2 overflow-y-auto pr-1">
             {getAvailableItemActions(actionItem, messages).map((action) => (
               <button
                 key={action.actionKey}
                 className={[
-                  "w-full rounded-[1rem] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
+                  "w-full rounded-[1rem] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
                   action.tone === "danger"
                     ? "border-rose-300/30 bg-rose-300/10 text-rose-100 hover:bg-rose-300/18"
                     : "border-white/10 bg-white/[0.04] text-white hover:border-sky-200/25",
@@ -2174,9 +2310,11 @@ function MainDashboard() {
                 disabled={isRealtimeActionDisabled}
                 onClick={() => {
                   if (action.actionKey === "learn") {
-                    void learnSkillBook(actionItem.backpackId).then(() => {
-                      setItemActionBackpackId(null);
-                    }).catch(() => {});
+                    setItemActionBackpackId(null);
+                    setPendingItemAction({
+                      actionKey: action.actionKey,
+                      backpackId: actionItem.backpackId,
+                    });
                     return;
                   }
 
@@ -2195,10 +2333,6 @@ function MainDashboard() {
                   }
 
                 if (action.actionKey === "sell") {
-                  if (actionItem.itemType !== "equipment") {
-                    return;
-                  }
-
                   setItemActionBackpackId(null);
                   setMarketSellBackpackId(actionItem.backpackId);
                     const currentMarketPrice =
@@ -2218,11 +2352,11 @@ function MainDashboard() {
                 type="button"
               >
                 <p className="text-sm font-semibold">{action.label}</p>
-                <p className="mt-2 text-xs leading-6 text-current/75">{action.summary}</p>
+                <p className="mt-1 text-xs leading-5 text-current/75">{action.summary}</p>
               </button>
             ))}
             <button
-              className="w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              className="w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200"
               onClick={() => setItemActionBackpackId(null)}
               type="button"
             >
@@ -2232,7 +2366,7 @@ function MainDashboard() {
         </OverlayModal>
       ) : null}
 
-      {pendingActionItem && pendingActionDefinition && pendingItemAction?.actionKey === "drop" ? (
+      {pendingActionItem && pendingActionDefinition && (pendingItemAction?.actionKey === "drop" || pendingItemAction?.actionKey === "learn") ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.confirmAction}</SectionEyebrow>
           <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">
@@ -2264,6 +2398,13 @@ function MainDashboard() {
               onClick={() => {
                 if (pendingItemAction?.actionKey === "drop") {
                   void dropBackpackItem(pendingActionItem.backpackId).then(() => {
+                    setPendingItemAction(null);
+                    setItemActionBackpackId(null);
+                  }).catch(() => {});
+                }
+
+                if (pendingItemAction?.actionKey === "learn") {
+                  void learnSkillBook(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
                   }).catch(() => {});
@@ -2378,13 +2519,14 @@ function MainDashboard() {
               className="flex-1 rounded-[1rem] bg-amber-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={
                 isRealtimeActionDisabled
-                || marketSellItem.itemType !== "equipment"
+                || !marketSellItem
                 || Number(marketSellPrice) <= 0
                 || Number(marketSellQuantity) <= 0
                 || Number(marketSellQuantity) > marketSellableQuantity
               }
               onClick={() => {
                 void createMarketListing(marketSellItem.backpackId, Number(marketSellPrice), Number(marketSellQuantity)).then(() => {
+                  pushNotice("上架成功。", "success");
                   setMarketSellBackpackId(null);
                   setMarketSellPrice("");
                   setMarketSellQuantity("1");
@@ -2585,6 +2727,11 @@ function MainDashboard() {
                 maps={maps}
                 onRequestBuyMarketListing={(listingId) => {
                   setPendingMarketPurchaseListingId(listingId);
+                }}
+                onConfigureSkillLoadout={(skillKey, action) => {
+                  void configureSkillLoadout(skillKey, action).then(() => {
+                    pushNotice(action === "equip" ? "技能携带成功。" : "技能已卸下。", "success");
+                  }).catch(() => {});
                 }}
                 onUnequipItem={(backpackId) => {
                   void unequipBackpackItem(backpackId).catch(() => {});
