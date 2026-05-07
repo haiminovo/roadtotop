@@ -209,6 +209,23 @@ export type AdminRoleRecord = {
   updatedAt: number | null;
 };
 
+export type AdminRoleCreateInput = {
+  userId: string;
+  name: string;
+  raceKey: string;
+  classKey: string;
+  level: number;
+  exp: number;
+  gold: number;
+  aetherCrystal: number;
+  currentHealth: number;
+  strength: number;
+  agility: number;
+  intelligence: number;
+  vitality: number;
+  avatarSeed: string;
+};
+
 export type AdminAccountRecord = {
   userId: string;
   guestToken: string;
@@ -2747,6 +2764,104 @@ export async function updateAdminRole(input: AdminRoleRecord) {
       input.vitality,
       input.avatarSeed,
     ],
+  );
+}
+
+export async function createAdminRole(input: AdminRoleCreateInput) {
+  const userId = input.userId.trim();
+
+  if (!userId) {
+    throw new Error("缺少账号标识。");
+  }
+
+  const roleName = input.name.trim();
+
+  if (!roleName) {
+    throw new Error("角色名不能为空。");
+  }
+
+  await withTransaction(async (client) => {
+    const userResult = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM "user" WHERE user_id = $1 FOR UPDATE`,
+      [userId],
+    );
+
+    if ((userResult.rowCount ?? 0) === 0) {
+      throw new Error("账号不存在。");
+    }
+
+    const existingRole = await client.query<{ role_id: string }>(
+      `SELECT role_id FROM role WHERE user_id = $1`,
+      [userId],
+    );
+
+    if ((existingRole.rowCount ?? 0) > 0) {
+      throw new Error("该账号已有角色。");
+    }
+
+    await client.query(
+      `
+        INSERT INTO role (
+          role_id,
+          user_id,
+          name,
+          race_key,
+          class_key,
+          level,
+          exp,
+          exp_curve_version,
+          gold,
+          aether_crystal,
+          strength,
+          agility,
+          intelligence,
+          vitality,
+          current_health,
+          avatar_seed,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13, $14, $15, $16,
+          NOW(), NOW()
+        )
+      `,
+      [
+        makeId("role"),
+        userId,
+        roleName,
+        input.raceKey.trim(),
+        input.classKey.trim(),
+        Math.max(1, asInt(input.level, 1)),
+        Math.max(0, asInt(input.exp, 0)),
+        LEVEL_CURVE_VERSION,
+        Math.max(0, asInt(input.gold, 0)),
+        Math.max(0, asInt(input.aetherCrystal, 0)),
+        asInt(input.strength, 0),
+        asInt(input.agility, 0),
+        asInt(input.intelligence, 0),
+        asInt(input.vitality, 0),
+        Math.max(1, asInt(input.currentHealth, 1)),
+        input.avatarSeed.trim() || randomUUID(),
+      ],
+    );
+  });
+}
+
+export async function deleteAdminRole(roleId: string) {
+  const normalizedRoleId = roleId.trim();
+
+  if (!normalizedRoleId) {
+    throw new Error("缺少角色标识。");
+  }
+
+  await query(
+    `
+      DELETE FROM role
+      WHERE role_id = $1
+    `,
+    [normalizedRoleId],
   );
 }
 
