@@ -1354,22 +1354,23 @@ export default function AdminPage() {
       setError(null);
       setConfigFieldErrors({});
 
-      const body = {} as Record<ConfigEditorKey, unknown>;
+      let parsedCurrentConfig: unknown;
 
-      for (const definition of CONFIG_DEFINITIONS) {
-        try {
-          body[definition.key] = JSON.parse(configDrafts[definition.key] ?? "");
-        } catch (parseError) {
-          setConfigFieldErrors({
-            [definition.key]: [
-              `JSON 解析失败：${parseError instanceof Error ? parseError.message : "格式不合法。"}`,
-            ],
-          });
-          setError(`发布失败：${definition.label} 不是合法 JSON。`);
-          setSelectedConfigKey(definition.key);
-          return;
-        }
+      try {
+        parsedCurrentConfig = JSON.parse(configDrafts[selectedConfig.key] ?? "");
+      } catch (parseError) {
+        setConfigFieldErrors({
+          [selectedConfig.key]: [
+            `JSON 解析失败：${parseError instanceof Error ? parseError.message : "格式不合法。"}`,
+          ],
+        });
+        setError(`发布失败：${selectedConfig.label} 不是合法 JSON。`);
+        return;
       }
+
+      const body = {
+        [selectedConfig.key]: parsedCurrentConfig,
+      } as Partial<Record<ConfigEditorKey, unknown>>;
 
       const response = await requestJson<{ config: AdminConfigResponse["config"] }>("/api/admin/config", {
         body: JSON.stringify(body),

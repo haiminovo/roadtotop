@@ -2788,7 +2788,7 @@ export async function saveAdminGameConfig(input: {
     await upsertConfig("skill-templates", "list", input.skillTemplates);
     await upsertConfig("system-balance", "object", input.systemBalance);
 
-    await client.query("DELETE FROM item");
+    const nextItemIds = input.itemCatalog.map((item) => item.itemId);
 
     for (const item of input.itemCatalog) {
       await client.query(
@@ -2806,7 +2806,21 @@ export async function saveAdminGameConfig(input: {
             sell_price,
             stat_json,
             updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NOW())
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NOW())
+          ON CONFLICT (item_id)
+          DO UPDATE SET
+            name = EXCLUDED.name,
+            rarity = EXCLUDED.rarity,
+            item_type = EXCLUDED.item_type,
+            skill_key = EXCLUDED.skill_key,
+            icon_key = EXCLUDED.icon_key,
+            slot = EXCLUDED.slot,
+            slot_usage = EXCLUDED.slot_usage,
+            description = EXCLUDED.description,
+            sell_price = EXCLUDED.sell_price,
+            stat_json = EXCLUDED.stat_json,
+            updated_at = NOW()
         `,
         [
           item.itemId,
@@ -2823,6 +2837,25 @@ export async function saveAdminGameConfig(input: {
         ],
       );
     }
+
+    // 清理已从配置移除、且没有被业务数据引用的旧物品，避免外键冲突。
+    await client.query(
+      `
+        DELETE FROM item
+        WHERE item_id <> ALL($1::text[])
+          AND NOT EXISTS (
+            SELECT 1
+            FROM market_listing
+            WHERE market_listing.item_id = item.item_id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM backpack
+            WHERE backpack.item_id = item.item_id
+          )
+      `,
+      [nextItemIds],
+    );
   });
 }
 

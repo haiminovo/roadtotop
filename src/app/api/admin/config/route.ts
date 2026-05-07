@@ -19,8 +19,14 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const body = await readJson<Parameters<typeof saveAdminGameConfig>[0]>(request);
-    const validation = validateAdminGameConfig(body);
+    const body = await readJson<Partial<Parameters<typeof saveAdminGameConfig>[0]>>(request);
+    const currentConfig = await getDynamicGameConfig();
+    const nextConfig = {
+      ...currentConfig,
+      ...body,
+      levelTable: currentConfig.levelTable,
+    };
+    const validation = validateAdminGameConfig(nextConfig);
 
     if (!validation.isValid) {
       throw new ApiError("配置校验失败。", 400, {
@@ -28,7 +34,7 @@ export async function PUT(request: Request) {
       });
     }
 
-    await saveAdminGameConfig(body);
+    await saveAdminGameConfig(nextConfig);
     await refreshRuntimeGameConfig();
     const config = await getDynamicGameConfig();
     return jsonOk({ config });
