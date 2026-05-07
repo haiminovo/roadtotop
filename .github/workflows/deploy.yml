@@ -32,6 +32,20 @@ jobs:
             [ -f ~/.bash_profile ] && source ~/.bash_profile || true
             [ -f ~/.bashrc ] && source ~/.bashrc || true
 
+            # BaoTa often installs Node under /www/server/nodejs/*/bin, which may not
+            # be available in non-interactive SSH sessions.
+            if ! command -v node >/dev/null 2>&1; then
+              BT_NODE_BIN="$(ls -d /www/server/nodejs/*/bin 2>/dev/null | head -n 1 || true)"
+              if [ -n "${BT_NODE_BIN}" ]; then
+                export PATH="${BT_NODE_BIN}:${PATH}"
+              fi
+            fi
+
+            if ! command -v node >/dev/null 2>&1; then
+              echo "node not found. Please install Node.js in BaoTa (recommended v20 LTS)."
+              exit 1
+            fi
+
             cd "${{ secrets.PROJECT_PATH }}"
             git pull origin main
 
