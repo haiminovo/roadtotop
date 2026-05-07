@@ -1056,11 +1056,11 @@ function makeBattleId() {
 }
 
 function calculatePhysicalDamage(strength) {
-  return Math.max(1, Math.round(normalizeNumber(strength) * 2));
+  return Math.max(1, Math.round(normalizeNumber(strength) * 2.8));
 }
 
 function calculateDamageReduction(vitality) {
-  return clamp(normalizeNumber(vitality) / 20, 0, 0.85);
+  return clamp(normalizeNumber(vitality) / 60, 0, 0.45);
 }
 
 function calculateSecondaryStats(stats) {
@@ -1070,12 +1070,12 @@ function calculateSecondaryStats(stats) {
   const vitality = Math.max(1, normalizeNumber(stats?.vitality));
 
   return {
-    critChance: clamp(0.05 + agility * 0.006 + strength * 0.0015, 0.05, 0.65),
-    critDamage: clamp(1.35 + strength * 0.018 + intelligence * 0.008, 1.35, 3),
-    dodgeChance: clamp(0.02 + agility * 0.005 + intelligence * 0.0015, 0.02, 0.5),
-    blockChance: clamp(0.03 + vitality * 0.004 + strength * 0.0015, 0.03, 0.45),
-    blockDamageReduction: clamp(0.15 + vitality * 0.006 + strength * 0.003, 0.15, 0.6),
-    healthRegenRate: clamp(0.003 + vitality * 0.0009 + intelligence * 0.0004, 0, 0.04),
+    critChance: clamp(0.04 + agility * 0.004 + strength * 0.001, 0.04, 0.42),
+    critDamage: clamp(1.3 + strength * 0.012 + intelligence * 0.005, 1.3, 2.35),
+    dodgeChance: clamp(0.01 + agility * 0.0028 + intelligence * 0.0008, 0.01, 0.2),
+    blockChance: clamp(0.015 + vitality * 0.0018 + strength * 0.0008, 0.015, 0.15),
+    blockDamageReduction: clamp(0.08 + vitality * 0.0025 + strength * 0.0012, 0.08, 0.28),
+    healthRegenRate: clamp(0.0015 + vitality * 0.0002 + intelligence * 0.0001, 0, 0.012),
   };
 }
 
@@ -1471,18 +1471,18 @@ function buildBattleSkills(skills, stats, side) {
     const guardRatio = Number(skill.guardRatio) || 0;
     const levelGuardGrowth = Number(skill.levelGuardGrowth) || 0;
     const damage = skill.category === "spell"
-      ? Math.max(1, Math.round(stats.intelligence * (damageMultiplier + levelBonus * levelDamageGrowth)))
+      ? Math.max(1, Math.round(stats.intelligence * (damageMultiplier + levelBonus * levelDamageGrowth) * 1.35))
       : skill.category === "attack"
-        ? Math.max(1, Math.round(stats.strength * (damageMultiplier + levelBonus * levelDamageGrowth)))
+        ? Math.max(1, Math.round(stats.strength * (damageMultiplier + levelBonus * levelDamageGrowth) * 1.35))
         : 0;
     const heal = skill.category === "guard"
       ? Math.max(
         side === "player" ? 10 : 8,
-        Math.round(((healRatio || (side === "player" ? PLAYER_HEAL_RATIO : ENEMY_HEAL_RATIO)) + levelBonus * levelHealGrowth) * normalizeNumber(stats.vitality) * 4.8),
+        Math.round(((healRatio || (side === "player" ? PLAYER_HEAL_RATIO : ENEMY_HEAL_RATIO)) + levelBonus * levelHealGrowth) * normalizeNumber(stats.vitality) * 3),
       )
       : 0;
     const reduction = skill.category === "guard"
-      ? clamp((guardRatio || (side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)) + levelBonus * levelGuardGrowth, 0, 0.9)
+      ? clamp((guardRatio || (side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)) + levelBonus * levelGuardGrowth, 0, 0.45)
       : 0;
 
     return {
@@ -1588,6 +1588,7 @@ function buildBattleCombatant({
     actionBar: 0,
     currentHealth: normalizeNumber(currentHealth),
     defenseTurns: 0,
+    guardDamageReduction: 0,
     guardCooldownTurns: 0,
     intelligence,
     label,
@@ -1645,9 +1646,7 @@ function createEnemyProfile(role, backpack = [], mapKey = null) {
   if (!template) {
     throw createServiceError("当前地图未配置可用怪物模板。", 409);
   }
-  const map = getMapConfig(mapKey);
-  const mapLevelBonus = map ? 1 : 0;
-  const level = Math.max(1, normalizeNumber(role.level) + (Math.random() < 0.35 ? 1 : 0) + mapLevelBonus);
+  const level = Math.max(1, normalizeNumber(role.level) + (Math.random() < 0.35 ? 1 : 0));
   const stats = {
     strength: scaleEnemyStat(playerProfile.stats.strength, template.statWeights.strength),
     agility: scaleEnemyStat(playerProfile.stats.agility, template.statWeights.agility),
@@ -1766,6 +1765,7 @@ function normalizeBattleState(value) {
       activeEffects: normalizeBattleEffects(value.enemyCombatant?.activeEffects),
       currentHealth: normalizeNumber(value.enemyCombatant?.currentHealth),
       defenseTurns: normalizeNumber(value.enemyCombatant?.defenseTurns),
+      guardDamageReduction: clamp(Number(value.enemyCombatant?.guardDamageReduction) || 0, 0, 0.45),
       guardCooldownTurns: normalizeNumber(value.enemyCombatant?.guardCooldownTurns),
       intelligence: normalizeNumber(value.enemyCombatant?.intelligence),
       label: typeof value.enemyCombatant?.label === "string" ? value.enemyCombatant.label : "敌方",
@@ -1800,6 +1800,7 @@ function normalizeBattleState(value) {
       activeEffects: normalizeBattleEffects(value.player?.activeEffects),
       currentHealth: normalizeNumber(value.player?.currentHealth),
       defenseTurns: normalizeNumber(value.player?.defenseTurns),
+      guardDamageReduction: clamp(Number(value.player?.guardDamageReduction) || 0, 0, 0.45),
       guardCooldownTurns: normalizeNumber(value.player?.guardCooldownTurns),
       intelligence: normalizeNumber(value.player?.intelligence),
       label: typeof value.player?.label === "string" ? value.player.label : "我方",
@@ -1853,6 +1854,9 @@ function getOpponentSide(side) {
 function maybeConsumeDefense(combatant) {
   if (combatant.defenseTurns > 0) {
     combatant.defenseTurns = Math.max(0, combatant.defenseTurns - 1);
+    if (combatant.defenseTurns === 0) {
+      combatant.guardDamageReduction = 0;
+    }
   }
 }
 
@@ -1894,8 +1898,8 @@ function decideBattleAction(actor, target) {
 function applyBattleDamage(attacker, defender, battleAction) {
   const attackerEffectiveStats = getCombatantEffectiveStats(attacker);
   const defenderEffectiveStats = getCombatantEffectiveStats(defender);
-  const attackRate = clamp(1 + attackerEffectiveStats.attackRate, 0.1, 5);
-  const defenseRateBonus = clamp(defenderEffectiveStats.defenseRate, -0.8, 0.8);
+  const attackRate = clamp(1 + attackerEffectiveStats.attackRate, 0.5, 3.2);
+  const defenseRateBonus = clamp(defenderEffectiveStats.defenseRate, -0.25, 0.18);
   const attackerSecondaryStats = attackerEffectiveStats.secondaryStats || calculateSecondaryStats(attackerEffectiveStats);
   const defenderSecondaryStats = defenderEffectiveStats.secondaryStats || calculateSecondaryStats(defenderEffectiveStats);
 
@@ -1908,15 +1912,18 @@ function applyBattleDamage(attacker, defender, battleAction) {
     };
   }
 
-  const reductionRate = calculateDamageReduction(defenderEffectiveStats.vitality) + defenseRateBonus + (
-    defender.defenseTurns > 0
-      ? (defender.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO)
-      : 0
+  const guardReduction = defender.defenseTurns > 0
+    ? clamp(Number(defender.guardDamageReduction) || 0, 0, 0.45)
+    : 0;
+  const reductionRate = clamp(
+    calculateDamageReduction(defenderEffectiveStats.vitality) + defenseRateBonus + guardReduction,
+    0,
+    0.62,
   );
   const didCrit = Math.random() < attackerSecondaryStats.critChance;
   const critDamageMultiplier = didCrit ? attackerSecondaryStats.critDamage : 1;
   const scaledDamage = battleAction.damage * attackRate * critDamageMultiplier;
-  let damageAfterReduction = scaledDamage * (1 - clamp(reductionRate, 0, 0.9));
+  let damageAfterReduction = scaledDamage * (1 - reductionRate);
   const didBlock = Math.random() < defenderSecondaryStats.blockChance;
 
   if (didBlock) {
@@ -1966,6 +1973,11 @@ function resolveBattleAction(battleState, actingSide, timestamp) {
   if (decision.action === "guard") {
     actor.currentHealth = Math.min(actor.maxHealth, actor.currentHealth + decision.amount);
     actor.defenseTurns = 1;
+    actor.guardDamageReduction = clamp(
+      Number(decision.guardRatio) || (actor.side === "player" ? PLAYER_GUARD_RATIO : ENEMY_GUARD_RATIO),
+      0,
+      0.45,
+    );
     actor.guardCooldownTurns = normalizeNumber(usedSkill?.cooldownTurns || (actor.side === "player" ? PLAYER_GUARD_COOLDOWN_TURNS : ENEMY_GUARD_COOLDOWN_TURNS));
     if (usedSkill && normalizeNumber(usedSkill.usesRemaining) > 0) {
       usedSkill.usesRemaining = Math.max(0, usedSkill.usesRemaining - 1);
