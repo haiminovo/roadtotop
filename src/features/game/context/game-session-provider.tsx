@@ -111,9 +111,33 @@ function getFallbackWebSocketUrl() {
   return `${protocol}//${window.location.host}`;
 }
 
+function getConfiguredWebSocketUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const configuredUrl = process.env.NEXT_PUBLIC_WS_URL?.trim();
+
+  if (!configuredUrl) {
+    return null;
+  }
+
+  if (window.location.protocol === "https:" && configuredUrl.startsWith("ws://")) {
+    return `wss://${configuredUrl.slice("ws://".length)}`;
+  }
+
+  return configuredUrl;
+}
+
 async function getWebSocketUrl() {
   if (typeof window === "undefined") {
     return null;
+  }
+
+  const configuredUrl = getConfiguredWebSocketUrl();
+
+  if (configuredUrl) {
+    return configuredUrl;
   }
 
   try {
