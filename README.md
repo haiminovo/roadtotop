@@ -55,6 +55,24 @@ pnpm typecheck
 pnpm build
 ```
 
+## Deployment Notes (BaoTa + GitHub Actions)
+
+For first-time server bootstrap (run once on server):
+
+```bash
+chmod +x scripts/server-setup.sh
+./scripts/server-setup.sh /www/wwwroot/roadtotop
+```
+
+Then use GitHub Actions workflow at `.github/workflows/deploy.yml` for continuous deployment.
+Required repository secrets:
+
+- `HOST`
+- `PORT`
+- `USERNAME`
+- `SSH_KEY`
+- `PROJECT_PATH`
+
 ## API Endpoints
 
 The frontend uses these routes:
