@@ -1,0 +1,29 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.PORT }}" -H "${{ secrets.HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh -p "${{ secrets.PORT }}" "${{ secrets.USERNAME }}@${{ secrets.HOST }}" "set -e; cd '${{ secrets.PROJECT_PATH }}'; git pull origin main; corepack enable; pnpm install --frozen-lockfile; pnpm build; pnpm db:init; pm2 restart roadtotop-web || pm2 start 'pnpm start:web' --name roadtotop-web; pm2 restart roadtotop-ws || pm2 start 'pnpm start:ws' --name roadtotop-ws; pm2 save"
