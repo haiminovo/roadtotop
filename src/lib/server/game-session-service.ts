@@ -93,6 +93,7 @@ type BackpackRow = {
   equipped_slot_groups: string[][];
   name: string;
   rarity: string;
+  icon_key: string | null;
   slot: BodySlotType;
   slot_usage: number;
   description: string;
@@ -208,6 +209,7 @@ type ItemSeed = {
   itemId: string;
   name: string;
   rarity: ItemRarity;
+  iconKey: string | null;
   slot: BodySlotType;
   slotUsage: number;
   description: string;
@@ -220,6 +222,7 @@ type EncounterGrantedItem = {
   quantity: number;
   name: string;
   rarity: ItemRarity;
+  iconKey: string | null;
   slot: BodySlotType;
   slotUsage: number;
   description: string;
@@ -844,6 +847,7 @@ function resolveEncounterRewardItems(reward: AfkEncounterReward): EncounterGrant
         quantity,
         name: itemSeed.name,
         rarity: itemSeed.rarity,
+        iconKey: itemSeed.iconKey,
         slot: itemSeed.slot,
         slotUsage: itemSeed.slotUsage,
         description: itemSeed.description,
@@ -878,6 +882,7 @@ function applyEncounterItemsToBackpack(backpack: BackpackRow[], itemDrops: Encou
       equipped_slot_groups: [],
       name: itemDrop.name,
       rarity: itemDrop.rarity,
+      icon_key: itemDrop.iconKey,
       slot: itemDrop.slot,
       slot_usage: itemDrop.slotUsage,
       description: itemDrop.description,
@@ -1423,6 +1428,7 @@ async function getMarketActiveSummaryRows() {
           market_listing.cancelled_at,
           item.name,
           item.rarity,
+          item.icon_key,
           item.slot,
           item.slot_usage,
           item.description,
@@ -1709,6 +1715,7 @@ async function requireDashboardData(guestToken: string) {
           backpack.equipped_slot_groups,
           item.name,
           item.rarity,
+          item.icon_key,
           item.slot,
           item.slot_usage,
           item.description,
@@ -1733,6 +1740,7 @@ async function requireDashboardData(guestToken: string) {
   backpackResult.rows.forEach((item) => {
     const itemSeed = itemSeedById.get(item.item_id);
     if (itemSeed) {
+      item.icon_key = itemSeed.iconKey;
       item.slot = itemSeed.slot;
       item.slot_usage = itemSeed.slotUsage;
     }
@@ -1872,6 +1880,7 @@ function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardM
       equippedSlotGroups: item.equipped_slot_groups,
       name: item.name,
       rarity: item.rarity,
+      iconKey: item.icon_key,
       slot: item.slot,
       slotUsage: item.slot_usage,
       description: item.description,
@@ -2486,6 +2495,7 @@ export async function createMarketListing(guestToken: string, backpackId: string
           backpack.equipped_slot_groups,
           item.name,
           item.rarity,
+          item.icon_key,
           item.slot,
           item.slot_usage,
           item.description,

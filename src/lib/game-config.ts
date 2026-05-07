@@ -19,6 +19,7 @@ export type RaceConfig = {
   key: RaceKey;
   label: string;
   summary: string;
+  iconKey?: string;
   stats: Stats;
   bodySlotAdjustments?: Partial<BodySlotCapacities>;
 };
@@ -27,6 +28,7 @@ export type ClassConfig = {
   key: ClassKey;
   label: string;
   summary: string;
+  iconKey?: string;
   stats: Stats;
   starterItemId: string;
 };
@@ -88,12 +90,14 @@ export const raceConfigs: RaceConfig[] = [
     key: "human",
     label: "人类",
     summary: "四维均衡，最适合当前版本的万能开荒模版。",
+    iconKey: "GiHumanTarget",
     stats: { strength: 5, agility: 5, intelligence: 5, vitality: 5 },
   },
   {
     key: "elf",
     label: "精灵",
     summary: "速度和法感更高，挂机效率偏灵巧与法术。",
+    iconKey: "GiElfEar",
     stats: { strength: 3, agility: 7, intelligence: 7, vitality: 3 },
     bodySlotAdjustments: { accessory: 1 },
   },
@@ -101,6 +105,7 @@ export const raceConfigs: RaceConfig[] = [
     key: "dwarf",
     label: "矮人",
     summary: "更硬更稳，适合站桩和长期刷图。",
+    iconKey: "GiDwarfFace",
     stats: { strength: 7, agility: 3, intelligence: 3, vitality: 7 },
     bodySlotAdjustments: { accessory: -1 },
   },
@@ -108,6 +113,7 @@ export const raceConfigs: RaceConfig[] = [
     key: "orc",
     label: "兽人",
     summary: "力量与体质极强，能以更凶悍的方式推进战斗。",
+    iconKey: "GiOrcHead",
     stats: { strength: 8, agility: 4, intelligence: 2, vitality: 6 },
     bodySlotAdjustments: { hand: 1, accessory: -1 },
   },
@@ -115,6 +121,7 @@ export const raceConfigs: RaceConfig[] = [
     key: "lizardfolk",
     label: "蜥蜴人",
     summary: "爆发速度与生存能力兼具，擅长拉扯和持续作战。",
+    iconKey: "GiLizardman",
     stats: { strength: 4, agility: 8, intelligence: 4, vitality: 6 },
     bodySlotAdjustments: { feet: 1 },
   },
@@ -122,6 +129,7 @@ export const raceConfigs: RaceConfig[] = [
     key: "moonkin",
     label: "月裔",
     summary: "智力成长极高，偏向法术和控制流派。",
+    iconKey: "GiMoon",
     stats: { strength: 2, agility: 4, intelligence: 9, vitality: 5 },
     bodySlotAdjustments: { neck: 1 },
   },
@@ -132,6 +140,7 @@ export const classConfigs: ClassConfig[] = [
     key: "warrior",
     label: "战士",
     summary: "近战起步快，初始金币与白装最实用。",
+    iconKey: "GiBroadsword",
     starterItemId: "rusty-blade",
     stats: { strength: 4, agility: 2, intelligence: 0, vitality: 3 },
   },
@@ -139,6 +148,7 @@ export const classConfigs: ClassConfig[] = [
     key: "mage",
     label: "法师",
     summary: "智力成长高，预计收益里的经验占比更高。",
+    iconKey: "GiWizardStaff",
     starterItemId: "oak-staff",
     stats: { strength: 0, agility: 2, intelligence: 5, vitality: 2 },
   },
@@ -146,6 +156,7 @@ export const classConfigs: ClassConfig[] = [
     key: "farmer",
     label: "农民",
     summary: "务实稳定，适合当前版本的挂机与资源周转。",
+    iconKey: "GiPitchfork",
     starterItemId: "field-hoe",
     stats: { strength: 2, agility: 2, intelligence: 1, vitality: 4 },
   },
@@ -153,6 +164,7 @@ export const classConfigs: ClassConfig[] = [
     key: "ranger",
     label: "游侠",
     summary: "偏敏捷与机动，擅长抢节奏和持续输出。",
+    iconKey: "GiArrowhead",
     starterItemId: "training-bow",
     stats: { strength: 2, agility: 5, intelligence: 1, vitality: 2 },
   },
@@ -160,6 +172,7 @@ export const classConfigs: ClassConfig[] = [
     key: "priest",
     label: "祭司",
     summary: "法术与续航更稳，适合中后期滚雪球。",
+    iconKey: "GiPrayer",
     starterItemId: "whisper-wand",
     stats: { strength: 1, agility: 1, intelligence: 4, vitality: 3 },
   },
@@ -167,6 +180,7 @@ export const classConfigs: ClassConfig[] = [
     key: "rogue",
     label: "潜行者",
     summary: "上手快、爆发高，适合喜欢高风险高收益的玩家。",
+    iconKey: "GiDaggers",
     starterItemId: "bronze-longsword",
     stats: { strength: 3, agility: 5, intelligence: 1, vitality: 1 },
   },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from "react";
+import { IconPicker } from "@/features/admin/components/icon-picker";
 
 type AdminConfigResponse = {
   config: {
@@ -312,6 +313,7 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
     case "raceConfigs":
       return {
         bodySlotAdjustments: {},
+        iconKey: null,
         key: "new-race",
         label: "新种族",
         stats: { agility: 0, intelligence: 0, strength: 0, vitality: 0 },
@@ -319,6 +321,7 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
       };
     case "classConfigs":
       return {
+        iconKey: null,
         key: "new-class",
         label: "新职业",
         starterItemId: "",
@@ -337,6 +340,7 @@ function createConfigArrayItem(configKey: ConfigEditorKey) {
     case "itemCatalog":
       return {
         description: "",
+        iconKey: null,
         itemId: "new-item",
         name: "新物品",
         rarity: "white",
@@ -699,6 +703,36 @@ export default function AdminPage() {
         [selectedConfig.key]: nextIndex,
       }));
     }
+  };
+
+  const updateStructuredArrayItemIconKey = (nextIconKey: string | null) => {
+    if (!selectedArrayItems || selectedArrayItem === null) {
+      return;
+    }
+
+    const currentItem = selectedArrayItems[selectedArrayItemIndex];
+
+    if (!isRecord(currentItem)) {
+      return;
+    }
+
+    const normalizedItem = {
+      ...currentItem,
+      ...(nextIconKey ? { iconKey: nextIconKey } : { iconKey: null }),
+    };
+
+    const nextItems = selectedArrayItems.map((item, index) => (
+      index === selectedArrayItemIndex ? normalizedItem : item
+    ));
+
+    const nextSerialized = pretty(normalizedItem);
+
+    replaceSelectedArrayItems(nextItems, selectedArrayItemIndex);
+    setItemEditorDrafts((current) => ({
+      ...current,
+      [selectedItemEditorKey]: nextSerialized,
+    }));
+    setError(null);
   };
 
   const applySelectedItemEditor = () => {
@@ -1592,8 +1626,21 @@ export default function AdminPage() {
                             </div>
 
                             {selectedArrayItem !== null ? (
+                              <div className="mb-4 mt-4 space-y-4">
+                                {(selectedConfig.key === "raceConfigs" || selectedConfig.key === "classConfigs" || selectedConfig.key === "itemCatalog") && isRecord(selectedArrayItem) ? (
+                                  <IconPicker
+                                    filterGroup={selectedConfig.key === "itemCatalog" ? "item" : selectedConfig.key === "raceConfigs" ? "race" : "class"}
+                                    onChange={updateStructuredArrayItemIconKey}
+                                    title="iconKey 图标"
+                                    value={typeof selectedArrayItem.iconKey === "string" ? selectedArrayItem.iconKey : null}
+                                  />
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            {selectedArrayItem !== null ? (
                               <textarea
-                                className="mt-4 block min-h-[680px] w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 font-mono text-[13px] leading-6 text-slate-800 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15 xl:min-h-0 xl:flex-1"
+                                className="block min-h-[680px] w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 font-mono text-[13px] leading-6 text-slate-800 outline-none transition focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/15 xl:min-h-0 xl:flex-1"
                                 onChange={(event) => {
                                   const nextValue = event.target.value;
 

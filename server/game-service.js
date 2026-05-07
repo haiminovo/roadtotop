@@ -2979,6 +2979,7 @@ async function requireDashboardData(guestToken) {
           item.rarity,
           item.item_type,
           item.skill_key,
+          item.icon_key,
           item.slot,
           item.slot_usage,
           item.description,
@@ -3006,11 +3007,17 @@ async function requireDashboardData(guestToken) {
     if (itemSeed) {
       item.item_type = normalizeItemType(itemSeed.itemType);
       item.skill_key = normalizeSkillKey(itemSeed.skillKey);
+      item.icon_key = typeof itemSeed.iconKey === "string" && itemSeed.iconKey.trim().length > 0
+        ? itemSeed.iconKey.trim()
+        : null;
       item.slot = itemSeed.slot;
       item.slot_usage = itemSeed.slotUsage;
     } else {
       item.item_type = normalizeItemType(item.item_type);
       item.skill_key = normalizeSkillKey(item.skill_key);
+      item.icon_key = typeof item.icon_key === "string" && item.icon_key.trim().length > 0
+        ? item.icon_key.trim()
+        : null;
     }
     item.equipped_slot_groups = normalizeEquippedSlotGroups(item.equipped_slot_groups);
     item.equipped = item.equipped_slot_groups.length > 0;
@@ -3110,6 +3117,9 @@ function buildSnapshot(data, options = {}) {
       itemId: item.item_id,
       itemType: normalizeItemType(item.item_type),
       skillKey: normalizeSkillKey(item.skill_key),
+      iconKey: typeof item.icon_key === "string" && item.icon_key.trim().length > 0
+        ? item.icon_key.trim()
+        : null,
       quantity: item.quantity,
       equipped: item.equipped,
       equippedCount: getBackpackEquippedCount(item),

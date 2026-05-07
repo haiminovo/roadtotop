@@ -14,6 +14,12 @@ import {
   type SupportedLocale,
 } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
+import {
+  getClassFallbackIconKey,
+  getGameIconByKey,
+  getItemTypeFallbackIconKey,
+  getRaceFallbackIconKey,
+} from "@/lib/ui/game-icons";
 
 type I18nMessages = ReturnType<typeof getMessages>;
 const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
@@ -24,6 +30,14 @@ const BATTLE_ENEMY_GUARD_COOLDOWN_TURNS = 3;
 const BATTLE_SPELL_HIGH_INTELLIGENCE_THRESHOLD = 12;
 const BATTLE_HIGH_INTELLIGENCE_SPELL_CHANCE = 0.7;
 const BATTLE_DEFAULT_SPELL_CHANCE = 0.35;
+
+function raceIconByConfig(raceKey: string, iconKey?: string | null) {
+  return getGameIconByKey(iconKey, getRaceFallbackIconKey(raceKey));
+}
+
+function classIconByConfig(classKey: string, iconKey?: string | null) {
+  return getGameIconByKey(iconKey, getClassFallbackIconKey(classKey));
+}
 
 function formatNumber(value: number, locale: SupportedLocale = DEFAULT_LOCALE) {
   return new Intl.NumberFormat(locale).format(Math.max(0, Math.floor(value)));
@@ -216,15 +230,12 @@ function getSafeBodySlots(
   return Array.isArray(role?.bodySlots) ? role.bodySlots : [];
 }
 
-function itemGlyph(name: string) {
-  return name.slice(0, 1).toUpperCase();
-}
-
 const EMPTY_BACKPACK: Array<{
   backpackId: string;
   itemId: string;
   itemType: "equipment" | "skill_book" | "material";
   skillKey: string | null;
+  iconKey: string | null;
   quantity: number;
   equipped: boolean;
   equippedCount: number;
@@ -835,21 +846,24 @@ function RailButton({
 function ItemTile({
   active,
   equippedCount,
-  glyph,
+  iconKey,
   itemName,
+  itemType,
   onClick,
   quantity,
   rarity,
 }: {
   active: boolean;
   equippedCount: number;
-  glyph: string;
+  iconKey: string | null;
   itemName: string;
+  itemType: BackpackItem["itemType"];
   onClick: () => void;
   quantity: number;
   rarity: string;
 }) {
   const { messages } = useI18n();
+  const Icon = getGameIconByKey(iconKey, getItemTypeFallbackIconKey(itemType));
 
   return (
     <button
@@ -868,7 +882,9 @@ function ItemTile({
         </span>
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col">
-        <span className="text-lg font-semibold">{glyph}</span>
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/12 bg-black/20 text-white">
+          <Icon className="h-4 w-4" />
+        </span>
         <span className="mt-auto pr-10 text-xs font-medium leading-5 text-white/72">
           {itemName}
         </span>
@@ -1068,7 +1084,13 @@ function CreateRoleView() {
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-white">{localizeRaceLabel(race.key, race.label, locale)}</p>
+                    <div className="flex items-center gap-2.5">
+                      {(() => {
+                        const RaceIcon = raceIconByConfig(race.key, race.iconKey);
+                        return <RaceIcon className="h-5 w-5 text-sky-200" />;
+                      })()}
+                      <p className="text-lg font-semibold text-white">{localizeRaceLabel(race.key, race.label, locale)}</p>
+                    </div>
                     <MetaBadge tone="sky">
                       {race.key}
                     </MetaBadge>
@@ -1099,7 +1121,13 @@ function CreateRoleView() {
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-lg font-semibold text-white">{localizeClassLabel(roleClass.key, roleClass.label, locale)}</p>
+                    <div className="flex items-center gap-2.5">
+                      {(() => {
+                        const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
+                        return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+                      })()}
+                      <p className="text-lg font-semibold text-white">{localizeClassLabel(roleClass.key, roleClass.label, locale)}</p>
+                    </div>
                     <MetaBadge tone="emerald">
                       {roleClass.key}
                     </MetaBadge>
@@ -1119,6 +1147,16 @@ function CreateRoleView() {
           <SectionEyebrow>{copy.createRole.preview}</SectionEyebrow>
           <PanelSubsection className="mt-4 bg-[linear-gradient(135deg,rgba(59,79,170,0.2),rgba(255,255,255,0.03))]">
             <p className="text-[11px] uppercase tracking-[0.2em] text-sky-100/55">{copy.createRole.currentBuild}</p>
+            <div className="mt-3 flex items-center gap-2.5">
+              {selectedRace ? (() => {
+                const RaceIcon = raceIconByConfig(selectedRace.key, selectedRace.iconKey);
+                return <RaceIcon className="h-5 w-5 text-sky-200" />;
+              })() : null}
+              {selectedClass ? (() => {
+                const ClassIcon = classIconByConfig(selectedClass.key, selectedClass.iconKey);
+                return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+              })() : null}
+            </div>
             <h2 className="mt-3 text-3xl font-semibold text-white">{name || copy.createRole.unnamed}</h2>
             <p className="mt-2 text-sm text-slate-300">
               {(selectedRace ? localizeRaceLabel(selectedRace.key, selectedRace.label, locale) : copy.createRole.noRace)} / {(selectedClass ? localizeClassLabel(selectedClass.key, selectedClass.label, locale) : copy.createRole.noClass)}
@@ -1199,8 +1237,9 @@ function BackpackSectionList({
                 key={item.backpackId}
                 active={selectedBackpackId === item.backpackId}
                 equippedCount={item.equippedCount ?? 0}
-                glyph={itemGlyph(localizeItemName(item.itemId, item.name, locale))}
+                iconKey={item.iconKey}
                 itemName={localizeItemName(item.itemId, item.name, locale)}
+                itemType={item.itemType}
                 onClick={() => onSelectItem(item.backpackId)}
                 quantity={item.quantity}
                 rarity={item.rarity}
@@ -1391,7 +1430,17 @@ function CenterPanel({
         </div>
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
           <PanelSubsection className="bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))]">
-            <p className="text-2xl font-semibold text-white">{role.name}</p>
+            <div className="flex items-center gap-2.5">
+              {race ? (() => {
+                const RaceIcon = raceIconByConfig(race.key, race.iconKey);
+                return <RaceIcon className="h-5 w-5 text-sky-200" />;
+              })() : null}
+              {roleClass ? (() => {
+                const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
+                return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+              })() : null}
+              <p className="text-2xl font-semibold text-white">{role.name}</p>
+            </div>
             <p className="mt-2 text-sm text-slate-300">
               {race ? localizeRaceLabel(race.key, race.label, locale) : copy.createRole.noRace} / {roleClass ? localizeClassLabel(roleClass.key, roleClass.label, locale) : copy.createRole.noClass}
             </p>
@@ -2085,7 +2134,13 @@ function MainDashboard() {
           <SectionEyebrow>{copy.dashboard.itemActions}</SectionEyebrow>
           <div className="mt-4 flex items-start gap-4">
             <div className={`flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold ${itemAccent(actionItem.rarity)}`}>
-              {itemGlyph(localizeItemName(actionItem.itemId, actionItem.name, locale))}
+              {(() => {
+                const ActionItemIcon = getGameIconByKey(
+                  actionItem.iconKey,
+                  getItemTypeFallbackIconKey(actionItem.itemType),
+                );
+                return <ActionItemIcon className="h-8 w-8" />;
+              })()}
             </div>
             <div className="min-w-0">
               <h2 className="text-2xl font-semibold text-white">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>

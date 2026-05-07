@@ -131,6 +131,7 @@ export type DynamicGameConfig = {
     rarity: string;
     itemType: GameItemType;
     skillKey: string | null;
+    iconKey: string | null;
     slot: BodySlotType;
     slotUsage: number;
     description: string;
@@ -738,33 +739,32 @@ const DEFAULT_SKILL_TEMPLATES: SkillTemplate[] = [
 ];
 
 const DEFAULT_ITEM_CATALOG: DynamicGameConfig["itemCatalog"] = [
-  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
-  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
-  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
-  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
-  { itemId: "training-bow", name: "练习短弓", rarity: "white", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
-  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", itemType: "equipment", skillKey: null, slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
-  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
-  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
-  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
-  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
-  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
-  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
-  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
-  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", itemType: "equipment", skillKey: null, slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
-  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
-  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", itemType: "equipment", skillKey: null, slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
-  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", itemType: "equipment", skillKey: null, slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
-  { itemId: "obsidian-edge", name: "黑曜断刃", rarity: "orange", itemType: "equipment", skillKey: null, slot: "hand", slotUsage: 1, description: "淬火黑曜石锻成的利刃，兼具穿透力与稳定性。", sellPrice: 338, stats: { strength: 6, agility: 2 } },
-  { itemId: "skillbook-focus-strike", name: "技能书·凝神重击", rarity: "white", itemType: "skill_book", skillKey: "focus-strike", slot: "accessory", slotUsage: 1, description: "记录了基础斩击心法的技能书。学习后可掌握凝神重击。", sellPrice: 28, stats: {} },
-  { itemId: "skillbook-iron-guard", name: "技能书·铁壁守势", rarity: "green", itemType: "skill_book", skillKey: "iron-guard", slot: "accessory", slotUsage: 1, description: "记载守势要诀的技能书。学习后可掌握铁壁守势。", sellPrice: 60, stats: {} },
-  { itemId: "skillbook-arcane-burst", name: "技能书·奥术爆裂", rarity: "blue", itemType: "skill_book", skillKey: "arcane-burst", slot: "accessory", slotUsage: 1, description: "封存奥术结构的技能书。学习后可掌握奥术爆裂。", sellPrice: 110, stats: {} },
-  { itemId: "material-wolf-fang", name: "狼牙", rarity: "white", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "常见野兽掉落材料，可用于后续制作与任务。", sellPrice: 6, stats: {} },
-  { itemId: "material-crystal-shard", name: "碎晶片", rarity: "green", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "奇遇与遗迹怪物常见材料，带有微弱能量。", sellPrice: 12, stats: {} },
-  { itemId: "material-moon-dust", name: "月尘", rarity: "blue", itemType: "material", skillKey: null, slot: "accessory", slotUsage: 1, description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。", sellPrice: 24, stats: {} },
+  { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiSwordman", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
+  { itemId: "oak-staff", name: "橡木法杖", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiWizardStaff", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
+  { itemId: "field-hoe", name: "旧铁锄", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBattleAxe", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCloak", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiRing", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
+  { itemId: "training-bow", name: "练习短弓", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiPocketBow", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
+  { itemId: "leather-cap", name: "皮质便帽", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBilledCap", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
+  { itemId: "scout-bracers", name: "斥候护腕", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBracer", slot: "accessory", slotUsage: 1, description: "轻量护腕，让抬手与闪避动作更利落。", sellPrice: 16, stats: { agility: 1, intelligence: 1 } },
+  { itemId: "bronze-longsword", name: "青铜长剑", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiBroadsword", slot: "hand", slotUsage: 1, description: "保养得当的军用品，劈砍手感远胜生锈短剑。", sellPrice: 48, stats: { strength: 3, vitality: 1 } },
+  { itemId: "whisper-wand", name: "低语木杖", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCrystalWand", slot: "hand", slotUsage: 1, description: "杖身会在夜里发出轻鸣，能稳定初阶法术。", sellPrice: 46, stats: { intelligence: 3, agility: 1 } },
+  { itemId: "hunter-leathers", name: "猎人皮甲", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiLeatherArmor", slot: "torso", slotUsage: 1, description: "柔韧结实，适合长时间追踪与奔行。", sellPrice: 54, stats: { agility: 2, vitality: 2 } },
+  { itemId: "amber-charm", name: "琥珀护符", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCharm", slot: "neck", slotUsage: 1, description: "封着温热树脂的护符，能让心神更稳定。", sellPrice: 52, stats: { intelligence: 2, vitality: 1 } },
+  { itemId: "moonshadow-dagger", name: "月影短匕", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiCurvyKnife", slot: "hand", slotUsage: 1, description: "刀锋轻薄如月光，适合迅捷而精准的出手。", sellPrice: 96, stats: { agility: 4, intelligence: 1 } },
+  { itemId: "runic-vest", name: "符纹战衣", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiArmorVest", slot: "torso", slotUsage: 1, description: "内衬刻着细密符纹，兼顾防护与法感引导。", sellPrice: 104, stats: { intelligence: 3, vitality: 2 } },
+  { itemId: "wolfbone-talisman", name: "狼骨符坠", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiGemPendant", slot: "accessory", slotUsage: 1, description: "粗犷却实用的护符，佩戴后胆气更足。", sellPrice: 98, stats: { strength: 2, agility: 2 } },
+  { itemId: "stormglass-staff", name: "风暴晶杖", rarity: "purple", itemType: "equipment", skillKey: null, iconKey: "GiCrystalWand", slot: "hand", slotUsage: 2, description: "杖芯封着风暴碎晶，能显著放大施法者感知。", sellPrice: 188, stats: { intelligence: 5, agility: 2 } },
+  { itemId: "knightwatch-mail", name: "守夜骑士甲", rarity: "purple", itemType: "equipment", skillKey: null, iconKey: "GiArmorVest", slot: "torso", slotUsage: 1, description: "历经修补的厚重甲胄，仍保留着可靠的守护感。", sellPrice: 210, stats: { strength: 3, vitality: 5 } },
+  { itemId: "dawnfire-pendant", name: "晨焰坠饰", rarity: "orange", itemType: "equipment", skillKey: null, iconKey: "GiGemPendant", slot: "neck", slotUsage: 1, description: "内部像封着一缕朝阳，能同时提振体魄与精神。", sellPrice: 320, stats: { strength: 2, intelligence: 3, vitality: 3 } },
+  { itemId: "obsidian-edge", name: "黑曜断刃", rarity: "orange", itemType: "equipment", skillKey: null, iconKey: "GiSwordman", slot: "hand", slotUsage: 1, description: "淬火黑曜石锻成的利刃，兼具穿透力与稳定性。", sellPrice: 338, stats: { strength: 6, agility: 2 } },
+  { itemId: "skillbook-focus-strike", name: "技能书·凝神重击", rarity: "white", itemType: "skill_book", skillKey: "focus-strike", iconKey: "GiSpellBook", slot: "accessory", slotUsage: 1, description: "记录了基础斩击心法的技能书。学习后可掌握凝神重击。", sellPrice: 28, stats: {} },
+  { itemId: "skillbook-iron-guard", name: "技能书·铁壁守势", rarity: "green", itemType: "skill_book", skillKey: "iron-guard", iconKey: "GiSpellBook", slot: "accessory", slotUsage: 1, description: "记载守势要诀的技能书。学习后可掌握铁壁守势。", sellPrice: 60, stats: {} },
+  { itemId: "skillbook-arcane-burst", name: "技能书·奥术爆裂", rarity: "blue", itemType: "skill_book", skillKey: "arcane-burst", iconKey: "GiSpellBook", slot: "accessory", slotUsage: 1, description: "封存奥术结构的技能书。学习后可掌握奥术爆裂。", sellPrice: 110, stats: {} },
+  { itemId: "material-wolf-fang", name: "狼牙", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "常见野兽掉落材料，可用于后续制作与任务。", sellPrice: 6, stats: {} },
+  { itemId: "material-crystal-shard", name: "碎晶片", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "奇遇与遗迹怪物常见材料，带有微弱能量。", sellPrice: 12, stats: {} },
+  { itemId: "material-moon-dust", name: "月尘", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiPowder", slot: "accessory", slotUsage: 1, description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。", sellPrice: 24, stats: {} },
 ];
-
 const DEFAULT_SYSTEM_BALANCE: SystemBalanceConfig = {
   marketFeeRatePercent: 10,
   battleTriggerChance: 0.24,
@@ -1134,6 +1134,12 @@ export function validateAdminGameConfig(input: {
       validateRequiredString(race?.label, "label", push);
       validateStatsObject(race?.stats, "stats", push);
 
+      if (race?.iconKey !== undefined && race?.iconKey !== null) {
+        if (typeof race.iconKey !== "string" || !race.iconKey.trim()) {
+          push("iconKey 若提供必须是非空字符串。");
+        }
+      }
+
       if (key) {
         if (raceKeys.has(key)) {
           push(`key "${key}" 重复。`);
@@ -1171,6 +1177,12 @@ export function validateAdminGameConfig(input: {
       validateFiniteNumber(item?.slotUsage, "slotUsage", push, { integer: true, min: 1 });
       validateFiniteNumber(item?.sellPrice, "sellPrice", push, { integer: true, min: 0 });
       validateItemStatsObject(item?.stats, "stats", push);
+
+      if (item?.iconKey !== undefined && item?.iconKey !== null) {
+        if (typeof item.iconKey !== "string" || !item.iconKey.trim()) {
+          push("iconKey 若提供必须是非空字符串。");
+        }
+      }
 
       if (!isKnownRarity(item?.rarity)) {
         push("rarity 必须是 white / green / blue / purple / orange 之一。");
@@ -1214,6 +1226,12 @@ export function validateAdminGameConfig(input: {
       validateRequiredString(classConfig?.label, "label", push);
       validateRequiredString(classConfig?.starterItemId, "starterItemId", push);
       validateStatsObject(classConfig?.stats, "stats", push);
+
+      if (classConfig?.iconKey !== undefined && classConfig?.iconKey !== null) {
+        if (typeof classConfig.iconKey !== "string" || !classConfig.iconKey.trim()) {
+          push("iconKey 若提供必须是非空字符串。");
+        }
+      }
 
       if (key) {
         if (classKeys.has(key)) {
@@ -1542,6 +1560,7 @@ function normalizeRaces(value: unknown): RaceConfig[] {
         key: asString(source.key).trim(),
         label: asString(source.label),
         summary: asString(source.summary),
+        iconKey: asString(source.iconKey).trim() || undefined,
         stats: normalizeStats(source.stats),
         bodySlotAdjustments: normalizeBodySlotAdjustments(source.bodySlotAdjustments),
       } as RaceConfig;
@@ -1580,6 +1599,7 @@ function normalizeClasses(value: unknown): ClassConfig[] {
         key: asString(source.key).trim(),
         label: asString(source.label),
         summary: asString(source.summary),
+        iconKey: asString(source.iconKey).trim() || undefined,
         starterItemId: asString(source.starterItemId),
         stats: normalizeStats(source.stats),
       } as ClassConfig;
@@ -1908,6 +1928,7 @@ type ItemCatalogRow = {
   rarity: string;
   item_type: GameItemType;
   skill_key: string | null;
+  icon_key: string | null;
   slot: BodySlotType;
   slot_usage: number;
   description: string;
@@ -1931,6 +1952,7 @@ export async function getDynamicGameConfig(): Promise<DynamicGameConfig> {
           rarity,
           item_type,
           skill_key,
+          icon_key,
           slot,
           slot_usage,
           description,
@@ -1955,6 +1977,7 @@ export async function getDynamicGameConfig(): Promise<DynamicGameConfig> {
       rarity: item.rarity,
       itemType: asItemType(item.item_type),
       skillKey: item.skill_key || null,
+      iconKey: item.icon_key || null,
       slot: item.slot,
       slotUsage: item.slot_usage,
       description: item.description,
@@ -2348,13 +2371,14 @@ export async function saveAdminGameConfig(input: {
             rarity,
             item_type,
             skill_key,
+            icon_key,
             slot,
             slot_usage,
             description,
             sell_price,
             stat_json,
             updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NOW())
         `,
         [
           item.itemId,
@@ -2362,6 +2386,7 @@ export async function saveAdminGameConfig(input: {
           item.rarity,
           item.itemType,
           item.skillKey,
+          item.iconKey ?? null,
           item.slot,
           item.slotUsage,
           item.description,

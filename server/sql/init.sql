@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS item (
   rarity TEXT NOT NULL,
   item_type TEXT NOT NULL DEFAULT 'equipment',
   skill_key TEXT,
+  icon_key TEXT,
   slot TEXT NOT NULL,
   slot_usage INTEGER NOT NULL DEFAULT 1,
   description TEXT NOT NULL,
@@ -92,6 +93,9 @@ ADD COLUMN IF NOT EXISTS item_type TEXT NOT NULL DEFAULT 'equipment';
 
 ALTER TABLE item
 ADD COLUMN IF NOT EXISTS skill_key TEXT;
+
+ALTER TABLE item
+ADD COLUMN IF NOT EXISTS icon_key TEXT;
 
 CREATE TABLE IF NOT EXISTS game_config (
   config_key TEXT PRIMARY KEY,
@@ -247,7 +251,7 @@ UPDATE afk
 SET map_key = 'palmia-wilds'
 WHERE map_key IS NOT NULL AND map_key <> 'palmia-wilds';
 
-INSERT INTO item (item_id, name, rarity, item_type, skill_key, slot, slot_usage, description, sell_price, stat_json, updated_at)
+INSERT INTO item (item_id, name, rarity, item_type, skill_key, icon_key, slot, slot_usage, description, sell_price, stat_json, updated_at)
 VALUES
   (
     'rusty-blade',
@@ -255,6 +259,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiSwordman',
     'hand',
     1,
     '开荒时勉强能用的短剑。',
@@ -268,6 +273,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiWizardStaff',
     'hand',
     2,
     '粗糙的入门法杖，适合法师起步。',
@@ -281,6 +287,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiBattleAxe',
     'hand',
     2,
     '农活与近身防卫两不误的旧工具。',
@@ -294,6 +301,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiCloak',
     'neck',
     1,
     '轻便耐磨，适合野外挂机。',
@@ -307,6 +315,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiRing',
     'accessory',
     1,
     '会在冒险者启程时发放的基础指环。',
@@ -320,6 +329,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiPocketBow',
     'hand',
     2,
     '拉力一般，但足够让新手学会瞄准与走位。',
@@ -333,6 +343,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiBilledCap',
     'head',
     1,
     '不起眼的小帽子，能挡一点风沙与碎石。',
@@ -346,6 +357,7 @@ VALUES
     'white',
     'equipment',
     NULL,
+    'GiBracer',
     'accessory',
     1,
     '轻量护腕，让抬手与闪避动作更利落。',
@@ -359,6 +371,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiBroadsword',
     'hand',
     1,
     '保养得当的军用品，劈砍手感远胜生锈短剑。',
@@ -372,6 +385,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiCrystalWand',
     'hand',
     1,
     '杖身会在夜里发出轻鸣，能稳定初阶法术。',
@@ -385,6 +399,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiLeatherArmor',
     'torso',
     1,
     '柔韧结实，适合长时间追踪与奔行。',
@@ -398,6 +413,7 @@ VALUES
     'green',
     'equipment',
     NULL,
+    'GiCharm',
     'neck',
     1,
     '封着温热树脂的护符，能让心神更稳定。',
@@ -411,6 +427,7 @@ VALUES
     'blue',
     'equipment',
     NULL,
+    'GiCurvyKnife',
     'hand',
     1,
     '刀锋轻薄如月光，适合迅捷而精准的出手。',
@@ -424,6 +441,7 @@ VALUES
     'blue',
     'equipment',
     NULL,
+    'GiArmorVest',
     'torso',
     1,
     '内衬刻着细密符纹，兼顾防护与法感引导。',
@@ -437,6 +455,7 @@ VALUES
     'blue',
     'equipment',
     NULL,
+    'GiGemPendant',
     'accessory',
     1,
     '粗犷却实用的护符，佩戴后胆气更足。',
@@ -450,6 +469,7 @@ VALUES
     'purple',
     'equipment',
     NULL,
+    'GiCrystalWand',
     'hand',
     2,
     '杖芯封着风暴碎晶，能显著放大施法者感知。',
@@ -463,6 +483,7 @@ VALUES
     'purple',
     'equipment',
     NULL,
+    'GiArmorVest',
     'torso',
     1,
     '历经修补的厚重甲胄，仍保留着可靠的守护感。',
@@ -476,6 +497,7 @@ VALUES
     'orange',
     'equipment',
     NULL,
+    'GiGemPendant',
     'neck',
     1,
     '内部像封着一缕朝阳，能同时提振体魄与精神。',
@@ -489,6 +511,7 @@ VALUES
     'orange',
     'equipment',
     NULL,
+    'GiSwordman',
     'hand',
     1,
     '淬火黑曜石锻成的利刃，兼具穿透力与稳定性。',
@@ -502,6 +525,7 @@ VALUES
     'white',
     'skill_book',
     'focus-strike',
+    'GiSpellBook',
     'accessory',
     1,
     '记录了基础斩击心法的技能书。学习后可掌握凝神重击。',
@@ -515,6 +539,7 @@ VALUES
     'green',
     'skill_book',
     'iron-guard',
+    'GiSpellBook',
     'accessory',
     1,
     '记载守势要诀的技能书。学习后可掌握铁壁守势。',
@@ -528,6 +553,7 @@ VALUES
     'blue',
     'skill_book',
     'arcane-burst',
+    'GiSpellBook',
     'accessory',
     1,
     '封存奥术结构的技能书。学习后可掌握奥术爆裂。',
@@ -541,6 +567,7 @@ VALUES
     'white',
     'material',
     NULL,
+    'GiMinerals',
     'accessory',
     1,
     '常见野兽掉落材料，可用于后续制作与任务。',
@@ -554,6 +581,7 @@ VALUES
     'green',
     'material',
     NULL,
+    'GiCrystalCluster',
     'accessory',
     1,
     '奇遇与遗迹怪物常见材料，带有微弱能量。',
@@ -567,6 +595,7 @@ VALUES
     'blue',
     'material',
     NULL,
+    'GiPowder',
     'accessory',
     1,
     '稀有月辉残渣，多见于高阶奇遇与精英敌人。',
@@ -579,6 +608,7 @@ ON CONFLICT (item_id) DO UPDATE SET
   rarity = EXCLUDED.rarity,
   item_type = EXCLUDED.item_type,
   skill_key = EXCLUDED.skill_key,
+  icon_key = EXCLUDED.icon_key,
   slot = EXCLUDED.slot,
   slot_usage = EXCLUDED.slot_usage,
   description = EXCLUDED.description,
@@ -596,6 +626,7 @@ VALUES
         "key": "human",
         "label": "人类",
         "summary": "四维均衡，最适合当前版本的万能开荒模版。",
+        "iconKey": "GiHumanTarget",
         "stats": { "strength": 5, "agility": 5, "intelligence": 5, "vitality": 5 },
         "bodySlotAdjustments": {}
       },
@@ -603,6 +634,7 @@ VALUES
         "key": "elf",
         "label": "精灵",
         "summary": "速度和法感更高，挂机效率偏灵巧与法术。",
+        "iconKey": "GiElfEar",
         "stats": { "strength": 3, "agility": 7, "intelligence": 7, "vitality": 3 },
         "bodySlotAdjustments": { "accessory": 1 }
       },
@@ -610,6 +642,7 @@ VALUES
         "key": "dwarf",
         "label": "矮人",
         "summary": "更硬更稳，适合站桩和长期刷图。",
+        "iconKey": "GiDwarfFace",
         "stats": { "strength": 7, "agility": 3, "intelligence": 3, "vitality": 7 },
         "bodySlotAdjustments": { "accessory": -1 }
       }
@@ -624,6 +657,7 @@ VALUES
         "key": "warrior",
         "label": "战士",
         "summary": "近战起步快，初始金币与白装最实用。",
+        "iconKey": "GiBroadsword",
         "starterItemId": "rusty-blade",
         "stats": { "strength": 4, "agility": 2, "intelligence": 0, "vitality": 3 }
       },
@@ -631,6 +665,7 @@ VALUES
         "key": "mage",
         "label": "法师",
         "summary": "智力成长高，预计收益里的经验占比更高。",
+        "iconKey": "GiWizardStaff",
         "starterItemId": "oak-staff",
         "stats": { "strength": 0, "agility": 2, "intelligence": 5, "vitality": 2 }
       },
@@ -638,6 +673,7 @@ VALUES
         "key": "farmer",
         "label": "农民",
         "summary": "务实稳定，适合当前版本的挂机与资源周转。",
+        "iconKey": "GiPitchfork",
         "starterItemId": "field-hoe",
         "stats": { "strength": 2, "agility": 2, "intelligence": 1, "vitality": 4 }
       }

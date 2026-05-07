@@ -166,6 +166,7 @@ export type BackpackEntry = {
   itemId: string;
   itemType: GameItemType;
   skillKey: string | null;
+  iconKey: string | null;
   quantity: number;
   equipped: boolean;
   equippedCount: number;
