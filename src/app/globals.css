@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "antd/dist/reset.css";
 
 :root {
   --app-bg: #030712;
@@ -67,6 +68,11 @@ body::after {
   position: fixed;
 }
 
+body.admin-body::before,
+body.admin-body::after {
+  display: none;
+}
+
 h1,
 h2,
 h3,
@@ -84,13 +90,6 @@ h6 {
 :focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.9);
   outline-offset: 2px;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -118,4 +117,110 @@ textarea {
 
 ::-webkit-scrollbar-track {
   background: rgba(15, 23, 42, 0.25);
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Admin-only Ant Design token overrides (minimal, high-contrast selection only) */
+.admin-console-antd .ant-select-focused .ant-select-selector,
+.admin-console-antd .ant-select-open .ant-select-selector {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.14) !important;
+}
+
+.admin-console-antd .ant-select-dropdown .ant-select-item-option-active {
+  background: rgba(22, 119, 255, 0.06) !important;
+}
+
+.admin-console-antd .ant-select-dropdown .ant-select-item-option-selected {
+  background: #1677ff !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.admin-console-antd .ant-select-selection-overflow-item .ant-select-selection-item {
+  background: rgba(22, 119, 255, 0.1) !important;
+  border: 1px solid rgba(22, 119, 255, 0.2) !important;
+  color: #0f172a !important;
+}
+
+.admin-console-antd .ant-segmented {
+  background: #f1f5f9 !important;
+}
+
+.admin-console-antd .ant-segmented-item {
+  color: #475569 !important;
+}
+
+.admin-console-antd .ant-segmented-item-selected {
+  background: #1677ff !important;
+  box-shadow: none !important;
+}
+
+.admin-console-antd .ant-segmented-item-selected .ant-segmented-item-label {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.admin-console-antd .ant-switch-checked {
+  background: #1677ff !important;
+}
+
+/* Design rule: blue surface => white text */
+.admin-console-antd .bg-\[\#1677ff\],
+.admin-console-antd .bg-\[\#1677ff\] *,
+.admin-console-antd .ant-btn-primary,
+.admin-console-antd .ant-btn-primary *,
+.admin-console-antd .ant-select-dropdown .ant-select-item-option-selected *,
+.admin-console-antd .ant-segmented-item-selected,
+.admin-console-antd .ant-segmented-item-selected * {
+  color: #ffffff !important;
+}
+
+/* Admin text harmonization: avoid default near-black patches from mixed components */
+.admin-console-antd {
+  color: #334155;
+}
+
+.admin-console-antd .text-slate-900 {
+  color: #1e293b !important;
+}
+
+.admin-console-antd .text-slate-800 {
+  color: #334155 !important;
+}
+
+.admin-console-antd .text-slate-700 {
+  color: #475569 !important;
+}
+
+.admin-console-antd .text-slate-600 {
+  color: #64748b !important;
+}
+
+.admin-console-antd .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+.admin-console-antd .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.admin-console-antd .ant-table {
+  color: #475569 !important;
+}
+
+.admin-console-antd .ant-input,
+.admin-console-antd .ant-input-number-input,
+.admin-console-antd .ant-select-selection-item,
+.admin-console-antd .ant-select-selection-placeholder,
+.admin-console-antd .ant-segmented-item-label {
+  color: #334155;
 }

@@ -727,6 +727,61 @@ const DEFAULT_SYSTEM_BALANCE = {
   enemyGuardCooldownTurns: 3,
 };
 
+const LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY = {
+  "stray-wolf": [
+    { itemId: "material-wolf-fang", chance: 0.35, min: 1, max: 2 },
+  ],
+  "bandit-scout": [
+    { itemId: "material-wolf-fang", chance: 0.25, min: 1, max: 1 },
+    { itemId: "material-crystal-shard", chance: 0.12, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "material-crystal-shard", chance: 0.3, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.08, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "material-wolf-fang", chance: 0.22, min: 1, max: 2 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "material-crystal-shard", chance: 0.34, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.12, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "material-wolf-fang", chance: 0.28, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.06, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "material-crystal-shard", chance: 0.36, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.15, min: 1, max: 1 },
+  ],
+};
+
+const LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY = {
+  "stray-wolf": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "bandit-scout": [
+    { itemId: "skillbook-focus-strike", chance: 0.06, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "skillbook-arcane-burst", chance: 0.04, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "skillbook-arcane-burst", chance: 0.05, min: 1, max: 1 },
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "skillbook-iron-guard", chance: 0.06, min: 1, max: 1 },
+    { itemId: "skillbook-arcane-burst", chance: 0.06, min: 1, max: 1 },
+  ],
+};
+
 function getLevelBaseExp(level) {
   const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
   const completedLevels = safeLevel - 1;
@@ -802,6 +857,10 @@ function asSkillEffectTarget(value) {
 
 function asEncounterTier(value) {
   return value === "common" || value === "rare" || value === "legendary" ? value : "common";
+}
+
+function isKnownEncounterTier(value) {
+  return value === "common" || value === "rare" || value === "legendary";
 }
 
 function normalizeMapKeys(value) {
@@ -1012,6 +1071,195 @@ function normalizeEncounterReward(value) {
     ...(source && "healthDelta" in source ? { healthDelta: asInt(source.healthDelta, 0) } : {}),
     ...(items.length > 0 ? { items } : {}),
   };
+}
+
+function asEventTriggerType(value) {
+  return value === "enemy_kill" ? "enemy_kill" : "afk_tick";
+}
+
+function asEventActionType(value) {
+  return value === "grant_gold"
+    || value === "grant_aether"
+    || value === "grant_exp"
+    || value === "adjust_health"
+    || value === "grant_item"
+    ? value
+    : "grant_gold";
+}
+
+function normalizeEventActions(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const source = asObject(entry);
+      if (!source) {
+        return null;
+      }
+
+      const actionType = asEventActionType(source.type);
+      const normalized = {
+        type: actionType,
+      };
+
+      if ("chance" in source) {
+        normalized.chance = asNumber(source.chance, 1);
+      }
+      if ("amount" in source) {
+        normalized.amount = asInt(source.amount, 0);
+      }
+      if ("min" in source) {
+        normalized.min = asInt(source.min, 1);
+      }
+      if ("max" in source) {
+        normalized.max = asInt(source.max, normalized.min ?? 1);
+      }
+      if ("quantity" in source) {
+        normalized.quantity = asInt(source.quantity, 1);
+      }
+      if (actionType === "grant_item") {
+        const itemId = asString(source.itemId).trim();
+        if (!itemId) {
+          return null;
+        }
+        normalized.itemId = itemId;
+      }
+
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+function buildLegacyEventRules() {
+  const rules = [];
+
+  DEFAULT_AFK_ENCOUNTER_POOL.forEach((encounter, index) => {
+    const actions = [];
+
+    if (asInt(encounter.reward.gold, 0) > 0) {
+      actions.push({ type: "grant_gold", amount: asInt(encounter.reward.gold, 0) });
+    }
+    if (asInt(encounter.reward.aetherCrystal, 0) > 0) {
+      actions.push({ type: "grant_aether", amount: asInt(encounter.reward.aetherCrystal, 0) });
+    }
+    if (asInt(encounter.reward.exp, 0) > 0) {
+      actions.push({ type: "grant_exp", amount: asInt(encounter.reward.exp, 0) });
+    }
+    if (asInt(encounter.reward.healthDelta, 0) !== 0) {
+      actions.push({ type: "adjust_health", amount: asInt(encounter.reward.healthDelta, 0) });
+    }
+
+    (encounter.reward.items || []).forEach((itemEntry) => {
+      actions.push({
+        type: "grant_item",
+        itemId: itemEntry.itemId,
+        quantity: Math.max(1, asInt(itemEntry.quantity, 1)),
+      });
+    });
+
+    rules.push({
+      key: `legacy-encounter-${encounter.key}`,
+      name: encounter.title || encounter.key,
+      enabled: true,
+      priority: 1000 + index,
+      chance: DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] || 0,
+      trigger: {
+        type: "afk_tick",
+        ...(Array.isArray(encounter.mapKeys) && encounter.mapKeys.length > 0 ? { mapKeys: encounter.mapKeys } : {}),
+      },
+      actions,
+      encounter: {
+        tier: encounter.tier,
+        title: encounter.title,
+        description: encounter.description,
+      },
+    });
+  });
+
+  const appendEnemyDropRules = (pool, prefix, offset) => {
+    Object.entries(pool).forEach(([enemyKey, entries], index) => {
+      entries.forEach((entry, dropIndex) => {
+        const min = Math.max(1, asInt(entry.min, 1));
+        const max = Math.max(min, asInt(entry.max, min));
+        rules.push({
+          key: `${prefix}-${enemyKey}-${dropIndex + 1}`,
+          name: `${enemyKey} 掉落 ${entry.itemId}`,
+          enabled: true,
+          priority: offset + index * 10 + dropIndex,
+          chance: Math.max(0, asNumber(entry.chance, 0)),
+          trigger: {
+            type: "enemy_kill",
+            enemyKeys: [enemyKey],
+          },
+          actions: [
+            {
+              type: "grant_item",
+              itemId: entry.itemId,
+              min,
+              max,
+            },
+          ],
+        });
+      });
+    });
+  };
+
+  appendEnemyDropRules(LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-material", 5000);
+  appendEnemyDropRules(LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-skillbook", 7000);
+
+  return rules;
+}
+
+const DEFAULT_EVENT_RULES = buildLegacyEventRules();
+
+function normalizeEventRules(value) {
+  const source = Array.isArray(value) ? value : [];
+  if (source.length === 0) {
+    return DEFAULT_EVENT_RULES;
+  }
+
+  const normalized = source
+    .map((entry, index) => {
+      const row = asObject(entry);
+      const trigger = asObject(row?.trigger);
+      const encounter = asObject(row?.encounter);
+      if (!row || !asString(row.key).trim()) {
+        return null;
+      }
+
+      const rule = {
+        key: asString(row.key).trim(),
+        name: asString(row.name, `事件 ${index + 1}`),
+        enabled: row.enabled === undefined ? true : Boolean(row.enabled),
+        priority: asInt(row.priority, index),
+        chance: asNumber(row.chance, 1),
+        trigger: {
+          type: asEventTriggerType(trigger?.type),
+          ...(normalizeMapKeys(trigger?.mapKeys) ? { mapKeys: normalizeMapKeys(trigger?.mapKeys) } : {}),
+          ...(normalizeMapKeys(trigger?.enemyKeys) ? { enemyKeys: normalizeMapKeys(trigger?.enemyKeys) } : {}),
+        },
+        actions: normalizeEventActions(row.actions),
+      };
+
+      if (encounter) {
+        rule.encounter = {
+          ...(isKnownEncounterTier(encounter.tier) ? { tier: encounter.tier } : {}),
+          ...(asString(encounter.title).trim() ? { title: asString(encounter.title).trim() } : {}),
+          ...(asString(encounter.description).trim() ? { description: asString(encounter.description).trim() } : {}),
+        };
+      }
+
+      return rule;
+    })
+    .filter(Boolean);
+
+  if (normalized.length === 0) {
+    return DEFAULT_EVENT_RULES;
+  }
+
+  return normalized.sort((left, right) => left.priority - right.priority);
 }
 
 function normalizeEncounters(value) {
@@ -1309,6 +1557,7 @@ let cachedRuntimeConfig = buildRuntimeConfig({
   afkEncounterPool: DEFAULT_AFK_ENCOUNTER_POOL,
   battleEnemyTemplates: DEFAULT_BATTLE_ENEMIES,
   classConfigs: DEFAULT_CLASS_CONFIGS,
+  eventRules: DEFAULT_EVENT_RULES,
   itemCatalog: DEFAULT_ITEM_CATALOG,
   levelTable: DEFAULT_LEVEL_TABLE,
   mapConfigs: DEFAULT_MAP_CONFIGS,
@@ -1348,6 +1597,7 @@ async function getDynamicGameConfig() {
     afkEncounterPool: normalizeEncounters(configByKey.get("afk-encounters")),
     battleEnemyTemplates: normalizeBattleEnemies(configByKey.get("battle-enemies")),
     classConfigs: normalizeClasses(configByKey.get("classes")),
+    eventRules: normalizeEventRules(configByKey.get("event-rules")),
     itemCatalog: mergeItemCatalog(itemResult.rows.map((item) => ({
       itemId: item.item_id,
       name: item.name,
@@ -1387,6 +1637,7 @@ module.exports = {
   DEFAULT_AFK_ENCOUNTER_POOL,
   DEFAULT_BATTLE_ENEMIES,
   DEFAULT_CLASS_CONFIGS,
+  DEFAULT_EVENT_RULES,
   DEFAULT_ITEM_CATALOG,
   DEFAULT_LEVEL_TABLE,
   DEFAULT_MAP_CONFIGS,

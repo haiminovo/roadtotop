@@ -25,6 +25,7 @@ import {
   getDynamicGameConfig,
   type BattleEnemyTemplate,
   type DynamicGameConfig,
+  type GameEventRule,
   type SkillTemplate,
   type SystemBalanceConfig,
 } from "@/lib/server/admin-config";
@@ -145,6 +146,10 @@ export async function getBattleEnemyTemplatesByMap() {
   return (await loadRuntimeGameConfig()).battleEnemyTemplatesByMap;
 }
 
+export async function getEventRules(): Promise<GameEventRule[]> {
+  return (await loadRuntimeGameConfig()).eventRules;
+}
+
 export async function getItemCatalog(): Promise<RuntimeItemSeed[]> {
   return (await loadRuntimeGameConfig()).itemCatalog;
 }
@@ -249,6 +254,7 @@ export type {
   BattleEnemyTemplate,
   ClassConfig,
   EncounterTier,
+  GameEventRule,
   ItemRarity,
   MapConfig,
   RaceConfig,

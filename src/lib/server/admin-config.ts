@@ -120,11 +120,54 @@ export type SystemBalanceConfig = {
   enemyGuardCooldownTurns: number;
 };
 
+export type GameEventTriggerType = "afk_tick" | "enemy_kill";
+
+export type GameEventActionType =
+  | "grant_gold"
+  | "grant_aether"
+  | "grant_exp"
+  | "adjust_health"
+  | "grant_item";
+
+export type GameEventTrigger = {
+  type: GameEventTriggerType;
+  mapKeys?: string[];
+  enemyKeys?: string[];
+};
+
+export type GameEventAction = {
+  type: GameEventActionType;
+  chance?: number;
+  amount?: number;
+  min?: number;
+  max?: number;
+  itemId?: string;
+  quantity?: number;
+};
+
+export type GameEventEncounterMeta = {
+  tier?: EncounterTier;
+  title?: string;
+  description?: string;
+};
+
+export type GameEventRule = {
+  key: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  chance: number;
+  trigger: GameEventTrigger;
+  actions: GameEventAction[];
+  encounter?: GameEventEncounterMeta;
+};
+
 export type DynamicGameConfig = {
   afkEncounterChances: Record<EncounterTier, number>;
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
   classConfigs: ClassConfig[];
+  eventRules: GameEventRule[];
   itemCatalog: Array<{
     itemId: string;
     name: string;
@@ -782,6 +825,61 @@ const DEFAULT_SYSTEM_BALANCE: SystemBalanceConfig = {
   enemyGuardCooldownTurns: 3,
 };
 
+const LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY: Record<string, Array<{ itemId: string; chance: number; min: number; max: number }>> = {
+  "stray-wolf": [
+    { itemId: "material-wolf-fang", chance: 0.35, min: 1, max: 2 },
+  ],
+  "bandit-scout": [
+    { itemId: "material-wolf-fang", chance: 0.25, min: 1, max: 1 },
+    { itemId: "material-crystal-shard", chance: 0.12, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "material-crystal-shard", chance: 0.3, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.08, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "material-wolf-fang", chance: 0.22, min: 1, max: 2 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "material-crystal-shard", chance: 0.34, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.12, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "material-wolf-fang", chance: 0.28, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.06, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "material-crystal-shard", chance: 0.36, min: 1, max: 2 },
+    { itemId: "material-moon-dust", chance: 0.15, min: 1, max: 1 },
+  ],
+};
+
+const LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY: Record<string, Array<{ itemId: string; chance: number; min: number; max: number }>> = {
+  "stray-wolf": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "bandit-scout": [
+    { itemId: "skillbook-focus-strike", chance: 0.06, min: 1, max: 1 },
+  ],
+  "ruin-mage": [
+    { itemId: "skillbook-arcane-burst", chance: 0.04, min: 1, max: 1 },
+  ],
+  "stonehide-boar": [
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "moonshard-sentinel": [
+    { itemId: "skillbook-arcane-burst", chance: 0.05, min: 1, max: 1 },
+    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
+  ],
+  "gloomfang-panther": [
+    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
+  ],
+  "sunken-warden": [
+    { itemId: "skillbook-iron-guard", chance: 0.06, min: 1, max: 1 },
+    { itemId: "skillbook-arcane-burst", chance: 0.06, min: 1, max: 1 },
+  ],
+};
+
 const DEFAULT_LEVEL_TABLE = Array.from({ length: LEVEL_CAP }, (_, index) => ({
   level: index + 1,
   totalExpRequired: getLevelBaseExp(index + 1),
@@ -964,6 +1062,7 @@ function createConfigErrorBucket(): AdminConfigFieldErrors {
     afkEncounterPool: [],
     battleEnemyTemplates: [],
     classConfigs: [],
+    eventRules: [],
     itemCatalog: [],
     mapConfigs: [],
     raceConfigs: [],
@@ -1109,6 +1208,7 @@ export function validateAdminGameConfig(input: {
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
   classConfigs: ClassConfig[];
+  eventRules: GameEventRule[];
   itemCatalog: DynamicGameConfig["itemCatalog"];
   mapConfigs: MapConfig[];
   raceConfigs: RaceConfig[];
@@ -1517,6 +1617,142 @@ export function validateAdminGameConfig(input: {
     }
   }
 
+  if (!Array.isArray(input.eventRules) || input.eventRules.length === 0) {
+    pushConfigError(errors, "eventRules", "统一事件池必须是非空数组。");
+  } else {
+    const eventKeys = new Set<string>();
+
+    input.eventRules.forEach((rule, index) => {
+      const push = (message: string) => pushConfigError(errors, "eventRules", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(rule?.key, "key", push);
+      validateRequiredString(rule?.name, "name", push);
+      validateFiniteNumber(rule?.priority, "priority", push, { integer: true });
+      validateFiniteNumber(rule?.chance, "chance", push, { min: 0, max: 1 });
+
+      if (key) {
+        if (eventKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+        eventKeys.add(key);
+      }
+
+      if (typeof rule?.enabled !== "boolean") {
+        push("enabled 必须是布尔值。");
+      }
+
+      if (!rule?.trigger || typeof rule.trigger !== "object") {
+        push("trigger 必须是对象。");
+      } else {
+        if (rule.trigger.type !== "afk_tick" && rule.trigger.type !== "enemy_kill") {
+          push("trigger.type 必须是 afk_tick / enemy_kill 之一。");
+        }
+
+        if (rule.trigger.mapKeys !== undefined) {
+          if (!Array.isArray(rule.trigger.mapKeys)) {
+            push("trigger.mapKeys 必须是字符串数组。");
+          } else {
+            rule.trigger.mapKeys.forEach((mapKey, mapIndex) => {
+              const validated = validateRequiredString(mapKey, `trigger.mapKeys[${mapIndex + 1}]`, push);
+              if (validated && !mapKeys.has(validated)) {
+                push(`trigger.mapKeys[${mapIndex + 1}] "${validated}" 不存在于地图配置。`);
+              }
+            });
+          }
+        }
+
+        if (rule.trigger.enemyKeys !== undefined) {
+          if (!Array.isArray(rule.trigger.enemyKeys)) {
+            push("trigger.enemyKeys 必须是字符串数组。");
+          } else {
+            rule.trigger.enemyKeys.forEach((enemyKey, enemyIndex) => {
+              const validated = validateRequiredString(enemyKey, `trigger.enemyKeys[${enemyIndex + 1}]`, push);
+              if (validated && !enemyKeys.has(validated)) {
+                push(`trigger.enemyKeys[${enemyIndex + 1}] "${validated}" 不存在于怪物模板。`);
+              }
+            });
+          }
+        }
+      }
+
+      if (!Array.isArray(rule?.actions) || rule.actions.length === 0) {
+        push("actions 必须是非空数组。");
+      } else {
+        rule.actions.forEach((action, actionIndex) => {
+          const prefix = `actions[${actionIndex + 1}]`;
+
+          if (
+            action?.type !== "grant_gold"
+            && action?.type !== "grant_aether"
+            && action?.type !== "grant_exp"
+            && action?.type !== "adjust_health"
+            && action?.type !== "grant_item"
+          ) {
+            push(`${prefix}.type 不合法。`);
+            return;
+          }
+
+          if (action.chance !== undefined) {
+            validateFiniteNumber(action.chance, `${prefix}.chance`, push, { min: 0, max: 1 });
+          }
+
+          if (
+            action.type === "grant_gold"
+            || action.type === "grant_aether"
+            || action.type === "grant_exp"
+            || action.type === "adjust_health"
+          ) {
+            if (action.amount === undefined) {
+              push(`${prefix}.amount 不能为空。`);
+            } else {
+              validateFiniteNumber(action.amount, `${prefix}.amount`, push, { integer: true });
+            }
+          }
+
+          if (action.type === "grant_item") {
+            const itemId = validateRequiredString(action.itemId, `${prefix}.itemId`, push);
+            if (itemId && !itemIds.has(itemId)) {
+              push(`${prefix}.itemId "${itemId}" 不存在于物品目录。`);
+            }
+
+            if (action.quantity !== undefined) {
+              validateFiniteNumber(action.quantity, `${prefix}.quantity`, push, { integer: true, min: 1 });
+            }
+            if (action.min !== undefined) {
+              validateFiniteNumber(action.min, `${prefix}.min`, push, { integer: true, min: 1 });
+            }
+            if (action.max !== undefined) {
+              validateFiniteNumber(action.max, `${prefix}.max`, push, { integer: true, min: 1 });
+            }
+
+            if (action.quantity === undefined && action.min === undefined) {
+              push(`${prefix}.quantity 或 ${prefix}.min 至少提供一个。`);
+            }
+
+            if (action.min !== undefined && action.max !== undefined && action.max < action.min) {
+              push(`${prefix}.max 不能小于 ${prefix}.min。`);
+            }
+          }
+        });
+      }
+
+      if (rule?.encounter !== undefined) {
+        if (!rule.encounter || typeof rule.encounter !== "object") {
+          push("encounter 必须是对象。");
+        } else {
+          if (rule.encounter.tier !== undefined && !isKnownEncounterTier(rule.encounter.tier)) {
+            push("encounter.tier 必须是 common / rare / legendary 之一。");
+          }
+          if (rule.encounter.title !== undefined) {
+            validateRequiredString(rule.encounter.title, "encounter.title", push);
+          }
+          if (rule.encounter.description !== undefined) {
+            validateRequiredString(rule.encounter.description, "encounter.description", push);
+          }
+        }
+      }
+    });
+  }
+
   const systemBalance = asObject(input.systemBalance);
 
   if (!systemBalance) {
@@ -1713,6 +1949,195 @@ function normalizeEncounterReward(value: unknown): AfkEncounterConfig["reward"] 
     ...(source && "healthDelta" in source ? { healthDelta: asInt(source.healthDelta, 0) } : {}),
     ...(items.length > 0 ? { items } : {}),
   };
+}
+
+function asEventTriggerType(value: unknown): GameEventTriggerType {
+  return value === "enemy_kill" ? "enemy_kill" : "afk_tick";
+}
+
+function asEventActionType(value: unknown): GameEventActionType {
+  return value === "grant_gold"
+    || value === "grant_aether"
+    || value === "grant_exp"
+    || value === "adjust_health"
+    || value === "grant_item"
+    ? value
+    : "grant_gold";
+}
+
+function normalizeEventActions(value: unknown): GameEventAction[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const source = asObject(entry);
+      if (!source) {
+        return null;
+      }
+
+      const actionType = asEventActionType(source.type);
+      const normalized: GameEventAction = {
+        type: actionType,
+      };
+
+      if ("chance" in source) {
+        normalized.chance = asNumber(source.chance, 1);
+      }
+
+      if (actionType === "grant_item") {
+        const itemId = asString(source.itemId).trim();
+        if (!itemId) {
+          return null;
+        }
+        normalized.itemId = itemId;
+      }
+
+      if ("amount" in source) {
+        normalized.amount = asInt(source.amount, 0);
+      }
+      if ("min" in source) {
+        normalized.min = asInt(source.min, 1);
+      }
+      if ("max" in source) {
+        normalized.max = asInt(source.max, normalized.min ?? 1);
+      }
+      if ("quantity" in source) {
+        normalized.quantity = asInt(source.quantity, 1);
+      }
+
+      return normalized;
+    })
+    .filter((entry): entry is GameEventAction => Boolean(entry));
+}
+
+function buildLegacyEventRules(): GameEventRule[] {
+  const rules: GameEventRule[] = [];
+
+  DEFAULT_AFK_ENCOUNTER_POOL.forEach((encounter, index) => {
+    const actions: GameEventAction[] = [];
+    if (asInt(encounter.reward.gold, 0) > 0) {
+      actions.push({ type: "grant_gold", amount: asInt(encounter.reward.gold, 0) });
+    }
+    if (asInt(encounter.reward.aetherCrystal, 0) > 0) {
+      actions.push({ type: "grant_aether", amount: asInt(encounter.reward.aetherCrystal, 0) });
+    }
+    if (asInt(encounter.reward.exp, 0) > 0) {
+      actions.push({ type: "grant_exp", amount: asInt(encounter.reward.exp, 0) });
+    }
+    if (asInt(encounter.reward.healthDelta, 0) !== 0) {
+      actions.push({ type: "adjust_health", amount: asInt(encounter.reward.healthDelta, 0) });
+    }
+    (encounter.reward.items ?? []).forEach((itemEntry) => {
+      const quantity = Math.max(1, asInt(itemEntry.quantity, 1));
+      actions.push({ type: "grant_item", itemId: itemEntry.itemId, quantity });
+    });
+
+    const tierChance = DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] ?? 0;
+    rules.push({
+      key: `legacy-encounter-${encounter.key}`,
+      name: encounter.title || encounter.key,
+      enabled: true,
+      priority: 1000 + index,
+      chance: tierChance,
+      trigger: {
+        type: "afk_tick",
+        ...(encounter.mapKeys?.length ? { mapKeys: encounter.mapKeys } : {}),
+      },
+      actions,
+      encounter: {
+        tier: encounter.tier,
+        title: encounter.title,
+        description: encounter.description,
+      },
+    });
+  });
+
+  const appendEnemyDropRules = (
+    pool: Record<string, Array<{ itemId: string; chance: number; min: number; max: number }>>,
+    prefix: string,
+    offset: number,
+  ) => {
+    Object.entries(pool).forEach(([enemyKey, entries], index) => {
+      entries.forEach((entry, dropIndex) => {
+        rules.push({
+          key: `${prefix}-${enemyKey}-${dropIndex + 1}`,
+          name: `${enemyKey} 掉落 ${entry.itemId}`,
+          enabled: true,
+          priority: offset + index * 10 + dropIndex,
+          chance: Math.max(0, asNumber(entry.chance, 0)),
+          trigger: {
+            type: "enemy_kill",
+            enemyKeys: [enemyKey],
+          },
+          actions: [{
+            type: "grant_item",
+            itemId: entry.itemId,
+            min: Math.max(1, asInt(entry.min, 1)),
+            max: Math.max(Math.max(1, asInt(entry.min, 1)), asInt(entry.max, Math.max(1, asInt(entry.min, 1)))),
+          }],
+        });
+      });
+    });
+  };
+
+  appendEnemyDropRules(LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-material", 5000);
+  appendEnemyDropRules(LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-skillbook", 7000);
+
+  return rules;
+}
+
+const DEFAULT_EVENT_RULES: GameEventRule[] = buildLegacyEventRules();
+
+function normalizeEventRules(value: unknown): GameEventRule[] {
+  const source = Array.isArray(value) ? value : [];
+
+  if (source.length === 0) {
+    return DEFAULT_EVENT_RULES;
+  }
+
+  const normalized = source
+    .map((entry, index) => {
+      const row = asObject(entry);
+      const trigger = asObject(row?.trigger);
+      const encounter = asObject(row?.encounter);
+
+      if (!row || !asString(row.key).trim()) {
+        return null;
+      }
+
+      const rule: GameEventRule = {
+        key: asString(row.key).trim(),
+        name: asString(row.name, `事件 ${index + 1}`),
+        enabled: row.enabled === undefined ? true : Boolean(row.enabled),
+        priority: asInt(row.priority, index),
+        chance: asNumber(row.chance, 1),
+        trigger: {
+          type: asEventTriggerType(trigger?.type),
+          ...(normalizeMapKeys(trigger?.mapKeys) ? { mapKeys: normalizeMapKeys(trigger?.mapKeys) } : {}),
+          ...(normalizeMapKeys(trigger?.enemyKeys) ? { enemyKeys: normalizeMapKeys(trigger?.enemyKeys) } : {}),
+        },
+        actions: normalizeEventActions(row.actions),
+      };
+
+      if (encounter) {
+        rule.encounter = {
+          ...(isKnownEncounterTier(encounter.tier) ? { tier: encounter.tier } : {}),
+          ...(asString(encounter.title).trim() ? { title: asString(encounter.title).trim() } : {}),
+          ...(asString(encounter.description).trim() ? { description: asString(encounter.description).trim() } : {}),
+        };
+      }
+
+      return rule;
+    })
+    .filter((entry): entry is GameEventRule => Boolean(entry));
+
+  if (normalized.length === 0) {
+    return DEFAULT_EVENT_RULES;
+  }
+
+  return normalized.sort((left, right) => left.priority - right.priority);
 }
 
 function normalizeEncounters(value: unknown): AfkEncounterConfig[] {
@@ -1971,6 +2396,7 @@ export async function getDynamicGameConfig(): Promise<DynamicGameConfig> {
     afkEncounterPool: normalizeEncounters(configByKey.get("afk-encounters")),
     battleEnemyTemplates: normalizeBattleEnemies(configByKey.get("battle-enemies")),
     classConfigs: normalizeClasses(configByKey.get("classes")),
+    eventRules: normalizeEventRules(configByKey.get("event-rules")),
     itemCatalog: mergeItemCatalog(itemResult.rows.map((item) => ({
       itemId: item.item_id,
       name: item.name,
@@ -2329,6 +2755,7 @@ export async function saveAdminGameConfig(input: {
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
   classConfigs: ClassConfig[];
+  eventRules: GameEventRule[];
   itemCatalog: DynamicGameConfig["itemCatalog"];
   mapConfigs: MapConfig[];
   raceConfigs: RaceConfig[];
@@ -2356,6 +2783,7 @@ export async function saveAdminGameConfig(input: {
     await upsertConfig("maps", "list", input.mapConfigs);
     await upsertConfig("afk-encounter-rates", "object", input.afkEncounterChances);
     await upsertConfig("afk-encounters", "list", input.afkEncounterPool);
+    await upsertConfig("event-rules", "list", input.eventRules);
     await upsertConfig("battle-enemies", "list", input.battleEnemyTemplates);
     await upsertConfig("skill-templates", "list", input.skillTemplates);
     await upsertConfig("system-balance", "object", input.systemBalance);

@@ -59,63 +59,9 @@ let raceConfigs = DEFAULT_RACE_CONFIGS;
 let classConfigs = DEFAULT_CLASS_CONFIGS;
 let mapConfigs = DEFAULT_MAP_CONFIGS;
 let afkEncounterChances = DEFAULT_AFK_ENCOUNTER_CHANCES;
-let afkEncounterPoolByMapAndTier = {};
 let skillTemplates = DEFAULT_SKILL_TEMPLATES;
 let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
-const MATERIAL_DROP_POOL_BY_ENEMY_KEY = {
-  "stray-wolf": [
-    { itemId: "material-wolf-fang", chance: 0.35, min: 1, max: 2 },
-  ],
-  "bandit-scout": [
-    { itemId: "material-wolf-fang", chance: 0.25, min: 1, max: 1 },
-    { itemId: "material-crystal-shard", chance: 0.12, min: 1, max: 1 },
-  ],
-  "ruin-mage": [
-    { itemId: "material-crystal-shard", chance: 0.3, min: 1, max: 2 },
-    { itemId: "material-moon-dust", chance: 0.08, min: 1, max: 1 },
-  ],
-  "stonehide-boar": [
-    { itemId: "material-wolf-fang", chance: 0.22, min: 1, max: 2 },
-  ],
-  "moonshard-sentinel": [
-    { itemId: "material-crystal-shard", chance: 0.34, min: 1, max: 2 },
-    { itemId: "material-moon-dust", chance: 0.12, min: 1, max: 1 },
-  ],
-  "gloomfang-panther": [
-    { itemId: "material-wolf-fang", chance: 0.28, min: 1, max: 2 },
-    { itemId: "material-moon-dust", chance: 0.06, min: 1, max: 1 },
-  ],
-  "sunken-warden": [
-    { itemId: "material-crystal-shard", chance: 0.36, min: 1, max: 2 },
-    { itemId: "material-moon-dust", chance: 0.15, min: 1, max: 1 },
-  ],
-};
-
-const SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY = {
-  "stray-wolf": [
-    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
-  ],
-  "bandit-scout": [
-    { itemId: "skillbook-focus-strike", chance: 0.06, min: 1, max: 1 },
-  ],
-  "ruin-mage": [
-    { itemId: "skillbook-arcane-burst", chance: 0.04, min: 1, max: 1 },
-  ],
-  "stonehide-boar": [
-    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
-  ],
-  "moonshard-sentinel": [
-    { itemId: "skillbook-arcane-burst", chance: 0.05, min: 1, max: 1 },
-    { itemId: "skillbook-iron-guard", chance: 0.04, min: 1, max: 1 },
-  ],
-  "gloomfang-panther": [
-    { itemId: "skillbook-focus-strike", chance: 0.05, min: 1, max: 1 },
-  ],
-  "sunken-warden": [
-    { itemId: "skillbook-iron-guard", chance: 0.06, min: 1, max: 1 },
-    { itemId: "skillbook-arcane-burst", chance: 0.06, min: 1, max: 1 },
-  ],
-};
+let eventRules = [];
 
 function applyRuntimeConfig(config) {
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
@@ -139,7 +85,7 @@ function applyRuntimeConfig(config) {
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
   afkEncounterChances = config.afkEncounterChances;
-  afkEncounterPoolByMapAndTier = config.afkEncounterPoolByMapAndTier || {};
+  eventRules = Array.isArray(config.eventRules) ? config.eventRules : [];
   skillTemplates = Array.isArray(config.skillTemplates) ? config.skillTemplates : DEFAULT_SKILL_TEMPLATES;
   skillTemplateByKey = config.skillTemplateByKey || new Map(skillTemplates.map((skill) => [skill.key, skill]));
 }
@@ -790,33 +736,6 @@ function buildRoleBodySlots(role, backpack) {
   });
 }
 
-function resolveEncounterRewardItems(reward) {
-  return (reward.items || [])
-    .map((itemReward) => {
-      const quantity = normalizeNumber(itemReward.quantity);
-      const itemSeed = itemSeedById.get(itemReward.itemId);
-
-      if (!itemSeed || quantity <= 0) {
-        return null;
-      }
-
-      return {
-        itemId: itemSeed.itemId,
-        quantity,
-        name: itemSeed.name,
-        rarity: itemSeed.rarity,
-        itemType: normalizeItemType(itemSeed.itemType),
-        skillKey: normalizeSkillKey(itemSeed.skillKey),
-        slot: itemSeed.slot,
-        slotUsage: itemSeed.slotUsage,
-        description: itemSeed.description,
-        sellPrice: itemSeed.sellPrice,
-        stats: itemSeed.stats,
-      };
-    })
-    .filter(Boolean);
-}
-
 function applyEncounterItemsToBackpack(backpack, itemDrops) {
   if (!itemDrops.length) {
     return false;
@@ -940,6 +859,130 @@ function normalizeEncounterLog(value) {
     })
     .filter(Boolean)
     .slice(0, MAX_RECENT_ENCOUNTERS);
+}
+
+function getSortedEventRulesByTrigger(triggerType) {
+  return eventRules
+    .filter((rule) => rule?.enabled !== false && rule?.trigger?.type === triggerType)
+    .slice()
+    .sort((left, right) => normalizeSignedNumber(left?.priority) - normalizeSignedNumber(right?.priority));
+}
+
+function ruleMatchesTrigger(rule, context = {}) {
+  const trigger = rule?.trigger || {};
+  if (Array.isArray(trigger.mapKeys) && trigger.mapKeys.length > 0) {
+    if (!context.mapKey || !trigger.mapKeys.includes(context.mapKey)) {
+      return false;
+    }
+  }
+
+  if (Array.isArray(trigger.enemyKeys) && trigger.enemyKeys.length > 0) {
+    if (!context.enemyKey || !trigger.enemyKeys.includes(context.enemyKey)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function toBackpackItemDrop(itemSeed, quantity) {
+  return {
+    itemId: itemSeed.itemId,
+    quantity,
+    name: itemSeed.name,
+    rarity: itemSeed.rarity,
+    itemType: normalizeItemType(itemSeed.itemType),
+    skillKey: normalizeSkillKey(itemSeed.skillKey),
+    slot: itemSeed.slot,
+    slotUsage: itemSeed.slotUsage,
+    description: itemSeed.description,
+    sellPrice: itemSeed.sellPrice,
+    stats: itemSeed.stats,
+  };
+}
+
+function applyRuleAction(action, accumulator) {
+  const actionChance = action?.chance === undefined ? 1 : Number(action.chance);
+  if (!Number.isFinite(actionChance) || actionChance <= 0 || Math.random() >= actionChance) {
+    return;
+  }
+
+  switch (action.type) {
+    case "grant_gold":
+      accumulator.gold += normalizeNumber(action.amount);
+      break;
+    case "grant_aether":
+      accumulator.aetherCrystal += normalizeNumber(action.amount);
+      break;
+    case "grant_exp":
+      accumulator.exp += normalizeNumber(action.amount);
+      break;
+    case "adjust_health":
+      accumulator.healthDelta += normalizeSignedNumber(action.amount);
+      break;
+    case "grant_item": {
+      if (typeof action.itemId !== "string" || !action.itemId.trim()) {
+        return;
+      }
+      const itemSeed = itemSeedById.get(action.itemId);
+      if (!itemSeed) {
+        return;
+      }
+      let quantity = 0;
+      if (Number.isFinite(Number(action.quantity))) {
+        quantity = Math.max(1, normalizeNumber(action.quantity));
+      } else {
+        const min = Math.max(1, normalizeNumber(action.min || 1));
+        const max = Math.max(min, normalizeNumber(action.max || min));
+        quantity = min + Math.floor(Math.random() * (max - min + 1));
+      }
+      if (quantity <= 0) {
+        return;
+      }
+      accumulator.itemDrops.push(toBackpackItemDrop(itemSeed, quantity));
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function evaluateEventRules(triggerType, context = {}) {
+  const matches = [];
+  const rules = getSortedEventRulesByTrigger(triggerType);
+
+  rules.forEach((rule) => {
+    if (!ruleMatchesTrigger(rule, context)) {
+      return;
+    }
+
+    const chance = Number(rule.chance);
+    if (!Number.isFinite(chance) || chance <= 0 || Math.random() >= chance) {
+      return;
+    }
+
+    const reward = {
+      gold: 0,
+      aetherCrystal: 0,
+      exp: 0,
+      healthDelta: 0,
+      itemDrops: [],
+    };
+
+    (Array.isArray(rule.actions) ? rule.actions : []).forEach((action) => {
+      if (!action || typeof action !== "object") {
+        return;
+      }
+      applyRuleAction(action, reward);
+    });
+
+    matches.push({
+      rule,
+      reward,
+    });
+  });
+
+  return matches;
 }
 
 function clamp(value, min, max) {
@@ -2009,53 +2052,6 @@ function handleBattleOutcome(role, battleState, backpack = []) {
   return true;
 }
 
-function rollEnemyDropEntries(enemyKey, pool = {}) {
-  const entries = Array.isArray(pool[enemyKey]) ? pool[enemyKey] : [];
-  const drops = [];
-
-  entries.forEach((entry) => {
-    const chance = Number(entry?.chance) || 0;
-    if (chance <= 0 || Math.random() >= chance) {
-      return;
-    }
-
-    const seed = itemSeedById.get(entry.itemId);
-    if (!seed) {
-      return;
-    }
-
-    const min = Math.max(1, normalizeNumber(entry.min || 1));
-    const max = Math.max(min, normalizeNumber(entry.max || min));
-    const quantity = min + Math.floor(Math.random() * (max - min + 1));
-    if (quantity <= 0) {
-      return;
-    }
-
-    drops.push({
-      itemId: seed.itemId,
-      quantity,
-      name: seed.name,
-      rarity: seed.rarity,
-      itemType: normalizeItemType(seed.itemType),
-      skillKey: normalizeSkillKey(seed.skillKey),
-      slot: seed.slot,
-      slotUsage: seed.slotUsage,
-      description: seed.description,
-      sellPrice: seed.sellPrice,
-      stats: seed.stats,
-    });
-  });
-
-  return drops;
-}
-
-function rollBattleDrops(enemyKey) {
-  return [
-    ...rollEnemyDropEntries(enemyKey, MATERIAL_DROP_POOL_BY_ENEMY_KEY),
-    ...rollEnemyDropEntries(enemyKey, SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY),
-  ];
-}
-
 function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   const now = options.now || Date.now();
   const battleState = normalizeBattleState(afk.battle_state);
@@ -2133,7 +2129,69 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   }
 
   if (!isBattleActive(battleState) && battleState.outcome?.winner === "player") {
-    itemDrops = rollBattleDrops(battleState.enemy?.key);
+    const battleEventResults = evaluateEventRules("enemy_kill", {
+      enemyKey: battleState.enemy?.key || null,
+      mapKey: afk.map_key || null,
+    });
+
+    const mergedReward = {
+      aetherCrystal: 0,
+      exp: 0,
+      gold: 0,
+      healthDelta: 0,
+      itemDrops: [],
+    };
+
+    battleEventResults.forEach((result) => {
+      mergedReward.gold += normalizeNumber(result.reward.gold);
+      mergedReward.aetherCrystal += normalizeNumber(result.reward.aetherCrystal);
+      mergedReward.exp += normalizeNumber(result.reward.exp);
+      mergedReward.healthDelta += normalizeSignedNumber(result.reward.healthDelta);
+      mergedReward.itemDrops.push(...result.reward.itemDrops);
+    });
+
+    itemDrops = mergedReward.itemDrops;
+
+    if (mergedReward.gold > 0 || mergedReward.aetherCrystal > 0 || mergedReward.exp > 0) {
+      didMutateRole = applyRewardToRole(role, {
+        gold: mergedReward.gold,
+        aetherCrystal: mergedReward.aetherCrystal,
+        exp: mergedReward.exp,
+      }, backpack) || didMutateRole;
+      addBattleLog(
+        battleState,
+        `战斗奖励：金币 +${mergedReward.gold} / 以太 +${mergedReward.aetherCrystal} / 经验 +${mergedReward.exp}`,
+        "reward",
+        Date.now(),
+      );
+    }
+
+    if (mergedReward.healthDelta !== 0) {
+      const nextHealth = clamp(
+        normalizeSignedNumber(role.current_health) + mergedReward.healthDelta,
+        0,
+        getRoleMaxHealth(role, backpack),
+      );
+      if (nextHealth > 0) {
+        role.current_health = nextHealth;
+      } else {
+        const nextLevel = Math.max(1, normalizeNumber(role.level) - 1);
+        role.level = nextLevel;
+        role.exp = getLevelBaseExp(nextLevel);
+        role.current_health = getRoleMaxHealth(role, backpack);
+      }
+      battleState.player.currentHealth = role.current_health;
+      didMutateRole = true;
+      addBattleLog(
+        battleState,
+        mergedReward.healthDelta > 0
+          ? `战斗奖励：生命 +${mergedReward.healthDelta}`
+          : `战斗惩罚：生命 ${mergedReward.healthDelta}`,
+        "reward",
+        Date.now(),
+      );
+    }
+
     if (itemDrops.length > 0) {
       addBattleLog(
         battleState,
@@ -2157,34 +2215,6 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   };
 }
 
-function pickRandomEncounter(tier, mapKey = null) {
-  const pool = mapKey
-    ? afkEncounterPoolByMapAndTier[mapKey]?.[tier]
-    : afkEncounterPoolByMapAndTier[mapConfigs[0]?.key]?.[tier];
-
-  if (!pool || pool.length === 0) {
-    return null;
-  }
-
-  return pool[Math.floor(Math.random() * pool.length)] || null;
-}
-
-function resolveEncounterTierByRoll(roll) {
-  if (roll < afkEncounterChances.legendary) {
-    return "legendary";
-  }
-
-  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare) {
-    return "rare";
-  }
-
-  if (roll < afkEncounterChances.legendary + afkEncounterChances.rare + afkEncounterChances.common) {
-    return "common";
-  }
-
-  return null;
-}
-
 function buildEncounterDelta(executions, settledAt, mapKey = null) {
   const delta = {
     aetherCrystal: 0,
@@ -2195,67 +2225,44 @@ function buildEncounterDelta(executions, settledAt, mapKey = null) {
   };
 
   for (let index = 0; index < executions; index += 1) {
-    const tier = resolveEncounterTierByRoll(Math.random());
+    const matches = evaluateEventRules("afk_tick", {
+      mapKey: mapKey || null,
+    });
 
-    if (!tier) {
-      continue;
-    }
+    matches.forEach((match) => {
+      const reward = {
+        gold: normalizeNumber(match.reward.gold),
+        aetherCrystal: normalizeNumber(match.reward.aetherCrystal),
+        exp: normalizeNumber(match.reward.exp),
+        ...(normalizeSignedNumber(match.reward.healthDelta) !== 0
+          ? { healthDelta: normalizeSignedNumber(match.reward.healthDelta) }
+          : {}),
+        items: match.reward.itemDrops.map((item) => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          name: item.name,
+          rarity: item.rarity,
+        })),
+      };
 
-    const encounter = pickRandomEncounter(tier, mapKey);
+      delta.gold += reward.gold;
+      delta.aetherCrystal += reward.aetherCrystal;
+      delta.exp += reward.exp;
+      delta.itemDrops.push(...match.reward.itemDrops);
 
-    if (!encounter) {
-      continue;
-    }
-
-    const reward = {
-      gold: normalizeNumber(encounter.reward.gold),
-      aetherCrystal: normalizeNumber(encounter.reward.aetherCrystal),
-      exp: normalizeNumber(encounter.reward.exp),
-      ...(normalizeSignedNumber(encounter.reward.healthDelta) !== 0
-        ? { healthDelta: normalizeSignedNumber(encounter.reward.healthDelta) }
-        : {}),
-      items: resolveEncounterRewardItems(encounter.reward).map((item) => ({
-        itemId: item.itemId,
-        quantity: item.quantity,
-        name: item.name,
-        rarity: item.rarity,
-      })),
-    };
-
-    delta.gold += reward.gold;
-    delta.aetherCrystal += reward.aetherCrystal;
-    delta.exp += reward.exp;
-    delta.itemDrops.push(
-      ...reward.items.map((itemReward) => {
-        const itemSeed = itemSeedById.get(itemReward.itemId);
-
-        if (!itemSeed) {
-          return null;
-        }
-
-        return {
-          itemId: itemSeed.itemId,
-          quantity: itemReward.quantity,
-          name: itemSeed.name,
-          rarity: itemSeed.rarity,
-          itemType: normalizeItemType(itemSeed.itemType),
-          skillKey: normalizeSkillKey(itemSeed.skillKey),
-          slot: itemSeed.slot,
-          slotUsage: itemSeed.slotUsage,
-          description: itemSeed.description,
-          sellPrice: itemSeed.sellPrice,
-          stats: itemSeed.stats,
-        };
-      }).filter(Boolean),
-    );
-    delta.encounters.push({
-      id: makeEncounterId(),
-      key: encounter.key,
-      tier,
-      title: encounter.title,
-      description: encounter.description,
-      reward,
-      triggeredAt: settledAt,
+      if (match.rule?.encounter?.title && match.rule?.encounter?.description) {
+        delta.encounters.push({
+          id: makeEncounterId(),
+          key: typeof match.rule.key === "string" ? match.rule.key : `event-${Date.now()}`,
+          tier: ["common", "rare", "legendary"].includes(match.rule?.encounter?.tier)
+            ? match.rule.encounter.tier
+            : "common",
+          title: match.rule.encounter.title,
+          description: match.rule.encounter.description,
+          reward,
+          triggeredAt: settledAt,
+        });
+      }
     });
   }
 

@@ -385,6 +385,7 @@ applyRuntimeConfig({
   battleEnemyTemplates: [],
   battleEnemyTemplatesByMap: {},
   classConfigs: defaultClassConfigs,
+  eventRules: [],
   itemCatalog: [] as RuntimeItemSeed[],
   itemSeedById: new Map<string, RuntimeItemSeed>(),
   levelTable,
