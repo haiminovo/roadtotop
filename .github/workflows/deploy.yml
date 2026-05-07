@@ -40,9 +40,18 @@ jobs:
             fi
 
             if ! command -v pnpm >/dev/null 2>&1; then
-              echo "pnpm not found. Please install pnpm on server first."
-              exit 1
+              if command -v npm >/dev/null 2>&1; then
+                npm install -g pnpm
+              else
+                echo "pnpm and npm are both not found. Please install Node.js/npm on server first."
+                exit 1
+              fi
             fi
+
+            node -v
+            npm -v
+            pnpm -v
+            pm2 -v
 
             pnpm install --frozen-lockfile
             pnpm build
