@@ -297,7 +297,7 @@ export default function Chat() {
       <div
         key={message.id}
         className={[
-          "flex items-center gap-2 border-b border-white/6 py-1.5 text-sm last:border-b-0",
+          "flex items-baseline gap-2 border-b border-white/6 py-1.5 text-sm last:border-b-0",
           message.senderUserId === currentUserId
             ? "text-cyan-100"
             : "text-slate-100",
