@@ -8,6 +8,19 @@ import { requestJson } from "@/features/admin/components/admin-utils";
 import { RoleForm } from "@/features/admin/components/role-form";
 import type { AdminRoleDraft, AdminRoleRecord } from "@/features/admin/types";
 
+function getLevelBaseExp(level: number) {
+  const LEVEL_CAP = 30;
+  const EXP_PER_LEVEL = 100;
+  const EXP_GROWTH_PER_LEVEL = 10;
+  const safeLevel = Math.min(LEVEL_CAP, Math.max(1, Math.floor(level)));
+  const completedLevels = safeLevel - 1;
+
+  return (
+    completedLevels * EXP_PER_LEVEL
+    + ((completedLevels * Math.max(0, completedLevels - 1)) / 2) * EXP_GROWTH_PER_LEVEL
+  );
+}
+
 type ConfigResponse = {
   config: {
     raceConfigs: Array<{ key: string; label: string }>;
@@ -91,7 +104,7 @@ export default function EditAdminRolePage() {
         raceKey: value.raceKey,
         classKey: value.classKey,
         level: value.level,
-        exp: value.exp,
+        exp: Math.max(value.exp, getLevelBaseExp(value.level)),
         gold: value.gold,
         aetherCrystal: value.aetherCrystal,
         currentHealth: value.currentHealth,

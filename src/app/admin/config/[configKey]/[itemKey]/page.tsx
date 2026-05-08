@@ -1,11 +1,12 @@
 'use client';
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Input, Space, Spin, message } from "antd";
 import { requestJson } from "@/features/admin/components/admin-utils";
 import {
+  collectEnumReadableEntries,
   CONFIG_LABELS,
   isArrayConfigKey,
   isConfigKey,
@@ -19,12 +20,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function getDraftStorageKey(configKey: ConfigEditorKey, draftId: string) {
+  return `admin-config-draft:${configKey}:${draftId}`;
+}
+
 export default function ConfigItemEditorPage() {
   const params = useParams<{ configKey: string; itemKey: string }>();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [config, setConfig] = useState<AdminConfigResponse["config"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [draftSourceValue, setDraftSourceValue] = useState<unknown | null>(null);
+  const [draftSourceReady, setDraftSourceReady] = useState(false);
   const [draft, setDraft] = useState("");
   const [messageApi, contextHolder] = message.useMessage();
 
@@ -32,6 +40,8 @@ export default function ConfigItemEditorPage() {
   const itemKey = decodeURIComponent(params.itemKey);
   const indexText = searchParams.get("index");
   const field = searchParams.get("field");
+  const createMode = searchParams.get("create") === "1";
+  const draftId = searchParams.get("draftId");
   const configKey: ConfigEditorKey | null = isConfigKey(rawConfigKey) ? rawConfigKey : null;
 
   const load = useCallback(async () => {
@@ -50,7 +60,34 @@ export default function ConfigItemEditorPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!configKey || !createMode || !draftId || typeof window === "undefined") {
+      setDraftSourceValue(null);
+      setDraftSourceReady(!createMode);
+      return;
+    }
+
+    try {
+      const raw = window.sessionStorage.getItem(getDraftStorageKey(configKey, draftId));
+
+      if (!raw) {
+        setDraftSourceValue(null);
+      } else {
+        const parsed = JSON.parse(raw) as unknown;
+        setDraftSourceValue(parsed);
+      }
+    } catch {
+      setDraftSourceValue(null);
+    } finally {
+      setDraftSourceReady(true);
+    }
+  }, [configKey, createMode, draftId]);
+
   const currentValue = useMemo(() => {
+    if (createMode) {
+      return draftSourceValue;
+    }
+
     if (!config || !configKey) {
       return null;
     }
@@ -76,7 +113,12 @@ export default function ConfigItemEditorPage() {
     }
 
     return source[field];
-  }, [config, configKey, field, indexText]);
+  }, [config, configKey, createMode, draftSourceValue, field, indexText]);
+
+  const enumReadableEntries = useMemo(
+    () => (currentValue === null ? [] : collectEnumReadableEntries(currentValue)),
+    [currentValue],
+  );
 
   useEffect(() => {
     if (currentValue !== null) {
@@ -107,14 +149,18 @@ export default function ConfigItemEditorPage() {
           return;
         }
 
-        const idx = Number(indexText);
+        if (createMode) {
+          nextValue = [...source, parsed.value];
+        } else {
+          const idx = Number(indexText);
 
-        if (!Number.isInteger(idx) || idx < 0 || idx >= source.length) {
-          messageApi.error("索引无效。\n");
-          return;
+          if (!Number.isInteger(idx) || idx < 0 || idx >= source.length) {
+            messageApi.error("索引无效。\n");
+            return;
+          }
+
+          nextValue = source.map((item, index) => (index === idx ? parsed.value : item));
         }
-
-        nextValue = source.map((item, index) => (index === idx ? parsed.value : item));
       } else {
         if (!isRecord(source) || !field) {
           messageApi.error("字段无效。\n");
@@ -134,7 +180,17 @@ export default function ConfigItemEditorPage() {
       });
 
       setConfig(response.config);
-      messageApi.success("单项保存成功。");
+      if (createMode && configKey && draftId && typeof window !== "undefined") {
+        window.sessionStorage.removeItem(getDraftStorageKey(configKey, draftId));
+        const source = config[configKey];
+        if (Array.isArray(source)) {
+          const newIndex = source.length;
+          router.replace(
+            `/admin/config/${encodeURIComponent(configKey)}/${encodeURIComponent(itemKey)}?index=${newIndex}`,
+          );
+        }
+      }
+      messageApi.success(createMode ? "新增并保存成功。" : "单项保存成功。");
     } catch (error) {
       messageApi.error(error instanceof Error ? error.message : "保存失败。");
     } finally {
@@ -169,14 +225,27 @@ export default function ConfigItemEditorPage() {
           </Space>
         </div>
 
-        {loading ? (
+        {loading || (createMode && !draftSourceReady) ? (
           <div className="py-10 text-center"><Spin /></div>
         ) : currentValue === null ? (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            未找到该配置项。
+            {createMode ? "新建草稿已失效，请返回列表重新新增。" : "未找到该配置项。"}
           </div>
         ) : (
           <div className="space-y-3">
+            {enumReadableEntries.length > 0 ? (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+                <p className="text-xs font-medium text-sky-700">枚举释义（便于阅读）</p>
+                <div className="mt-2 grid gap-1">
+                  {enumReadableEntries.map((entry) => (
+                    <p className="text-xs text-sky-800" key={`${entry.path}:${entry.raw}`}>
+                      {entry.path}: {entry.raw} {"=>"} {entry.label}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <Input.TextArea
               autoSize={{ minRows: 16, maxRows: 26 }}
               onChange={(event) => setDraft(event.target.value)}

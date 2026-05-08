@@ -90,6 +90,166 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+const RARITY_LABELS: Record<string, string> = {
+  white: "白装",
+  green: "绿装",
+  blue: "蓝装",
+  purple: "紫装",
+  orange: "橙装",
+};
+
+const ITEM_TYPE_LABELS: Record<string, string> = {
+  equipment: "装备",
+  skill_book: "技能书",
+  material: "材料",
+};
+
+const BODY_SLOT_LABELS: Record<string, string> = {
+  head: "头部",
+  hand: "手部",
+  torso: "上身",
+  legs: "下身",
+  feet: "脚部",
+  neck: "脖颈",
+  accessory: "饰品",
+};
+
+const ENCOUNTER_TIER_LABELS: Record<string, string> = {
+  common: "普通",
+  rare: "稀有",
+  legendary: "传说",
+};
+
+const EVENT_TRIGGER_LABELS: Record<string, string> = {
+  afk_tick: "挂机触发",
+  enemy_kill: "击杀触发",
+};
+
+const EVENT_ACTION_LABELS: Record<string, string> = {
+  grant_gold: "奖励金币",
+  grant_aether: "奖励以太",
+  grant_exp: "奖励经验",
+  adjust_health: "调整生命",
+  grant_item: "奖励物品",
+};
+
+const SKILL_CATEGORY_LABELS: Record<string, string> = {
+  attack: "战技",
+  spell: "法术",
+  guard: "守御",
+};
+
+const SKILL_SOURCE_LABELS: Record<string, string> = {
+  learned: "玩家技能",
+  enemy: "怪物技能",
+};
+
+const MAP_KEY_LABELS: Record<string, string> = {
+  "palmia-wilds": "野外",
+  "moonfall-ruins": "月陨遗迹",
+};
+
+function localizeEnumByPath(path: string, value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  if (path.endsWith(".trigger.type")) {
+    return EVENT_TRIGGER_LABELS[value] ?? null;
+  }
+
+  if (/actions\[\d+\]\.type$/.test(path)) {
+    return EVENT_ACTION_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".tier")) {
+    return ENCOUNTER_TIER_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".rarity")) {
+    return RARITY_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".itemType")) {
+    return ITEM_TYPE_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".slot")) {
+    return BODY_SLOT_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".category")) {
+    return SKILL_CATEGORY_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".source")) {
+    return SKILL_SOURCE_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".mapKey") || /mapKeys\[\d+\]$/.test(path)) {
+    return MAP_KEY_LABELS[value] ?? null;
+  }
+
+  return null;
+}
+
+function enumLabel(raw: unknown, label: string | null) {
+  if (!label) {
+    return raw;
+  }
+
+  return `${raw}（${label}）`;
+}
+
+export type EnumReadableEntry = {
+  path: string;
+  raw: string;
+  label: string;
+};
+
+export function collectEnumReadableEntries(value: unknown) {
+  const entries: EnumReadableEntry[] = [];
+
+  function visit(current: unknown, path: string) {
+    const localized = localizeEnumByPath(path, current);
+
+    if (localized && typeof current === "string") {
+      entries.push({
+        path,
+        raw: current,
+        label: localized,
+      });
+    }
+
+    if (Array.isArray(current)) {
+      current.forEach((item, index) => {
+        visit(item, `${path}[${index}]`);
+      });
+      return;
+    }
+
+    const row = asRecord(current);
+
+    if (!row) {
+      return;
+    }
+
+    Object.entries(row).forEach(([key, fieldValue]) => {
+      const nextPath = path ? `${path}.${key}` : key;
+      visit(fieldValue, nextPath);
+    });
+  }
+
+  visit(value, "");
+
+  const unique = new Map<string, EnumReadableEntry>();
+  entries.forEach((entry) => {
+    unique.set(`${entry.path}:${entry.raw}`, entry);
+  });
+
+  return [...unique.values()];
+}
+
 export function getArrayItemKey(item: unknown, index: number) {
   const row = asRecord(item);
 
@@ -122,16 +282,25 @@ export function getArrayItemSubtitle(item: unknown) {
 
   const trigger = asRecord(row.trigger);
   if (trigger && typeof trigger.type === "string") {
-    const triggerType = trigger.type;
-    const triggerLabel = triggerType === "afk_tick"
-      ? "挂机触发"
-      : triggerType === "enemy_kill"
-        ? "击杀触发"
-        : triggerType;
+    const triggerLabel = EVENT_TRIGGER_LABELS[trigger.type] ?? trigger.type;
     return [row.key, triggerLabel, row.priority].filter(Boolean).join(" / ");
   }
 
-  return [row.key, row.itemId, row.type, row.rarity].filter(Boolean).join(" / ");
+  const parts = [
+    row.key,
+    row.itemId,
+    row.type ? enumLabel(row.type, localizeEnumByPath("type", row.type)) : null,
+    row.rarity ? enumLabel(row.rarity, localizeEnumByPath("rarity", row.rarity)) : null,
+    row.itemType ? enumLabel(row.itemType, localizeEnumByPath("itemType", row.itemType)) : null,
+    row.slot ? enumLabel(row.slot, localizeEnumByPath("slot", row.slot)) : null,
+    row.tier ? enumLabel(row.tier, localizeEnumByPath("tier", row.tier)) : null,
+    row.category ? enumLabel(row.category, localizeEnumByPath("category", row.category)) : null,
+    row.source ? enumLabel(row.source, localizeEnumByPath("source", row.source)) : null,
+  ]
+    .filter(Boolean)
+    .map((entry) => String(entry));
+
+  return parts.join(" / ");
 }
 
 export function getEventRuleTriggerType(item: unknown): EventRuleFilter | null {

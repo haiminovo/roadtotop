@@ -30,6 +30,33 @@ type RowItem = {
   subtitle: string;
 };
 
+function normalizeNewConfigItem(configKey: ConfigEditorKey, item: unknown) {
+  if (configKey !== "itemCatalog" || !item || typeof item !== "object" || Array.isArray(item)) {
+    return item;
+  }
+
+  const source = item as Record<string, unknown>;
+
+  return {
+    ...source,
+    itemType: typeof source.itemType === "string" ? source.itemType : "equipment",
+    skillKey: source.skillKey === undefined ? null : source.skillKey,
+  };
+}
+
+function persistDraftConfigItem(configKey: ConfigEditorKey, value: unknown) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const draftId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const storageKey = `admin-config-draft:${configKey}:${draftId}`;
+
+  window.sessionStorage.setItem(storageKey, JSON.stringify(value));
+
+  return draftId;
+}
+
 export default function ConfigKeyPage() {
   const params = useParams<{ configKey: string }>();
   const router = useRouter();
@@ -130,8 +157,18 @@ export default function ConfigKeyPage() {
       return;
     }
 
-    const nextItems = [...sourceValue, createConfigArrayItem(configKey)];
-    await saveConfigValue(nextItems);
+    const draftItem = normalizeNewConfigItem(configKey, createConfigArrayItem(configKey));
+    const draftId = persistDraftConfigItem(configKey, draftItem);
+
+    if (!draftId) {
+      messageApi.error("创建草稿失败，请重试。");
+      return;
+    }
+
+    const itemKey = getArrayItemKey(draftItem, sourceValue.length);
+    router.push(
+      `/admin/config/${encodeURIComponent(configKey)}/${encodeURIComponent(itemKey)}?create=1&draftId=${encodeURIComponent(draftId)}`,
+    );
   };
 
   const removeItem = async (index: number) => {

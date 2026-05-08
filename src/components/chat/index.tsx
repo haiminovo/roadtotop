@@ -67,7 +67,7 @@ function EventFeedItem({
   title: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-3 rounded-[0.95rem] border border-white/8 bg-slate-950/34 px-3 py-2.5">
+    <div className="flex gap-3 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
       <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${accentClassName}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
@@ -111,17 +111,17 @@ function RoleProfileModal({
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/72 px-4"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4"
       onClick={onClose}
       role="dialog"
     >
       <div
-        className="w-full max-w-2xl rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)]"
+        className="w-full max-w-2xl rounded-lg border border-[#30363d] bg-[#161b22] p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.32em] text-sky-100/55">{copy.roleProfileTitle}</p>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.roleProfileTitle}</p>
             <h3 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
               {role?.name ?? copy.roleProfileTitle}
             </h3>
@@ -129,7 +129,7 @@ function RoleProfileModal({
               {role ? `${messages.common.levelShort}${role.level} · ${raceLabel} / ${classLabel}` : copy.roleMissing}
             </p>
             {role ? (
-              <p className="mt-2 text-xs font-medium tracking-[0.24em] text-cyan-200/80">
+              <p className="mt-2 text-xs font-medium tracking-[0.24em] text-[#58a6ff]">
                 {role.avatarSeed}
               </p>
             ) : (
@@ -137,7 +137,7 @@ function RoleProfileModal({
             )}
           </div>
           <button
-            className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-300/25 hover:text-white"
+            className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-2 text-sm text-slate-200 transition hover:border-[#484f58] hover:text-white"
             onClick={onClose}
             type="button"
           >
@@ -152,26 +152,26 @@ function RoleProfileModal({
                 <span>{messages.game.dashboard.currentHealth}</span>
                 <span>{Math.floor(healthPercent)}%</span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-950/90">
+              <div className="h-3 overflow-hidden rounded-full bg-[#21262d]">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-rose-400 via-amber-300 to-emerald-300"
+                  className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500"
                   style={{ width: `${healthPercent}%` }}
                 />
               </div>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.currentHealth}</p>
                 <p className="mt-1 text-sm font-semibold leading-5 text-white">
                   {formatNumber(role.currentHealth, locale)} / {formatNumber(role.maxHealth, locale)}
                 </p>
               </div>
-              <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.gold}</p>
                 <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(role.gold, locale)}</p>
               </div>
-              <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.aetherCrystal}</p>
                 <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(role.aetherCrystal, locale)}</p>
               </div>
@@ -179,7 +179,7 @@ function RoleProfileModal({
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {Object.entries(role.stats).map(([key, value]) => (
-                <div key={key} className="rounded-[0.9rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+                <div key={key} className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{statLabel(key, messages)}</p>
                   <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(value, locale)}</p>
                 </div>
@@ -187,17 +187,17 @@ function RoleProfileModal({
             </div>
 
             <div className="mt-6">
-              <p className="text-[11px] uppercase tracking-[0.32em] text-sky-100/55">{copy.equippedItems}</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.equippedItems}</p>
               <div className="mt-3 space-y-2">
                 {role.equippedItems.length === 0 ? (
-                  <p className="rounded-[1rem] border border-white/8 bg-white/[0.04] px-4 py-3 text-sm text-slate-400">
+                  <p className="rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm text-slate-400">
                     {copy.equippedEmpty}
                   </p>
                 ) : (
                   role.equippedItems.map((item) => (
                     <div
                       key={item.backpackId}
-                      className="rounded-[1rem] border border-white/8 bg-white/[0.04] px-4 py-3"
+                      className="rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-3"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div>
@@ -206,7 +206,7 @@ function RoleProfileModal({
                             {slotLabel(item.slot, messages)} · {formatEquippedGroupSummary(item.equippedSlotGroups, messages)}
                           </p>
                         </div>
-                        <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2.5 py-1 text-[11px] font-medium text-cyan-100">
+                        <span className="rounded-full border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2.5 py-1 text-[11px] font-medium text-[#58a6ff]">
                           x{formatNumber(item.equippedCount, locale)}
                         </span>
                       </div>
@@ -320,17 +320,17 @@ export default function Chat() {
       <div
         key={message.id}
         className={[
-          "flex items-baseline gap-2 border-b border-white/6 py-1.5 text-sm last:border-b-0",
+          "flex items-baseline gap-2 border-b border-[#21262d] py-1.5 text-sm last:border-b-0",
           message.senderUserId === currentUserId
-            ? "text-cyan-100"
-            : "text-slate-100",
+            ? "text-[#58a6ff]"
+            : "text-slate-200",
         ].join(" ")}
         title={`${message.senderName}${shouldShowGuestId(message.senderName) ? ` ${message.senderUserId}` : ""} ${message.content}`}
       >
         <button
           className={[
-            "shrink-0 text-[11px] font-semibold tracking-[0.08em] transition",
-            message.senderUserId === currentUserId ? "text-cyan-200" : "text-slate-300",
+            "shrink-0 text-[11px] font-medium tracking-[0.08em] transition",
+            message.senderUserId === currentUserId ? "text-[#58a6ff]" : "text-slate-400",
             canOpenRole ? "cursor-pointer hover:text-white" : "cursor-default",
           ].join(" ")}
           disabled={!canOpenRole}
@@ -355,16 +355,16 @@ export default function Chat() {
 
   return (
     <>
-      <section className="flex min-h-[18rem] flex-col rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.96),rgba(11,16,30,0.98))] p-4 text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)] xl:h-full xl:min-h-0">
+      <section className="flex min-h-[18rem] flex-col rounded-lg border border-[#30363d] bg-[#161b22] p-3 text-slate-200 xl:h-full xl:min-h-0">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <button
                 className={[
-                  "relative rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                  "relative rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
                   activeTab === "chat"
-                    ? "border-cyan-300/35 bg-cyan-300/14 text-cyan-50"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
+                    ? "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff]"
+                    : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
                 ].join(" ")}
                 onClick={() => setActiveTab("chat")}
                 type="button"
@@ -378,10 +378,10 @@ export default function Chat() {
               </button>
               <button
                 className={[
-                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                  "rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
                   activeTab === "battle"
-                    ? "border-fuchsia-300/35 bg-fuchsia-300/14 text-fuchsia-50"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
+                    ? "border-[#a371f7] bg-[#a371f7]/10 text-[#bc8cff]"
+                    : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
                 ].join(" ")}
                 onClick={() => setActiveTab("battle")}
                 type="button"
@@ -390,10 +390,10 @@ export default function Chat() {
               </button>
               <button
                 className={[
-                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                  "rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
                   activeTab === "encounter"
-                    ? "border-amber-300/35 bg-amber-300/14 text-amber-50"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
+                    ? "border-amber-600 bg-amber-600/10 text-amber-300"
+                    : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
                 ].join(" ")}
                 onClick={() => setActiveTab("encounter")}
                 type="button"
@@ -409,17 +409,17 @@ export default function Chat() {
                   aria-expanded={isChannelMenuOpen}
                   aria-haspopup="menu"
                   className={[
-                    "flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                    "flex items-center gap-2 rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
                     isChannelMenuOpen
-                      ? "border-cyan-300/35 bg-cyan-300/14 text-cyan-50 shadow-[0_0_0_1px_rgba(103,232,249,0.08)]"
-                      : "border-white/10 bg-white/[0.045] text-slate-200 hover:border-cyan-300/25 hover:text-white",
+                      ? "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff]"
+                      : "border-[#30363d] bg-[#21262d] text-slate-200 hover:border-[#484f58] hover:text-white",
                   ].join(" ")}
                   onClick={() => setIsChannelMenuOpen((current) => !current)}
                   type="button"
                 >
                   <span>{activeChannelMeta?.label ?? copy.channel}</span>
                   {unreadCounts[activeChannel] > 0 ? (
-                    <span className="rounded-full bg-cyan-100/12 px-1.5 py-0.5 text-[10px] leading-none text-cyan-100">
+                    <span className="rounded-full bg-[#1f6feb]/15 px-1.5 py-0.5 text-[10px] leading-none text-[#58a6ff]">
                       {unreadCounts[activeChannel] > 99 ? "99+" : unreadCounts[activeChannel]}
                     </span>
                   ) : null}
@@ -434,7 +434,7 @@ export default function Chat() {
                 </button>
 
                 {isChannelMenuOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 min-w-32 overflow-hidden rounded-[1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-1.5 shadow-[0_16px_50px_rgba(0,0,0,0.38)]">
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 min-w-32 overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] p-1.5">
                     {channels.map((channel) => {
                       const unreadCount = unreadCounts[channel.key];
 
@@ -442,10 +442,10 @@ export default function Chat() {
                         <button
                           key={channel.key}
                           className={[
-                            "flex w-full items-center justify-between rounded-[0.8rem] px-3 py-2 text-left text-[11px] transition",
+                            "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[11px] transition",
                             activeChannel === channel.key
-                              ? "bg-cyan-300/12 text-cyan-50"
-                              : "text-slate-300 hover:bg-white/[0.05] hover:text-white",
+                              ? "bg-[#1f6feb]/10 text-[#58a6ff]"
+                              : "text-slate-300 hover:bg-[#21262d] hover:text-white",
                           ].join(" ")}
                           onClick={() => {
                             setActiveChannel(channel.key);
@@ -455,11 +455,11 @@ export default function Chat() {
                         >
                           <span>{channel.label}</span>
                           {unreadCount > 0 ? (
-                            <span className="rounded-full bg-amber-300/12 px-1.5 py-0.5 text-[10px] leading-none text-amber-100">
+                            <span className="rounded-full bg-amber-600/15 px-1.5 py-0.5 text-[10px] leading-none text-amber-300">
                               {unreadCount > 99 ? "99+" : unreadCount}
                             </span>
                           ) : activeChannel === channel.key ? (
-                            <span className="text-[10px] text-cyan-200">{copy.currentTag}</span>
+                            <span className="text-[10px] text-[#58a6ff]">{copy.currentTag}</span>
                           ) : null}
                         </button>
                       );
@@ -471,7 +471,7 @@ export default function Chat() {
           ) : null}
         </div>
 
-        <div ref={feedScrollRef} className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-[1.05rem] border border-white/8 bg-slate-900/70 px-3">
+        <div ref={feedScrollRef} className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-md border border-[#30363d] bg-[#0d1117] px-3">
           {activeTab === "chat" ? (
             messages.length === 0 ? (
               <p className="py-3 text-sm text-slate-500">{copy.quiet}</p>
@@ -524,14 +524,14 @@ export default function Chat() {
                   void sendMessage().catch(() => {});
                 }
               }}
-              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400"
+              className="flex-1 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-[#484f58]"
               placeholder={`${copy.sendTo}${channels.find((channel) => channel.key === activeChannel)?.label ?? copy.currentChannel}...`}
             />
             <button
               onClick={() => {
                 void sendMessage().catch(() => {});
               }}
-              className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md bg-[#1f6feb] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!isRealtimeReady || input.trim().length === 0 || remainingCooldownMs > 0}
               type="button"
             >

@@ -268,12 +268,12 @@ function itemAccent(rarity: string) {
 
 function marketItemCardAccent(rarity: string) {
   return {
-    white: "border-slate-300/22 bg-[linear-gradient(180deg,rgba(148,163,184,0.16),rgba(15,23,42,0.26))]",
-    green: "border-emerald-300/24 bg-[linear-gradient(180deg,rgba(52,211,153,0.18),rgba(15,23,42,0.26))]",
-    blue: "border-sky-300/24 bg-[linear-gradient(180deg,rgba(56,189,248,0.18),rgba(15,23,42,0.26))]",
-    purple: "border-fuchsia-300/24 bg-[linear-gradient(180deg,rgba(217,70,239,0.18),rgba(15,23,42,0.26))]",
-    orange: "border-amber-300/24 bg-[linear-gradient(180deg,rgba(251,191,36,0.2),rgba(15,23,42,0.26))]",
-  }[rarity] ?? "border-slate-300/22 bg-[linear-gradient(180deg,rgba(148,163,184,0.16),rgba(15,23,42,0.26))]";
+    white: "border-slate-700 bg-[#0d1117]",
+    green: "border-emerald-900 bg-[#0d1117]",
+    blue: "border-sky-900 bg-[#0d1117]",
+    purple: "border-fuchsia-900 bg-[#0d1117]",
+    orange: "border-amber-900 bg-[#0d1117]",
+  }[rarity] ?? "border-slate-700 bg-[#0d1117]";
 }
 
 function rarityMetaBadgeTone(rarity: string): "amber" | "emerald" | "neutral" | "sky" | "violet" {
@@ -340,8 +340,7 @@ function SectionCard({
   return (
     <section
       className={[
-        "rounded-[1.25rem] border border-white/8 bg-[linear-gradient(180deg,rgba(18,23,40,0.94),rgba(9,13,27,0.98))] backdrop-blur-xl",
-        "shadow-[0_18px_46px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.03)]",
+        "rounded-lg border border-[#30363d] bg-[#161b22]",
         className,
       ].join(" ")}
     >
@@ -351,7 +350,7 @@ function SectionCard({
 }
 
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] uppercase tracking-[0.32em] text-sky-100/55">{children}</p>;
+  return <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{children}</p>;
 }
 
 function OverlayModal({
@@ -360,8 +359,8 @@ function OverlayModal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-slate-950/72 px-4 py-6">
-      <div className="mx-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.45)] sm:p-6">
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-black/60 px-4 py-6">
+      <div className="mx-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] p-5 sm:p-6">
         {children}
       </div>
     </div>
@@ -385,15 +384,15 @@ function MobileDashboardCollapse({
     <div className="space-y-3 xl:flex xl:h-full xl:min-h-0 xl:flex-col">
       <button
         aria-expanded={isOpen}
-        className="flex min-h-11 w-full items-center justify-between rounded-[1rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] px-4 py-3 text-left text-white shadow-[0_12px_36px_rgba(0,0,0,0.22)] transition hover:border-sky-200/30 xl:hidden"
+        className="flex min-h-10 w-full items-center justify-between rounded-md border border-[#30363d] bg-[#161b22] px-3 py-2 text-left text-sm text-slate-200 transition hover:border-[#484f58] xl:hidden"
         onClick={() => setIsOpen((current) => !current)}
         type="button"
       >
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">{title}</p>
-          {summary ? <p className="mt-1 text-xs text-slate-300/75">{summary}</p> : null}
+          <span className="font-medium">{title}</span>
+          {summary ? <span className="ml-2 text-xs text-slate-500">{summary}</span> : null}
         </div>
-        <span className="ml-3 shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-300">
+        <span className="ml-3 shrink-0 rounded bg-[#21262d] px-2 py-0.5 text-[10px] text-slate-400">
           {isOpen ? "收起" : "展开"}
         </span>
       </button>
@@ -409,7 +408,7 @@ function TopStatusBar({
   barClassName = "h-3",
   className = "",
   label,
-  labelClassName = "text-slate-300",
+  labelClassName = "text-slate-400",
   valueLabel,
   tone,
   value,
@@ -425,14 +424,14 @@ function TopStatusBar({
   const safeValue = Math.max(0, Math.min(100, value));
 
   return (
-    <div className={["rounded-[1rem] border border-white/8 bg-white/[0.035] p-3", className].join(" ")}>
+    <div className={["rounded-md border border-[#30363d] bg-[#0d1117] p-3", className].join(" ")}>
       <div className={`mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] ${labelClassName}`}>
         <span>{label}</span>
         <span>{valueLabel ?? `${Math.max(0, Math.floor(safeValue))}%`}</span>
       </div>
-      <div className={`${barClassName} overflow-hidden rounded-full border border-white/6 bg-slate-950/90`}>
+      <div className={`${barClassName} overflow-hidden rounded-full bg-[#21262d]`}>
         <div
-          className={`h-full rounded-full bg-gradient-to-r shadow-[0_0_22px_rgba(125,211,252,0.2)] transition-[width] duration-700 ease-out ${tone}`}
+          className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out ${tone}`}
           style={{ width: `${safeValue}%` }}
         />
       </div>
@@ -456,12 +455,12 @@ function DataPill({
   return (
     <div
       className={[
-        "min-w-0 rounded-[0.95rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]",
+        "min-w-0 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2",
         className,
       ].join(" ")}
     >
       <p className={["text-[10px] uppercase tracking-[0.16em] text-slate-500", labelClassName].join(" ")}>{label}</p>
-      <p className={["mt-1 truncate text-sm font-semibold leading-5 text-white", valueClassName].join(" ")}>{value}</p>
+      <p className={["mt-1 truncate text-sm font-medium leading-5 text-slate-200", valueClassName].join(" ")}>{value}</p>
     </div>
   );
 }
@@ -474,9 +473,9 @@ function InlineStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-[0.9rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] px-3 py-2.5">
-      <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</span>
-      <span className="text-sm font-semibold text-white">{value}</span>
+    <div className="flex items-center justify-between gap-3 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
+      <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-200">{value}</span>
     </div>
   );
 }
@@ -489,15 +488,15 @@ function StatusChip({
   tone?: "danger" | "emerald" | "neutral" | "sky" | "warning";
 }) {
   const toneClassName = {
-    danger: "border-rose-300/25 bg-rose-300/12 text-rose-50",
-    emerald: "border-emerald-300/25 bg-emerald-300/12 text-emerald-50",
-    neutral: "border-white/10 bg-white/[0.05] text-slate-100",
-    sky: "border-sky-300/25 bg-sky-300/12 text-sky-50",
-    warning: "border-amber-300/25 bg-amber-300/12 text-amber-50",
+    danger: "border-rose-900 bg-rose-900/20 text-rose-300",
+    emerald: "border-emerald-900 bg-emerald-900/20 text-emerald-300",
+    neutral: "border-[#30363d] bg-[#21262d] text-slate-300",
+    sky: "border-sky-900 bg-sky-900/20 text-sky-300",
+    warning: "border-amber-900 bg-amber-900/20 text-amber-300",
   }[tone];
 
   return (
-    <span className={`inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>
+    <span className={`inline-flex min-h-6 items-center rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] ${toneClassName}`}>
       {children}
     </span>
   );
@@ -515,16 +514,16 @@ function CommandButton({
   tone?: "danger" | "neutral" | "primary" | "secondary";
 }) {
   const toneClassName = {
-    danger: "border-rose-300/25 bg-rose-400 text-white shadow-[0_14px_30px_rgba(244,63,94,0.24)] hover:bg-rose-300",
-    neutral: "border-white/12 bg-white/[0.06] text-white hover:border-white/24 hover:bg-white/[0.12]",
-    primary: "border-emerald-300/20 bg-emerald-500 text-white shadow-[0_14px_30px_rgba(16,185,129,0.28)] hover:bg-emerald-400",
-    secondary: "border-cyan-300/30 bg-cyan-300/10 text-cyan-50 hover:border-cyan-200/50 hover:bg-cyan-300/16",
+    danger: "border-rose-800 bg-rose-700 text-white hover:bg-rose-600",
+    neutral: "border-[#30363d] bg-[#21262d] text-slate-200 hover:bg-[#30363d]",
+    primary: "border-emerald-800 bg-emerald-700 text-white hover:bg-emerald-600",
+    secondary: "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff] hover:bg-[#1f6feb]/20",
   }[tone];
 
   return (
     <button
       className={[
-        "min-h-11 min-w-0 whitespace-nowrap rounded-[1rem] border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1",
+        "min-h-9 min-w-0 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1",
         toneClassName,
       ].join(" ")}
       disabled={disabled}
@@ -536,33 +535,6 @@ function CommandButton({
   );
 }
 
-function OverviewMetricCard({
-  detail,
-  label,
-  tone = "neutral",
-  value,
-}: {
-  detail?: React.ReactNode;
-  label: string;
-  tone?: "amber" | "emerald" | "neutral" | "sky";
-  value: React.ReactNode;
-}) {
-  const toneClassName = {
-    amber: "border-amber-300/18 bg-[linear-gradient(180deg,rgba(251,191,36,0.12),rgba(251,191,36,0.03))]",
-    emerald: "border-emerald-300/18 bg-[linear-gradient(180deg,rgba(52,211,153,0.12),rgba(52,211,153,0.03))]",
-    neutral: "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))]",
-    sky: "border-sky-300/18 bg-[linear-gradient(180deg,rgba(56,189,248,0.12),rgba(56,189,248,0.03))]",
-  }[tone];
-
-  return (
-    <div className={`rounded-[1rem] border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${toneClassName}`}>
-      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-300/72">{label}</p>
-      <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">{value}</p>
-      {detail ? <p className="mt-1 text-xs text-slate-300/70">{detail}</p> : null}
-    </div>
-  );
-}
-
 function MetaBadge({
   children,
   tone = "neutral",
@@ -571,15 +543,15 @@ function MetaBadge({
   tone?: "amber" | "emerald" | "neutral" | "sky" | "violet";
 }) {
   const toneClassName = {
-    amber: "border-amber-300/20 bg-amber-300/12 text-amber-50",
-    emerald: "border-emerald-300/20 bg-emerald-300/12 text-emerald-50",
-    neutral: "border-white/10 bg-white/[0.05] text-slate-200",
-    sky: "border-sky-300/20 bg-sky-300/12 text-sky-50",
-    violet: "border-fuchsia-300/24 bg-fuchsia-300/14 text-fuchsia-50",
+    amber: "border-amber-900 bg-amber-900/20 text-amber-300",
+    emerald: "border-emerald-900 bg-emerald-900/20 text-emerald-300",
+    neutral: "border-[#30363d] bg-[#21262d] text-slate-300",
+    sky: "border-sky-900 bg-sky-900/20 text-sky-300",
+    violet: "border-fuchsia-900 bg-fuchsia-900/20 text-fuchsia-300",
   }[tone];
 
   return (
-    <span className={`inline-flex min-h-7 items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${toneClassName}`}>
+    <span className={`inline-flex min-h-6 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] ${toneClassName}`}>
       {children}
     </span>
   );
@@ -593,7 +565,7 @@ function PanelSubsection({
   className?: string;
 }) {
   return (
-    <div className={["rounded-[1rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] p-4", className].join(" ")}>
+    <div className={["rounded-lg border border-[#30363d] bg-[#0d1117] p-4", className].join(" ")}>
       {children}
     </div>
   );
@@ -616,14 +588,14 @@ function SkillSlot({
 }) {
   return (
     <div className="group relative min-w-0">
-      <div className={`flex min-h-[4.5rem] flex-col items-center justify-center rounded-[0.95rem] border px-2 py-2 text-center transition ${toneClassName}`}>
+      <div className={`flex min-h-[4.5rem] flex-col items-center justify-center rounded-md border px-2 py-2 text-center transition ${toneClassName}`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950/40 text-[11px] font-semibold text-white">
           {badge}
         </div>
         <p className="mt-1 text-[10px] font-semibold tracking-[0.08em] text-white">{title}</p>
         <p className="mt-0.5 text-[10px] leading-4 text-slate-300">{status}</p>
       </div>
-      <div className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-[0.95rem] border border-white/10 bg-[linear-gradient(180deg,rgba(19,24,43,0.98),rgba(10,14,28,0.98))] p-3 opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.38)] transition duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-[#30363d] bg-[#161b22] p-3 opacity-0 transition duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
         <p className="text-sm font-semibold text-white">{title}</p>
         <p className="mt-1 text-[11px] text-slate-400">{meta}</p>
         <p className="mt-2 text-xs leading-6 text-slate-300">{body}</p>
@@ -733,45 +705,36 @@ function BattleStatusBar({
       : never
     : never;
 }) {
-  const { locale, messages } = useI18n();
+  const { messages } = useI18n();
   const copy = messages.game.dashboard;
   const effects = Array.isArray(combatant.activeEffects) ? combatant.activeEffects : [];
 
   if (effects.length === 0) {
     return (
-      <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
-        <div className="font-medium text-slate-300">{copy.statusBarTitle}</div>
-        <div className="mt-1">{copy.statusBarEmpty}</div>
-      </div>
+      <span className="text-[10px] text-slate-600">{copy.statusBarEmpty}</span>
     );
   }
 
   return (
-    <div className="rounded-[0.9rem] border border-white/8 bg-white/[0.03] px-3 py-2">
-      <div className="text-xs font-medium text-slate-300">{copy.statusBarTitle}</div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {effects.map((effect) => {
-          const isDebuff = effect.effectType.includes("down") || effect.effectType === "damage_over_time";
-
-          return (
-            <div
-              key={effect.key}
-              className={[
-                "min-w-[140px] rounded-[0.85rem] border px-2.5 py-2 text-xs",
-                isDebuff
-                  ? "border-rose-300/25 bg-rose-300/10 text-rose-50"
-                  : "border-emerald-300/25 bg-emerald-300/10 text-emerald-50",
-              ].join(" ")}
-            >
-              <div className="font-semibold">{effect.name}</div>
-              <div className="mt-1 text-[11px] opacity-85">{effect.summary || effect.description}</div>
-              <div className="mt-1 text-[10px] opacity-70">
-                {formatMessage(copy.statusTurnsRemaining, { count: formatNumber(effect.remainingTurns, locale) })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="flex flex-wrap gap-1" title={effects.map((e) => `${e.name} · ${e.summary || e.description} · 剩余 ${e.remainingTurns} 回合`).join("\n")}>
+      {effects.map((effect) => {
+        const isDebuff = effect.effectType.includes("down") || effect.effectType === "damage_over_time";
+        return (
+          <span
+            key={effect.key}
+            className={[
+              "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              isDebuff
+                ? "border-rose-800 bg-rose-900/30 text-rose-300"
+                : "border-emerald-800 bg-emerald-900/30 text-emerald-300",
+            ].join(" ")}
+            title={`${effect.name} · ${effect.summary || effect.description} · 剩余 ${effect.remainingTurns} 回合`}
+          >
+            <span>{effect.name}</span>
+            <span className="opacity-60">{effect.remainingTurns}T</span>
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -788,7 +751,7 @@ function FilterSelect({
   children: React.ReactNode;
 }) {
   return (
-    <label className="rounded-[0.95rem] border border-white/8 bg-white/[0.04] px-3 py-2">
+    <label className="rounded-md border border-white/8 bg-white/[0.04] px-3 py-2">
       <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{label}</p>
       <div className="mt-1 relative">
         <select
@@ -818,21 +781,21 @@ function RailButton({
   return (
     <button
       className={[
-        "group w-full rounded-[1rem] border px-4 py-3 text-left transition duration-200",
+        "group w-full rounded-md border px-3 py-2 text-left text-sm transition",
         active
-          ? "border-sky-300/45 bg-[linear-gradient(180deg,rgba(56,189,248,0.18),rgba(56,189,248,0.06))] shadow-[inset_0_0_0_1px_rgba(125,211,252,0.18),0_10px_28px_rgba(14,165,233,0.12)]"
-          : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02))] hover:border-sky-200/30 hover:bg-white/[0.05]",
+          ? "border-[#58a6ff] bg-[#1f6feb]/10 text-white"
+          : "border-[#30363d] bg-transparent text-slate-300 hover:border-[#484f58] hover:text-white",
       ].join(" ")}
       onClick={onClick}
       type="button"
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 text-sm font-semibold text-white">{label}</p>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate">{label}</span>
         {count ? (
           <span
             className={[
-              "rounded-full border px-2 py-0.5 text-[10px]",
-              active ? "border-sky-200/20 bg-sky-300/12 text-sky-50" : "border-white/10 bg-white/[0.05] text-slate-300",
+              "shrink-0 rounded-full px-2 py-0.5 text-[10px]",
+              active ? "bg-[#1f6feb]/20 text-[#58a6ff]" : "bg-[#21262d] text-slate-500",
             ].join(" ")}
           >
             {count}
@@ -868,28 +831,28 @@ function ItemTile({
   return (
     <button
       className={[
-        "group relative flex aspect-square flex-col overflow-hidden rounded-[1rem] border p-3 text-left transition",
+        "group relative flex aspect-square flex-col overflow-hidden rounded-lg border p-2 text-left transition",
         itemAccent(rarity),
-        active ? "ring-2 ring-sky-300/60" : "hover:translate-y-[-1px]",
+        active ? "ring-2 ring-[#58a6ff]/50" : "hover:-translate-y-px",
       ].join(" ")}
       onClick={onClick}
       title={itemName}
       type="button"
     >
       {equippedCount > 0 ? (
-        <span className="absolute right-2 top-2 rounded-full border border-emerald-300/35 bg-emerald-300/14 px-2 py-0.5 text-[10px] font-semibold leading-none text-emerald-100">
+        <span className="absolute right-1.5 top-1.5 rounded-full border border-emerald-800 bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-medium leading-none text-emerald-300">
           {messages.game.dashboard.equippedBadge}
         </span>
       ) : null}
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/12 bg-black/20 text-white">
-          <Icon className="h-8 w-8" />
+        <span className="flex h-[min(2.75rem,35%)] w-[min(2.75rem,35%)] items-center justify-center rounded-xl border border-[#30363d] bg-[#0d1117] text-slate-200">
+          <Icon className="h-[min(1.5rem,55%)] w-[min(1.5rem,55%)]" />
         </span>
       </div>
-      <span className="pointer-events-none absolute bottom-2 left-3 right-10 truncate text-xs font-medium leading-5 text-white/72">
+      <span className="pointer-events-none absolute bottom-1.5 left-2 right-8 truncate text-[10px] font-medium leading-4 text-slate-300/80">
         {itemName}
       </span>
-      <span className="absolute bottom-2 right-2 rounded-full bg-black/25 px-2 py-0.5 text-[10px] font-semibold text-white/90">
+      <span className="absolute bottom-1.5 right-1.5 rounded-full bg-[#0d1117]/80 px-1.5 py-0.5 text-[9px] font-medium text-slate-300">
         {quantity}
       </span>
     </button>
@@ -905,9 +868,9 @@ function LandingView() {
   const [password, setPassword] = useState("");
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#25336f_0%,#11173a_36%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="min-h-screen bg-[#0d1117] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(135deg,rgba(59,79,170,0.9),rgba(17,25,58,0.98)_54%,rgba(7,10,23,0.98))] px-5 py-6 md:px-8 md:py-7">
+        <SectionCard className="overflow-hidden px-5 py-6 md:px-8 md:py-7">
           <SectionEyebrow>{copy.landing.eyebrow}</SectionEyebrow>
           <div className="mt-4 max-w-2xl">
             <h1 className="text-4xl font-semibold tracking-[-0.05em] text-white md:text-5xl">
@@ -928,8 +891,8 @@ function LandingView() {
               [copy.landing.cards.offline.title, copy.landing.cards.offline.summary],
               [copy.landing.cards.backpack.title, copy.landing.cards.backpack.summary],
             ].map(([title, summary]) => (
-              <PanelSubsection key={title} className="bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.03))]">
-                <p className="text-xs uppercase tracking-[0.18em] text-sky-100/55">{title}</p>
+              <PanelSubsection key={title} className="bg-[#0d1117]">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
                 <p className="mt-3 text-sm leading-6 text-slate-300">{summary}</p>
               </PanelSubsection>
             ))}
@@ -946,10 +909,10 @@ function LandingView() {
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <button
               className={[
-                "rounded-[1rem] border px-4 py-3 text-left text-sm font-semibold transition",
+                "rounded-md border px-4 py-3 text-left text-sm font-semibold transition",
                 loginMode === "guest"
-                  ? "border-sky-300/45 bg-[linear-gradient(180deg,rgba(56,189,248,0.18),rgba(56,189,248,0.05))] text-white"
-                  : "border-white/10 bg-white/[0.04] text-slate-300",
+                  ? "border-[#1f6feb] bg-[#1f6feb]/10 text-white"
+                  : "border-[#30363d] bg-[#0d1117] text-slate-300",
               ].join(" ")}
               onClick={() => setLoginMode("guest")}
               type="button"
@@ -959,10 +922,10 @@ function LandingView() {
             </button>
             <button
               className={[
-                "rounded-[1rem] border px-4 py-3 text-left text-sm font-semibold transition",
+                "rounded-md border px-4 py-3 text-left text-sm font-semibold transition",
                 loginMode === "account"
-                  ? "border-emerald-300/45 bg-[linear-gradient(180deg,rgba(52,211,153,0.18),rgba(52,211,153,0.05))] text-white"
-                  : "border-white/10 bg-white/[0.04] text-slate-300",
+                  ? "border-emerald-700 bg-emerald-900/20 text-white"
+                  : "border-[#30363d] bg-[#0d1117] text-slate-300",
               ].join(" ")}
               onClick={() => setLoginMode("account")}
               type="button"
@@ -974,7 +937,7 @@ function LandingView() {
 
           {loginMode === "guest" ? (
             <button
-              className="mt-8 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-8 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={status === "booting" || status === "saving"}
               onClick={() => {
                 void guestLogin();
@@ -986,9 +949,9 @@ function LandingView() {
           ) : (
             <>
               <label className="mt-8 block">
-                <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
+                <span className="text-sm font-medium text-slate-300">{copy.landing.username}</span>
                 <input
-                  className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                  className="mt-3 w-full rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-4 text-base text-slate-200 outline-none transition focus:border-[#484f58]"
                   onChange={(event) => setUsername(event.target.value)}
                   placeholder={copy.landing.usernamePlaceholder}
                   value={username}
@@ -996,9 +959,9 @@ function LandingView() {
               </label>
 
               <label className="mt-4 block">
-                <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
+                <span className="text-sm font-medium text-slate-300">{copy.landing.password}</span>
                 <input
-                  className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                  className="mt-3 w-full rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-4 text-base text-slate-200 outline-none transition focus:border-[#484f58]"
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder={copy.landing.passwordPlaceholder}
                   type="password"
@@ -1007,7 +970,7 @@ function LandingView() {
               </label>
 
               <button
-                className="mt-8 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-8 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={status === "booting" || status === "saving" || !username.trim() || !password}
                 onClick={() => {
                   void accountLogin({
@@ -1048,7 +1011,7 @@ function CreateRoleView() {
   const previewHealth = getMaxHealth(fusedStats.vitality, 1);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#283365_0%,#101533_40%,#050716_100%)] px-4 py-6 text-slate-100 md:px-6 md:py-8">
+    <main className="min-h-screen bg-[#0d1117] px-4 py-6 text-slate-100 md:px-6 md:py-8">
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <SectionCard className="px-5 py-6 md:px-8 md:py-7">
           <SectionEyebrow>{copy.createRole.setup}</SectionEyebrow>
@@ -1058,9 +1021,9 @@ function CreateRoleView() {
           </p>
 
           <label className="mt-8 block">
-            <span className="text-sm font-medium text-sky-100">{copy.createRole.roleName}</span>
+            <span className="text-sm font-medium text-slate-300">{copy.createRole.roleName}</span>
             <input
-              className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-sky-300"
+              className="mt-3 w-full rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-4 text-base text-slate-200 outline-none transition focus:border-[#484f58]"
               maxLength={12}
               onChange={(event) => setName(event.target.value)}
               placeholder={copy.createRole.roleNamePlaceholder}
@@ -1075,10 +1038,10 @@ function CreateRoleView() {
                 <button
                   key={race.key}
                   className={[
-                    "rounded-[1rem] border p-4 text-left transition",
+                    "rounded-md border p-4 text-left transition",
                     race.key === raceKey
-                      ? "border-sky-300/45 bg-[linear-gradient(180deg,rgba(56,189,248,0.18),rgba(56,189,248,0.05))] shadow-[0_10px_30px_rgba(14,165,233,0.12)]"
-                      : "border-white/8 bg-white/[0.03] hover:border-sky-200/25",
+                      ? "border-[#1f6feb] bg-[#1f6feb]/10"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58]",
                   ].join(" ")}
                   onClick={() => setRaceKey(race.key)}
                   type="button"
@@ -1087,7 +1050,7 @@ function CreateRoleView() {
                     <div className="flex items-center gap-2.5">
                       {(() => {
                         const RaceIcon = raceIconByConfig(race.key, race.iconKey);
-                        return <RaceIcon className="h-5 w-5 text-sky-200" />;
+                        return <RaceIcon className="h-5 w-5 text-[#58a6ff]" />;
                       })()}
                       <p className="text-lg font-semibold text-white">{localizeRaceLabel(race.key, race.label, locale)}</p>
                     </div>
@@ -1096,7 +1059,7 @@ function CreateRoleView() {
                     </MetaBadge>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-300">{localizeRaceSummary(race.key, race.summary, locale)}</p>
-                  <p className="mt-3 text-xs text-sky-100/70">
+                  <p className="mt-3 text-xs text-slate-500">
                     {statLabel("strength", messages)} {race.stats.strength} · {statLabel("agility", messages)} {race.stats.agility} · {statLabel("intelligence", messages)} {race.stats.intelligence} · {statLabel("vitality", messages)}{" "}
                     {race.stats.vitality}
                   </p>
@@ -1112,10 +1075,10 @@ function CreateRoleView() {
                 <button
                   key={roleClass.key}
                   className={[
-                    "rounded-[1rem] border p-4 text-left transition",
+                    "rounded-md border p-4 text-left transition",
                     roleClass.key === classKey
-                      ? "border-emerald-300/45 bg-[linear-gradient(180deg,rgba(52,211,153,0.18),rgba(52,211,153,0.05))] shadow-[0_10px_30px_rgba(16,185,129,0.12)]"
-                      : "border-white/8 bg-white/[0.03] hover:border-emerald-200/25",
+                      ? "border-emerald-700 bg-emerald-900/20"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58]",
                   ].join(" ")}
                   onClick={() => setClassKey(roleClass.key)}
                   type="button"
@@ -1124,7 +1087,7 @@ function CreateRoleView() {
                     <div className="flex items-center gap-2.5">
                       {(() => {
                         const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
-                        return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+                        return <ClassIcon className="h-5 w-5 text-emerald-300" />;
                       })()}
                       <p className="text-lg font-semibold text-white">{localizeClassLabel(roleClass.key, roleClass.label, locale)}</p>
                     </div>
@@ -1133,7 +1096,7 @@ function CreateRoleView() {
                     </MetaBadge>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-300">{localizeClassSummary(roleClass.key, roleClass.summary, locale)}</p>
-                  <p className="mt-3 text-xs text-emerald-100/70">
+                  <p className="mt-3 text-xs text-slate-500">
                     {statLabel("strength", messages)} {roleClass.stats.strength} · {statLabel("agility", messages)} {roleClass.stats.agility} · {statLabel("intelligence", messages)}{" "}
                     {roleClass.stats.intelligence} · {statLabel("vitality", messages)} {roleClass.stats.vitality}
                   </p>
@@ -1143,18 +1106,18 @@ function CreateRoleView() {
           </div>
         </SectionCard>
 
-        <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(12,16,34,0.98))] px-5 py-6 md:px-6 md:py-7">
+        <SectionCard className="overflow-hidden px-5 py-6 md:px-6 md:py-7">
           <SectionEyebrow>{copy.createRole.preview}</SectionEyebrow>
-          <PanelSubsection className="mt-4 bg-[linear-gradient(135deg,rgba(59,79,170,0.2),rgba(255,255,255,0.03))]">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-sky-100/55">{copy.createRole.currentBuild}</p>
+          <PanelSubsection className="mt-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{copy.createRole.currentBuild}</p>
             <div className="mt-3 flex items-center gap-2.5">
               {selectedRace ? (() => {
                 const RaceIcon = raceIconByConfig(selectedRace.key, selectedRace.iconKey);
-                return <RaceIcon className="h-5 w-5 text-sky-200" />;
+                return <RaceIcon className="h-5 w-5 text-[#58a6ff]" />;
               })() : null}
               {selectedClass ? (() => {
                 const ClassIcon = classIconByConfig(selectedClass.key, selectedClass.iconKey);
-                return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+                return <ClassIcon className="h-5 w-5 text-emerald-300" />;
               })() : null}
             </div>
             <h2 className="mt-3 text-3xl font-semibold text-white">{name || copy.createRole.unnamed}</h2>
@@ -1176,7 +1139,7 @@ function CreateRoleView() {
           </div>
 
           <button
-            className="mt-6 w-full rounded-[1.1rem] bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_100%)] px-5 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-6 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={status === "saving" || name.trim().length < 2}
             onClick={() => {
               void createRole({ classKey, name, raceKey });
@@ -1223,7 +1186,7 @@ function BackpackSectionList({
         }
 
         return (
-          <div key={itemType} className="rounded-[1rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-3">
+          <div key={itemType} className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-300/78">{itemTypeLabel(itemType, messages)}</p>
@@ -1384,7 +1347,7 @@ function CenterPanel({
   if (activePanel === "backpack") {
     return (
       <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-        <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-3">
+        <div className="border-b border-[#30363d] px-4 py-3">
           <SectionEyebrow>{copy.dashboard.inventory}</SectionEyebrow>
           <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -1425,7 +1388,7 @@ function CenterPanel({
 
     return (
       <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-        <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-3">
+        <div className="border-b border-[#30363d] px-4 py-3">
           <SectionEyebrow>{copy.dashboard.characterSheet}</SectionEyebrow>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">{copy.dashboard.roleTitle}</h2>
           <p className="mt-1 text-sm text-slate-300/72">
@@ -1433,15 +1396,15 @@ function CenterPanel({
           </p>
         </div>
         <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-4 xl:grid-cols-[1.05fr_0.95fr]">
-          <PanelSubsection className="bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))]">
+          <PanelSubsection className="bg-[#0d1117]">
             <div className="flex items-center gap-2.5">
               {race ? (() => {
                 const RaceIcon = raceIconByConfig(race.key, race.iconKey);
-                return <RaceIcon className="h-5 w-5 text-sky-200" />;
+                return <RaceIcon className="h-5 w-5 text-[#58a6ff]" />;
               })() : null}
               {roleClass ? (() => {
                 const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
-                return <ClassIcon className="h-5 w-5 text-emerald-200" />;
+                return <ClassIcon className="h-5 w-5 text-emerald-300" />;
               })() : null}
               <p className="text-2xl font-semibold text-white">{role.name}</p>
             </div>
@@ -1452,7 +1415,7 @@ function CenterPanel({
             <p className="mt-2 text-sm leading-6 text-slate-300">{roleClass ? localizeClassSummary(roleClass.key, roleClass.summary, locale) : ""}</p>
           </PanelSubsection>
 
-          <PanelSubsection className="border-rose-300/20 bg-[linear-gradient(180deg,rgba(244,63,94,0.12),rgba(15,23,42,0.18))]">
+          <PanelSubsection className="border-rose-800 bg-rose-900/20">
             <TopStatusBar
               className="border-none bg-transparent p-0"
               label={copy.dashboard.healthStatus}
@@ -1488,10 +1451,10 @@ function CenterPanel({
                 <div
                   key={slot.key}
                   className={[
-                    "rounded-[0.95rem] border p-4",
+                    "rounded-md border p-4",
                     slot.item
                       ? marketItemCardAccent(slot.item.rarity)
-                      : "border-white/8 bg-[linear-gradient(180deg,rgba(2,6,23,0.44),rgba(2,6,23,0.22))]",
+                      : "border-[#30363d] bg-[#0d1117]",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -1503,7 +1466,7 @@ function CenterPanel({
                   <p className="mt-2 text-sm font-semibold text-white">{slot.item ? localizeItemName(slot.item.itemId, slot.item.name, locale) : copy.dashboard.emptySlot}</p>
                   {slot.item ? (
                     <button
-                      className="mt-3 min-h-11 rounded-[0.8rem] border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-100 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-3 min-h-11 rounded-md border border-white/10 bg-white/[0.05] px-3 py-2 text-xs text-slate-100 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={!isRealtimeReady || status === "saving"}
                       onClick={() => onUnequipItem(slot.item!.backpackId)}
                       type="button"
@@ -1514,7 +1477,7 @@ function CenterPanel({
                 </div>
               ))}
               {bodySlots.length === 0 ? (
-                <div className="rounded-[0.95rem] border border-dashed border-white/10 bg-slate-950/25 p-4 text-sm text-slate-400 sm:col-span-2 lg:col-span-3">
+                <div className="rounded-md border border-dashed border-[#30363d] bg-[#0d1117] p-4 text-sm text-slate-400 sm:col-span-2 lg:col-span-3">
                   {copy.dashboard.bodySlotsSyncing}
                 </div>
               ) : null}
@@ -1540,7 +1503,7 @@ function CenterPanel({
                   {equippedSkills.map((skill) => (
                     <div
                       key={`equipped-${skill.key}`}
-                      className={`rounded-[0.95rem] border p-3 ${skillQualityTone(skill.quality)}`}
+                      className={`rounded-md border p-3 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -1548,7 +1511,7 @@ function CenterPanel({
                           <p className="mt-1 text-xs text-slate-300/85">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
                         </div>
                         <button
-                          className="min-h-10 shrink-0 rounded-[0.7rem] border border-white/15 bg-white/[0.06] px-2.5 py-1 text-xs text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="min-h-10 shrink-0 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1 text-xs text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={!isRealtimeReady || status === "saving"}
                           onClick={() => onConfigureSkillLoadout(skill.key, "unequip")}
                           type="button"
@@ -1572,7 +1535,7 @@ function CenterPanel({
                   {learnedSkills.map((skill) => (
                     <div
                       key={`learned-${skill.key}`}
-                      className={`rounded-[0.95rem] border p-3 ${skillQualityTone(skill.quality)}`}
+                      className={`rounded-md border p-3 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -1583,7 +1546,7 @@ function CenterPanel({
                           <MetaBadge tone="emerald">{copy.dashboard.skillEquippedBadge}</MetaBadge>
                         ) : (
                           <button
-                            className="min-h-10 shrink-0 rounded-[0.7rem] border border-cyan-200/25 bg-cyan-300/12 px-2.5 py-1 text-xs text-cyan-50 transition hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="min-h-10 shrink-0 rounded-md border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2.5 py-1 text-xs text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={!isRealtimeReady || status === "saving" || role.skillSlots.remaining <= 0}
                             onClick={() => onConfigureSkillLoadout(skill.key, "equip")}
                             type="button"
@@ -1615,7 +1578,7 @@ function CenterPanel({
 
     return (
       <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-        <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-3">
+        <div className="border-b border-[#30363d] px-4 py-3">
           <SectionEyebrow>{copy.market.eyebrow}</SectionEyebrow>
           <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
@@ -1661,7 +1624,7 @@ function CenterPanel({
           {marketListings.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
               {marketListings.map((listing) => (
-                <div key={listing.listingId} className={`rounded-[1rem] border p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${marketItemCardAccent(listing.rarity)}`}>
+                <div key={listing.listingId} className={`rounded-lg border p-4 ${marketItemCardAccent(listing.rarity)}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
@@ -1684,7 +1647,7 @@ function CenterPanel({
                     {formatMessage(copy.market.sellerHint, { sellerName: listing.sellerName })}
                   </p>
                   <button
-                    className="mt-4 w-full rounded-[0.95rem] bg-amber-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-4 w-full rounded-md bg-[#1f6feb] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!isRealtimeReady || status === "saving" || listing.isOwnListing}
                     onClick={() => onRequestBuyMarketListing(listing.listingId)}
                     type="button"
@@ -1707,7 +1670,7 @@ function CenterPanel({
   if (activeBattle) {
     return (
       <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-        <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-3">
+        <div className="border-b border-[#30363d] px-4 py-3">
           <SectionEyebrow>{copy.dashboard.battleTitle}</SectionEyebrow>
           <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
@@ -1724,94 +1687,102 @@ function CenterPanel({
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="rounded-[1rem] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] p-4 xl:col-span-2">
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <InlineStat label={copy.dashboard.status} value={messages.common.fighting} />
-                <InlineStat label={copy.dashboard.executed} value={formatNumber(activeBattle.turnCount, locale)} />
-                <InlineStat
-                  label={copy.dashboard.skillBattleUseLimit}
-                  value={formatNumber(activeBattle.player.totalSkillUseLimit, locale)}
-                />
-                <InlineStat
-                  label={copy.dashboard.skillBattleUseRemaining}
-                  value={formatNumber(activeBattle.player.totalSkillUsesRemaining, locale)}
-                />
+            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-4 transition-all duration-300 border-l-2 border-l-[#3fb950] ${isPlayerHit ? "scale-[0.985] border-l-[#f85149]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-white truncate">{activeBattle.player.name}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-500">{copy.dashboard.selfInfo}</p>
+                </div>
+                <BattleStatusBar combatant={activeBattle.player} />
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-300/72">{copy.dashboard.battlePausedHint}</p>
-            </div>
-
-            <div className={`rounded-[1rem] border border-emerald-300/20 bg-[linear-gradient(180deg,rgba(52,211,153,0.12),rgba(52,211,153,0.03))] p-4 transition-all duration-300 ${isPlayerHit ? "scale-[0.985] border-rose-300/45 bg-rose-300/12 shadow-[0_0_28px_rgba(251,113,133,0.18)]" : isPlayerPulsing ? "shadow-[0_0_24px_rgba(45,212,191,0.14)]" : ""} ${isBattleTurnFlashing ? "shadow-[inset_0_0_0_1px_rgba(125,211,252,0.14)]" : ""}`}>
-              <SectionEyebrow>{copy.dashboard.selfInfo}</SectionEyebrow>
-              <p className="mt-1.5 text-lg font-semibold text-white">{activeBattle.player.name}</p>
-              <div className="mt-3">
+              <div className="mt-2">
                 <TopStatusBar
-                  barClassName={`h-3 ${isPlayerHit ? "animate-pulse" : ""}`}
+                  barClassName={`h-2.5 ${isPlayerHit ? "animate-pulse" : ""}`}
                   label={copy.dashboard.lifeBar}
-                  tone="from-emerald-400 via-cyan-300 to-sky-300"
+                  labelClassName="text-slate-500"
+                  tone="from-emerald-500 to-emerald-300"
                   valueLabel={`${formatNumber(activeBattle.player.currentHealth, locale)} / ${formatNumber(activeBattle.player.maxHealth, locale)}`}
                   value={(activeBattle.player.currentHealth / Math.max(1, activeBattle.player.maxHealth)) * 100}
                 />
               </div>
-              <div className="mt-3">
+              <div className="mt-2">
                 <TopStatusBar
-                  barClassName={`h-2.5 ${isPlayerPulsing ? "animate-pulse" : ""}`}
+                  barClassName={`h-1.5 ${isPlayerPulsing ? "animate-pulse" : ""}`}
                   label={copy.dashboard.actionBar}
-                  tone="from-sky-400 via-cyan-300 to-teal-300"
+                  labelClassName="text-slate-500"
+                  tone="from-sky-500 to-sky-300"
                   value={activeBattle.player.actionBar}
                 />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <DataPill label={copy.dashboard.skillBattleUseLimit} value={formatNumber(activeBattle.player.totalSkillUseLimit, locale)} />
-                <DataPill label={copy.dashboard.skillBattleUseRemaining} value={formatNumber(activeBattle.player.totalSkillUsesRemaining, locale)} />
+              <div className="mt-2 grid grid-cols-4 gap-2 text-[10px]">
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("critChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.player.secondaryStats.critChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("dodgeChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.player.secondaryStats.dodgeChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("blockChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.player.secondaryStats.blockChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("healthRegenRate", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.player.secondaryStats.healthRegenRate, locale)}</span>
+                </div>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <DataPill label={statLabel("critChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.critChance, locale)} />
-                <DataPill label={statLabel("dodgeChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.dodgeChance, locale)} />
-                <DataPill label={statLabel("blockChance", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.blockChance, locale)} />
-                <DataPill label={statLabel("healthRegenRate", messages)} value={formatSecondaryStatPercent(activeBattle.player.secondaryStats.healthRegenRate, locale)} />
-              </div>
-              <div className="mt-3">
-                <BattleStatusBar combatant={activeBattle.player} />
-              </div>
-              <div className="mt-3">
+              <div className="mt-2">
                 <BattleSkillSlots combatant={activeBattle.player} side="player" />
               </div>
             </div>
 
-            <div className={`rounded-[1rem] border border-rose-300/20 bg-[linear-gradient(180deg,rgba(244,63,94,0.12),rgba(244,63,94,0.03))] p-4 transition-all duration-300 ${isEnemyHit ? "scale-[0.985] border-amber-200/55 bg-amber-300/10 shadow-[0_0_28px_rgba(251,191,36,0.18)]" : isEnemyPulsing ? "shadow-[0_0_24px_rgba(251,146,60,0.14)]" : ""} ${isBattleTurnFlashing ? "shadow-[inset_0_0_0_1px_rgba(251,191,36,0.12)]" : ""}`}>
-              <SectionEyebrow>{copy.dashboard.enemyInfo}</SectionEyebrow>
-              <p className="mt-1.5 text-lg font-semibold text-white">{activeBattle.enemy.name}</p>
-              <div className="mt-3">
+            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-4 transition-all duration-300 border-l-2 border-l-[#f85149] ${isEnemyHit ? "scale-[0.985]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-white truncate">{activeBattle.enemy.name}</p>
+                  <p className="mt-0.5 text-[10px] text-slate-500">Lv.{formatNumber(activeBattle.enemy.level, locale)} · {copy.dashboard.enemyInfo}</p>
+                </div>
+                <BattleStatusBar combatant={activeBattle.enemy} />
+              </div>
+              <div className="mt-2">
                 <TopStatusBar
-                  barClassName={`h-3 ${isEnemyHit ? "animate-pulse" : ""}`}
+                  barClassName={`h-2.5 ${isEnemyHit ? "animate-pulse" : ""}`}
                   label={copy.dashboard.lifeBar}
-                  tone="from-rose-500 via-orange-400 to-amber-300"
+                  labelClassName="text-slate-500"
+                  tone="from-rose-500 to-amber-400"
                   valueLabel={`${formatNumber(activeBattle.enemy.currentHealth, locale)} / ${formatNumber(activeBattle.enemy.maxHealth, locale)}`}
                   value={(activeBattle.enemy.currentHealth / Math.max(1, activeBattle.enemy.maxHealth)) * 100}
                 />
               </div>
-              <div className="mt-3">
+              <div className="mt-2">
                 <TopStatusBar
-                  barClassName={`h-2.5 ${isEnemyPulsing ? "animate-pulse" : ""}`}
+                  barClassName={`h-1.5 ${isEnemyPulsing ? "animate-pulse" : ""}`}
                   label={copy.dashboard.actionBar}
-                  tone="from-amber-300 via-orange-300 to-rose-300"
+                  labelClassName="text-slate-500"
+                  tone="from-amber-400 to-rose-400"
                   value={activeBattle.enemy.actionBar}
                 />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <DataPill label={copy.dashboard.enemyLevel} value={formatNumber(activeBattle.enemy.level, locale)} />
-                <DataPill label={copy.dashboard.defenseActive} value={activeBattle.enemy.defenseTurns > 0 ? messages.common.now : messages.common.idle} />
+              <div className="mt-2 grid grid-cols-4 gap-2 text-[10px]">
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("critChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.critChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("dodgeChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.dodgeChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("blockChance", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.blockChance, locale)}</span>
+                </div>
+                <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+                  <span className="block text-slate-500">{statLabel("healthRegenRate", messages)}</span>
+                  <span className="mt-0.5 block font-medium text-slate-200">{formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.healthRegenRate, locale)}</span>
+                </div>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <DataPill label={statLabel("critChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.critChance, locale)} />
-                <DataPill label={statLabel("dodgeChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.dodgeChance, locale)} />
-                <DataPill label={statLabel("blockChance", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.blockChance, locale)} />
-                <DataPill label={statLabel("healthRegenRate", messages)} value={formatSecondaryStatPercent(activeBattle.enemy.secondaryStats.healthRegenRate, locale)} />
-              </div>
-              <div className="mt-3">
-                <BattleStatusBar combatant={activeBattle.enemy} />
-              </div>
-              <div className="mt-3">
+              <div className="mt-2">
                 <BattleSkillSlots combatant={activeBattle.enemy} side="enemy" />
               </div>
             </div>
@@ -1823,7 +1794,7 @@ function CenterPanel({
 
   return (
     <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-      <div className="border-b border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-4 py-3">
+      <div className="border-b border-[#30363d] px-4 py-3">
         <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
         <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -1843,7 +1814,7 @@ function CenterPanel({
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3">
-        <div className="rounded-[1.15rem] border border-sky-300/25 bg-[linear-gradient(180deg,rgba(56,189,248,0.1),rgba(15,23,42,0.4))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+        <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
           {maps
             .filter((map) => map.key === selectedMapKey)
             .map((map) => (
@@ -1938,6 +1909,7 @@ function MainDashboard() {
     unequipBackpackItem,
   } = useGameSession();
   const [displayNow, setDisplayNow] = useState(() => Date.now());
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   const [itemActionBackpackId, setItemActionBackpackId] = useState<string | null>(null);
   const [marketSellBackpackId, setMarketSellBackpackId] = useState<string | null>(null);
   const [marketSellPrice, setMarketSellPrice] = useState("");
@@ -2120,14 +2092,14 @@ function MainDashboard() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#334293_0%,#111630_30%,#050717_100%)] px-3 py-3 text-slate-100 md:px-4 md:py-4 xl:h-screen xl:overflow-hidden">
+    <main className="min-h-screen min-w-[360px] bg-[#0d1117] px-3 py-3 text-slate-100 md:px-4 md:py-4 xl:h-screen xl:overflow-hidden">
       {uiNotice ? (
         <div
           className={[
-            "fixed right-4 top-4 z-50 w-[min(94vw,28rem)] rounded-[1rem] border px-4 py-3 text-sm shadow-[0_18px_55px_rgba(0,0,0,0.42)] backdrop-blur-xl",
+            "fixed right-4 top-4 z-50 w-[min(94vw,28rem)] rounded-lg border px-4 py-3 text-sm",
             uiNotice.tone === "danger"
-              ? "border-rose-300/35 bg-rose-500/22 text-rose-50"
-              : "border-emerald-300/35 bg-emerald-500/22 text-emerald-50",
+              ? "border-rose-800 bg-rose-900/30 text-rose-200"
+              : "border-emerald-800 bg-emerald-900/30 text-emerald-200",
           ].join(" ")}
         >
           <div className="flex items-start gap-3">
@@ -2203,7 +2175,7 @@ function MainDashboard() {
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
-                className="flex-1 rounded-[1rem] bg-[linear-gradient(90deg,#34d399_0%,#60a5fa_100%)] px-4 py-4 text-base font-semibold text-slate-950 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded-md bg-[#1f6feb] px-4 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={
                   status === "saving"
                   || !registerUsername.trim()
@@ -2215,7 +2187,7 @@ function MainDashboard() {
                 {status === "saving" ? messages.common.submit : copy.dashboard.registerSubmit}
               </button>
               <button
-                className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+                className="rounded-md border border-[#30363d] bg-[#21262d] px-4 py-4 text-sm text-slate-200 transition hover:bg-[#30363d]"
                 disabled={status === "saving"}
                 onClick={() => {
                   setShowRegisterAccountModal(false);
@@ -2568,7 +2540,7 @@ function MainDashboard() {
           </div>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <button
-              className="flex-1 rounded-[1rem] bg-emerald-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-md bg-[#1f6feb] px-4 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isRealtimeActionDisabled}
               onClick={() => {
                 void buyMarketListing(pendingMarketPurchase.listingId).then(() => {
@@ -2591,113 +2563,79 @@ function MainDashboard() {
       ) : null}
 
       <div className="mx-auto flex max-w-[1760px] flex-col gap-3 xl:h-full xl:overflow-hidden">
-        <SectionCard className="overflow-hidden border-white/6 bg-[linear-gradient(135deg,rgba(59,79,170,0.92),rgba(17,25,58,0.98)_52%,rgba(7,10,23,0.98))]">
-          <div className="relative px-4 py-4 md:px-5 md:py-5">
-            <div className="pointer-events-none absolute inset-y-0 right-[-10%] hidden w-[38%] bg-[radial-gradient(circle_at_center,rgba(125,211,252,0.22),transparent_60%)] xl:block" />
-            <div className="relative grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-center">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <SectionEyebrow>{copy.dashboard.overview}</SectionEyebrow>
-                  <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
-                    {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
-                  </StatusChip>
-                  <StatusChip tone="sky">
-                    {messages.common.levelShort}{role.level}
-                  </StatusChip>
+        <SectionCard className="overflow-hidden">
+          <div className="px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[#30363d] bg-[#0d1117] text-xs font-medium text-slate-300">
+                  {role.avatarSeed}
                 </div>
-
-                <div className="mt-4 flex min-w-0 items-start gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.1rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] text-lg font-semibold text-sky-100 shadow-[0_12px_30px_rgba(8,47,73,0.28)]">
-                    {role.avatarSeed}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white truncate">{role.name}</span>
+                    <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
+                      {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
+                    </StatusChip>
+                    <span className="text-[10px] text-slate-500">Lv.{role.level}</span>
                   </div>
-                  <div className="min-w-0">
-                    <h1 className="text-[1.65rem] font-semibold leading-none tracking-[-0.05em] text-white md:text-[2rem]">
-                      {role.name}
-                    </h1>
-                    <p className="mt-2 text-sm text-slate-200/80">
-                      {localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)}
-                      {" · "}
-                      {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}
-                    </p>
-                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200/68">
-                      {activeBattle
-                        ? `${copy.dashboard.battleTitle} · ${copy.dashboard.battleStatus} ${messages.common.fighting}`
-                        : snapshot.afk.status === "active"
-                          ? `${copy.dashboard.executionProgress} ${formatPercentValue(taskProgressPercent / 100, locale)} · ${copy.dashboard.remaining} ${formatDuration(Math.max(0, taskDuration - taskProgress))}`
-                          : copy.dashboard.settlementSummary}
-                    </p>
-                  </div>
+                  {!isHeaderCollapsed ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                      <span className="text-slate-500">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
+                      <span className="text-slate-600">·</span>
+                      <span className="text-amber-300">{formatNumber(role.gold, locale)} 金币</span>
+                      <span className="text-slate-600">·</span>
+                      <span className="text-sky-300">{formatNumber(role.aetherCrystal, locale)} 以太</span>
+                      <span className="text-slate-600">·</span>
+                      <span className="text-emerald-300">{formatNumber(role.exp, locale)} 经验</span>
+                    </div>
+                  ) : null}
                 </div>
               </div>
-
-              <div className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                  <OverviewMetricCard
-                    label={copy.dashboard.gold}
-                    tone="amber"
-                    value={formatNumber(role.gold, locale)}
-                  />
-                  <OverviewMetricCard
-                    label={copy.dashboard.aetherCrystal}
-                    tone="sky"
-                    value={formatNumber(role.aetherCrystal, locale)}
-                  />
-                  <OverviewMetricCard
-                    detail={copy.dashboard.levelProgress}
-                    label={copy.dashboard.exp}
-                    tone="emerald"
-                    value={formatNumber(role.exp, locale)}
-                  />
-                  <OverviewMetricCard
-                    detail={isAccountUser ? copy.dashboard.bound : messages.common.guest}
-                    label={copy.dashboard.accountStatus}
-                    tone="neutral"
-                    value={isAccountUser ? (snapshot.account.username ?? copy.dashboard.bound) : messages.common.guest}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {isGuestUser ? (
-                    <CommandButton
-                      disabled={status === "saving"}
-                      onClick={() => setShowRegisterAccountModal(true)}
-                      tone="secondary"
-                    >
-                      {copy.dashboard.registerAccount}
-                    </CommandButton>
-                  ) : null}
-                  {isAccountUser ? (
-                    <CommandButton
-                      disabled={status === "saving"}
-                      onClick={() => setShowDeleteRoleConfirm(true)}
-                      tone="danger"
-                    >
-                      {copy.dashboard.deleteRole}
-                    </CommandButton>
-                  ) : null}
-                  <CommandButton
-                    disabled={status === "saving"}
-                    onClick={() => {
-                      setActivePanel("afk");
-                    }}
-                    tone="neutral"
-                  >
-                    {copy.dashboard.afkControl}
-                  </CommandButton>
-                </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {!isHeaderCollapsed ? (
+                  <>
+                    {isGuestUser ? (
+                      <button
+                        className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs text-slate-200 transition hover:bg-[#30363d]"
+                        disabled={status === "saving"}
+                        onClick={() => setShowRegisterAccountModal(true)}
+                        type="button"
+                      >
+                        {copy.dashboard.registerAccount}
+                      </button>
+                    ) : null}
+                    {isAccountUser ? (
+                      <button
+                        className="rounded-md border border-rose-800 bg-rose-900/30 px-3 py-1.5 text-xs text-rose-200 transition hover:bg-rose-900/50"
+                        disabled={status === "saving"}
+                        onClick={() => setShowDeleteRoleConfirm(true)}
+                        type="button"
+                      >
+                        {copy.dashboard.deleteRole}
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
+                <button
+                  className="rounded-md border border-[#30363d] bg-[#21262d] px-2 py-1.5 text-xs text-slate-400 transition hover:bg-[#30363d] hover:text-slate-200"
+                  onClick={() => setIsHeaderCollapsed((v) => !v)}
+                  type="button"
+                >
+                  {isHeaderCollapsed ? "展开" : "收起"}
+                </button>
               </div>
             </div>
           </div>
         </SectionCard>
 
-        <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[208px_minmax(0,1fr)]">
+        <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[160px_minmax(0,1fr)]">
           <MobileDashboardCollapse
             defaultOpen={false}
             title="功能导航"
           >
             <SectionCard className="p-3 xl:min-h-0">
-              <div className="mb-3 hidden xl:block">
-                <SectionEyebrow>Control Rail</SectionEyebrow>
+              <div className="mb-2 hidden xl:block">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-600">导航</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 {menuItems.map((item) => (
@@ -2716,7 +2654,7 @@ function MainDashboard() {
           <MobileDashboardCollapse
             title="主面板"
           >
-            <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:overflow-hidden xl:grid-rows-[minmax(0,1fr)_220px]">
+            <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:overflow-hidden xl:grid-rows-[minmax(0,1fr)_minmax(280px,38%)]">
               <CenterPanel
                 activePanel={activePanel}
                 backpack={backpack}
@@ -2757,14 +2695,14 @@ function MainDashboard() {
           </MobileDashboardCollapse>
         </div>
 
-        <div className="rounded-[0.95rem] border border-white/6 bg-slate-950/45 px-4 py-2.5">
-          <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+        <div className="rounded-md border border-[#30363d] bg-[#161b22] px-3 py-2">
+          <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-500">
             <span>{copy.dashboard.levelBar}</span>
             <span>{copy.dashboard.levelProgress} {progressCopy}</span>
           </div>
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#21262d]">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-teal-300/65 via-cyan-300/60 to-sky-400/70 transition-[width] duration-500 ease-out"
+              className="h-full rounded-full bg-[#1f6feb] transition-[width] duration-500 ease-out"
               style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
             />
           </div>
