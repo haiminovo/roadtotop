@@ -2633,13 +2633,11 @@ function MainDashboard() {
               <div className="grid gap-3">
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                   <OverviewMetricCard
-                    detail={copy.dashboard.pendingGold}
                     label={copy.dashboard.gold}
                     tone="amber"
                     value={formatNumber(role.gold, locale)}
                   />
                   <OverviewMetricCard
-                    detail={copy.dashboard.pendingAether}
                     label={copy.dashboard.aetherCrystal}
                     tone="sky"
                     value={formatNumber(role.aetherCrystal, locale)}

@@ -240,33 +240,42 @@ export default function Chat() {
     setInput,
     unreadCounts,
   } = useChatSocket();
-  const [activeTab, setActiveTab] = useState<"chat" | "event">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "battle" | "encounter">("chat");
   const [isChannelMenuOpen, setIsChannelMenuOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ChatRoleProfile | null>(null);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const channelMenuRef = useRef<HTMLDivElement | null>(null);
+  const feedScrollRef = useRef<HTMLDivElement | null>(null);
   const activeChannelMeta = channels.find((channel) => channel.key === activeChannel);
   const totalUnreadCount = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
-  const activityItems = useMemo(() => {
-    if (snapshot?.afk.battle?.active) {
-      return snapshot.afk.battle.logs.map((log) => ({
-        accentClassName: log.type === "result" ? "bg-emerald-300" : log.type === "guard" ? "bg-amber-300" : log.type === "spell" ? "bg-fuchsia-300" : "bg-sky-300",
-        body: log.text,
-        id: log.id,
-        meta: formatEventTime(log.timestamp, locale),
-        title: i18n.game.dashboard.battleLog,
-      }));
-    }
+  const battleItems = useMemo(() => (
+    (snapshot?.afk.battle?.logs ?? []).map((log) => ({
+      accentClassName: log.type === "result"
+        ? "bg-emerald-300"
+        : log.type === "penalty"
+          ? "bg-rose-300"
+          : log.type === "guard"
+            ? "bg-amber-300"
+            : log.type === "spell"
+              ? "bg-fuchsia-300"
+              : "bg-sky-300",
+      body: log.text,
+      id: log.id,
+      meta: formatEventTime(log.timestamp, locale),
+      title: i18n.game.dashboard.battleLog,
+    }))
+  ), [i18n.game.dashboard.battleLog, locale, snapshot?.afk.battle?.logs]);
 
-    return (snapshot?.afk.recentEncounters ?? []).map((encounter) => ({
+  const encounterItems = useMemo(() => (
+    (snapshot?.afk.recentEncounters ?? []).map((encounter) => ({
       accentClassName: encounter.tier === "legendary" ? "bg-rose-300" : encounter.tier === "rare" ? "bg-amber-300" : "bg-sky-300",
       body: `${encounter.description} ${encounter.reward.gold > 0 || encounter.reward.exp > 0 || encounter.reward.aetherCrystal > 0 ? `· 奖励：金 ${encounter.reward.gold} / 经 ${encounter.reward.exp} / 以太 ${encounter.reward.aetherCrystal}` : ""}`.trim(),
       id: encounter.id,
       meta: formatEventTime(encounter.triggeredAt, locale),
       title: encounter.title,
-    }));
-  }, [i18n.game.dashboard.battleLog, locale, snapshot?.afk.battle, snapshot?.afk.recentEncounters]);
+    }))
+  ), [locale, snapshot?.afk.recentEncounters]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -289,6 +298,20 @@ export default function Chat() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "chat") {
+      return;
+    }
+
+    const element = feedScrollRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    element.scrollTop = element.scrollHeight;
+  }, [activeChannel, activeTab, messages.length]);
 
   const messageItems = useMemo(() => messages.map((message) => {
     const canOpenRole = Boolean(message.senderRole);
@@ -338,7 +361,7 @@ export default function Chat() {
             <div className="flex items-center gap-2">
               <button
                 className={[
-                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                  "relative rounded-full border px-3 py-1 text-[11px] font-semibold transition",
                   activeTab === "chat"
                     ? "border-cyan-300/35 bg-cyan-300/14 text-cyan-50"
                     : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
@@ -347,28 +370,40 @@ export default function Chat() {
                 type="button"
               >
                 {copy.channel}
+                {totalUnreadCount > 0 ? (
+                  <span className="pointer-events-none absolute -right-1.5 -top-1.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full border border-amber-200/35 bg-amber-400 px-1 text-[9px] font-semibold leading-none text-slate-950 shadow-[0_4px_16px_rgba(251,191,36,0.35)]">
+                    {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
+                  </span>
+                ) : null}
               </button>
               <button
                 className={[
                   "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
-                  activeTab === "event"
+                  activeTab === "battle"
+                    ? "border-fuchsia-300/35 bg-fuchsia-300/14 text-fuchsia-50"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
+                ].join(" ")}
+                onClick={() => setActiveTab("battle")}
+                type="button"
+              >
+                {copy.battle}
+              </button>
+              <button
+                className={[
+                  "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+                  activeTab === "encounter"
                     ? "border-amber-300/35 bg-amber-300/14 text-amber-50"
                     : "border-white/10 bg-white/[0.04] text-slate-400 hover:text-white",
                 ].join(" ")}
-                onClick={() => setActiveTab("event")}
+                onClick={() => setActiveTab("encounter")}
                 type="button"
               >
-                {copy.event}
+                {copy.encounter}
               </button>
             </div>
           </div>
           {activeTab === "chat" ? (
             <div className="flex items-center gap-2">
-              {totalUnreadCount > 0 ? (
-                <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium text-amber-100">
-                  {copy.unread} {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
-                </span>
-              ) : null}
               <div className="relative" ref={channelMenuRef}>
                 <button
                   aria-expanded={isChannelMenuOpen}
@@ -436,19 +471,35 @@ export default function Chat() {
           ) : null}
         </div>
 
-        <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-[1.05rem] border border-white/8 bg-slate-900/70 px-3">
+        <div ref={feedScrollRef} className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-[1.05rem] border border-white/8 bg-slate-900/70 px-3">
           {activeTab === "chat" ? (
             messages.length === 0 ? (
               <p className="py-3 text-sm text-slate-500">{copy.quiet}</p>
             ) : (
               messageItems
             )
+          ) : activeTab === "battle" ? (
+            <div className="space-y-2 py-3">
+              {battleItems.length === 0 ? (
+                <p className="text-sm text-slate-500">{copy.battleQuiet}</p>
+              ) : (
+                battleItems.map((item) => (
+                  <EventFeedItem
+                    key={item.id}
+                    accentClassName={item.accentClassName}
+                    body={item.body}
+                    meta={item.meta}
+                    title={item.title}
+                  />
+                ))
+              )}
+            </div>
           ) : (
             <div className="space-y-2 py-3">
-              {activityItems.length === 0 ? (
+              {encounterItems.length === 0 ? (
                 <p className="text-sm text-slate-500">{copy.eventQuiet}</p>
               ) : (
-                activityItems.map((item) => (
+                encounterItems.map((item) => (
                   <EventFeedItem
                     key={item.id}
                     accentClassName={item.accentClassName}

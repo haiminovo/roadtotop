@@ -868,6 +868,54 @@ function normalizeEncounterLog(value) {
     .slice(0, MAX_RECENT_ENCOUNTERS);
 }
 
+function buildEncounterRewardFromItemDrops(itemDrops = []) {
+  if (!Array.isArray(itemDrops) || itemDrops.length === 0) {
+    return [];
+  }
+
+  return itemDrops
+    .map((drop) => {
+      if (!drop || typeof drop !== "object" || typeof drop.itemId !== "string") {
+        return null;
+      }
+
+      const quantity = normalizeNumber(drop.quantity);
+
+      if (quantity <= 0) {
+        return null;
+      }
+
+      return {
+        itemId: drop.itemId,
+        quantity,
+        name: typeof drop.name === "string" ? drop.name : undefined,
+        rarity: ["white", "green", "blue", "purple", "orange"].includes(drop.rarity)
+          ? drop.rarity
+          : undefined,
+      };
+    })
+    .filter(Boolean);
+}
+
+function prependRecentEncounter(afk, encounter) {
+  if (!afk || typeof afk !== "object" || !encounter || typeof encounter !== "object") {
+    return false;
+  }
+
+  const normalizedEncounter = normalizeEncounterLog([encounter])[0];
+
+  if (!normalizedEncounter) {
+    return false;
+  }
+
+  afk.recent_encounters = [
+    normalizedEncounter,
+    ...normalizeEncounterLog(afk.recent_encounters),
+  ].slice(0, MAX_RECENT_ENCOUNTERS);
+
+  return true;
+}
+
 function getSortedEventRulesByTrigger(triggerType) {
   return eventRules
     .filter((rule) => rule?.enabled !== false && rule?.trigger?.type === triggerType)
@@ -2128,7 +2176,16 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   }
 
   let didMutateRole = false;
+  let didMutateAfk = false;
   let itemDrops = [];
+  let mergedReward = {
+    aetherCrystal: 0,
+    exp: 0,
+    gold: 0,
+    healthDelta: 0,
+    itemDrops: [],
+  };
+  let rewardTriggeredLevelDrop = false;
 
   for (let second = 0; second < elapsedSeconds; second += 1) {
     if (!isBattleActive(battleState)) {
@@ -2167,9 +2224,31 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
 
   battleState.lastResolvedAt = lastResolvedAt + elapsedSeconds * 1000;
   didMutateRole = syncBattleStateToRole(role, battleState, backpack) || didMutateRole;
+  const battleFinishedAt = battleState.lastResolvedAt;
+  const enemyName = battleState.enemy?.name || "未知敌人";
 
   if (!isBattleActive(battleState) && battleState.outcome?.winner === "enemy") {
+    const previousLevel = normalizeNumber(role.level);
     didMutateRole = handleBattleOutcome(role, battleState, backpack) || didMutateRole;
+    const nextLevel = normalizeNumber(role.level);
+    const didLevelDrop = nextLevel < previousLevel;
+    didMutateAfk = prependRecentEncounter(afk, {
+      id: makeEncounterId(),
+      key: `battle-result-${battleState.battleId || battleFinishedAt}`,
+      tier: "legendary",
+      title: "战斗失败",
+      description: didLevelDrop
+        ? `${enemyName} 击倒了你，生命归零后等级下降 1 级并重整状态。`
+        : `${enemyName} 击倒了你，你在当前等级重整状态后继续前进。`,
+      reward: {
+        gold: 0,
+        aetherCrystal: 0,
+        exp: 0,
+        healthDelta: -Math.max(1, getRoleMaxHealth(role, backpack)),
+        items: [],
+      },
+      triggeredAt: battleFinishedAt,
+    }) || didMutateAfk;
   }
 
   if (!isBattleActive(battleState) && battleState.outcome?.winner === "player") {
@@ -2177,14 +2256,6 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
       enemyKey: battleState.enemy?.key || null,
       mapKey: afk.map_key || null,
     });
-
-    const mergedReward = {
-      aetherCrystal: 0,
-      exp: 0,
-      gold: 0,
-      healthDelta: 0,
-      itemDrops: [],
-    };
 
     battleEventResults.forEach((result) => {
       mergedReward.gold += normalizeNumber(result.reward.gold);
@@ -2219,10 +2290,12 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
       if (nextHealth > 0) {
         role.current_health = nextHealth;
       } else {
+        const previousLevel = normalizeNumber(role.level);
         const nextLevel = Math.max(1, normalizeNumber(role.level) - 1);
         role.level = nextLevel;
         role.exp = getLevelBaseExp(nextLevel);
         role.current_health = getRoleMaxHealth(role, backpack);
+        rewardTriggeredLevelDrop = nextLevel < previousLevel;
       }
       battleState.player.currentHealth = role.current_health;
       didMutateRole = true;
@@ -2244,15 +2317,34 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
         Date.now(),
       );
     }
+
+    didMutateAfk = prependRecentEncounter(afk, {
+      id: makeEncounterId(),
+      key: `battle-result-${battleState.battleId || battleFinishedAt}`,
+      tier: rewardTriggeredLevelDrop ? "legendary" : "rare",
+      title: rewardTriggeredLevelDrop ? "惨胜" : "战斗胜利",
+      description: rewardTriggeredLevelDrop
+        ? `${role.name} 击败了 ${enemyName}，但结算惩罚导致生命归零，等级下降 1 级后重整状态。`
+        : `${role.name} 击败了 ${enemyName}，战斗顺利结束。`,
+      reward: {
+        gold: mergedReward.gold,
+        aetherCrystal: mergedReward.aetherCrystal,
+        exp: mergedReward.exp,
+        healthDelta: mergedReward.healthDelta,
+        items: buildEncounterRewardFromItemDrops(itemDrops),
+      },
+      triggeredAt: battleFinishedAt,
+    }) || didMutateAfk;
   }
 
   battleState.enemy.currentHealth = battleState.enemyCombatant.currentHealth;
   afk.battle_state = battleState;
+  const didAdvanceBattle = battleState.lastResolvedAt !== lastResolvedAt;
 
   return {
     battleStarted: false,
     battleState,
-    didMutateAfk: true,
+    didMutateAfk: didMutateAfk || didAdvanceBattle,
     didMutateRole,
     itemDrops,
     finished: !isBattleActive(battleState),
@@ -2453,10 +2545,34 @@ function applyEncounterEffectsToRole(role, encounters, backpack = []) {
       continue;
     }
 
+    const previousLevel = normalizeNumber(role.level);
     const nextLevel = Math.max(1, role.level - 1);
     role.level = nextLevel;
     role.exp = getLevelBaseExp(nextLevel);
     role.current_health = getRoleMaxHealth(role, backpack);
+
+    if (encounter.tier !== "legendary" && nextLevel < previousLevel) {
+      encounter.tier = "legendary";
+    }
+
+    const existingDescription = typeof encounter.description === "string" ? encounter.description.trim() : "";
+    encounter.description = existingDescription
+      ? `${existingDescription}（生命归零，等级下降 1 级后重整。）`
+      : "生命归零，等级下降 1 级后重整。";
+
+    if (!encounter.reward || typeof encounter.reward !== "object") {
+      encounter.reward = {
+        gold: 0,
+        aetherCrystal: 0,
+        exp: 0,
+        healthDelta: 0,
+        items: [],
+      };
+    }
+
+    if (normalizeSignedNumber(encounter.reward.healthDelta) >= 0) {
+      encounter.reward.healthDelta = -Math.max(1, getRoleMaxHealth(role, backpack));
+    }
   }
 
   return didMutate;
@@ -2504,6 +2620,21 @@ function maybeStartBattle(data, timestamp, summary) {
   }
 
   data.afk.battle_state = createBattleState(data.role, data.backpack, data.afk.map_key, timestamp);
+  prependRecentEncounter(data.afk, {
+    id: makeEncounterId(),
+    key: `battle-start-${data.afk.battle_state?.battleId || timestamp}`,
+    tier: "rare",
+    title: "遭遇怪物",
+    description: `${data.afk.battle_state?.enemy?.name || "未知敌人"} 闯入挂机路线，自动战斗开始。`,
+    reward: {
+      gold: 0,
+      aetherCrystal: 0,
+      exp: 0,
+      healthDelta: 0,
+      items: [],
+    },
+    triggeredAt: timestamp,
+  });
   summary.battleStarted = true;
   summary.didMutateAfk = true;
   summary.didMutateRole = syncBattleStateToRole(data.role, data.afk.battle_state, data.backpack) || summary.didMutateRole;
