@@ -381,7 +381,7 @@ function MobileDashboardCollapse({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="space-y-3 xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+    <div className="xl:flex xl:h-full xl:min-h-0 xl:flex-col">
       <button
         aria-expanded={isOpen}
         className="flex min-h-10 w-full items-center justify-between rounded-md border border-[#30363d] bg-[#161b22] px-3 py-2 text-left text-sm text-slate-200 transition hover:border-[#484f58] xl:hidden"
@@ -397,7 +397,7 @@ function MobileDashboardCollapse({
         </span>
       </button>
 
-      <div className={`${isOpen ? "block" : "hidden"} xl:flex xl:min-h-0 xl:flex-1 xl:flex-col`}>
+      <div className={`${isOpen ? "block" : "hidden"} mt-3 xl:mt-0 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col`}>
         {children}
       </div>
     </div>
@@ -480,6 +480,21 @@ function InlineStat({
   );
 }
 
+function CompactStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-1.5">
+      <span className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</span>
+      <span className="text-sm font-semibold text-slate-200">{value}</span>
+    </div>
+  );
+}
+
 function StatusChip({
   children,
   tone = "neutral",
@@ -514,10 +529,10 @@ function CommandButton({
   tone?: "danger" | "neutral" | "primary" | "secondary";
 }) {
   const toneClassName = {
-    danger: "border-rose-800 bg-rose-700 text-white hover:bg-rose-600",
+    danger: "border-rose-800/60 bg-rose-900/20 text-rose-300 hover:bg-rose-900/40 hover:text-rose-200",
     neutral: "border-[#30363d] bg-[#21262d] text-slate-200 hover:bg-[#30363d]",
-    primary: "border-emerald-800 bg-emerald-700 text-white hover:bg-emerald-600",
-    secondary: "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff] hover:bg-[#1f6feb]/20",
+    primary: "border-emerald-800/60 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200",
+    secondary: "border-[#1f6feb]/40 bg-[#1f6feb]/10 text-[#58a6ff] hover:bg-[#1f6feb]/20",
   }[tone];
 
   return (
@@ -588,17 +603,14 @@ function SkillSlot({
 }) {
   return (
     <div className="group relative min-w-0">
-      <div className={`flex min-h-[4.5rem] flex-col items-center justify-center rounded-md border px-2 py-2 text-center transition ${toneClassName}`}>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-950/40 text-[11px] font-semibold text-white">
-          {badge}
-        </div>
-        <p className="mt-1 text-[10px] font-semibold tracking-[0.08em] text-white">{title}</p>
-        <p className="mt-0.5 text-[10px] leading-4 text-slate-300">{status}</p>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${toneClassName}`}>
+        <span className="text-[10px] font-semibold text-white">{badge}</span>
       </div>
       <div className="pointer-events-none absolute bottom-[calc(100%+0.45rem)] left-1/2 z-30 w-56 -translate-x-1/2 rounded-lg border border-[#30363d] bg-[#161b22] p-3 opacity-0 transition duration-150 ease-out group-hover:opacity-100 group-focus-within:opacity-100">
         <p className="text-sm font-semibold text-white">{title}</p>
         <p className="mt-1 text-[11px] text-slate-400">{meta}</p>
         <p className="mt-2 text-xs leading-6 text-slate-300">{body}</p>
+        {status ? <p className="mt-1 text-[11px] text-slate-400">{status}</p> : null}
       </div>
     </div>
   );
@@ -609,10 +621,10 @@ function BattleSkillSlots({
   side,
 }: {
   combatant: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["afk"]["battle"] extends infer TBattle
-    ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
-      ? TPlayer | TEnemy
-      : never
-    : never;
+  ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
+  ? TPlayer | TEnemy
+  : never
+  : never;
   side: "player" | "enemy";
 }) {
   const { locale, messages } = useI18n();
@@ -646,7 +658,7 @@ function BattleSkillSlots({
         <span>{formatMessage(copy.skillBattleUseLimit, { count: formatNumber(combatant.totalSkillUseLimit, locale) })}</span>
         <span>{formatMessage(copy.skillBattleUseRemaining, { count: formatNumber(combatant.totalSkillUsesRemaining, locale) })}</span>
       </div>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+      <div className="flex flex-wrap gap-2">
         {visibleSkills.map((skill) => {
           const isGuard = skill.category === "guard";
           const isSpell = skill.category === "spell";
@@ -700,10 +712,10 @@ function BattleStatusBar({
   combatant,
 }: {
   combatant: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["afk"]["battle"] extends infer TBattle
-    ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
-      ? TPlayer | TEnemy
-      : never
-    : never;
+  ? TBattle extends { player: infer TPlayer; enemy: infer TEnemy }
+  ? TPlayer | TEnemy
+  : never
+  : never;
 }) {
   const { messages } = useI18n();
   const copy = messages.game.dashboard;
@@ -887,13 +899,12 @@ function LandingView() {
           </div>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {[
-              [copy.landing.cards.server.title, copy.landing.cards.server.summary],
-              [copy.landing.cards.offline.title, copy.landing.cards.offline.summary],
-              [copy.landing.cards.backpack.title, copy.landing.cards.backpack.summary],
-            ].map(([title, summary]) => (
+              copy.landing.cards.server.title,
+              copy.landing.cards.offline.title,
+              copy.landing.cards.backpack.title,
+            ].map((title) => (
               <PanelSubsection key={title} className="bg-[#0d1117]">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{title}</p>
-                <p className="mt-3 text-sm leading-6 text-slate-300">{summary}</p>
               </PanelSubsection>
             ))}
           </div>
@@ -902,9 +913,6 @@ function LandingView() {
         <SectionCard className="px-5 py-6 md:px-6 md:py-7">
           <SectionEyebrow>{copy.landing.access}</SectionEyebrow>
           <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">{copy.landing.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300/76">
-            先选择进入方式，再决定是快速试玩还是绑定长期进度。
-          </p>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <button
@@ -918,7 +926,6 @@ function LandingView() {
               type="button"
             >
               <span className="block">{copy.landing.guestLogin}</span>
-              <span className="mt-1 block text-[11px] font-medium text-current/75">立即进入，适合快速体验</span>
             </button>
             <button
               className={[
@@ -931,7 +938,6 @@ function LandingView() {
               type="button"
             >
               <span className="block">{copy.landing.accountLogin}</span>
-              <span className="mt-1 block text-[11px] font-medium text-current/75">保存角色进度，长期游玩</span>
             </button>
           </div>
 
@@ -970,7 +976,7 @@ function LandingView() {
               </label>
 
               <button
-                className="mt-8 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-10 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={status === "booting" || status === "saving" || !username.trim() || !password}
                 onClick={() => {
                   void accountLogin({
@@ -1187,28 +1193,28 @@ function BackpackSectionList({
 
         return (
           <div key={itemType} className="rounded-lg border border-[#30363d] bg-[#0d1117] p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-300/78">{itemTypeLabel(itemType, messages)}</p>
-              <p className="mt-1 text-[11px] text-slate-500">{formatNumber(items.length, locale)} {messages.common.speciesUnit}</p>
-            </div>
+                <p className="mt-1 text-[11px] text-slate-500">{formatNumber(items.length, locale)} {messages.common.speciesUnit}</p>
+              </div>
               <MetaBadge tone={itemCategoryTone(itemType)}>{itemTypeLabel(itemType, messages)}</MetaBadge>
-          </div>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-            {items.map((item) => (
-              <ItemTile
-                key={item.backpackId}
-                active={selectedBackpackId === item.backpackId}
-                equippedCount={item.equippedCount ?? 0}
-                iconKey={item.iconKey}
-                itemName={localizeItemName(item.itemId, item.name, locale)}
-                itemType={item.itemType}
-                onClick={() => onSelectItem(item.backpackId)}
-                quantity={item.quantity}
-                rarity={item.rarity}
-              />
-            ))}
-          </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
+              {items.map((item) => (
+                <ItemTile
+                  key={item.backpackId}
+                  active={selectedBackpackId === item.backpackId}
+                  equippedCount={item.equippedCount ?? 0}
+                  iconKey={item.iconKey}
+                  itemName={localizeItemName(item.itemId, item.name, locale)}
+                  itemType={item.itemType}
+                  onClick={() => onSelectItem(item.backpackId)}
+                  quantity={item.quantity}
+                  rarity={item.rarity}
+                />
+              ))}
+            </div>
           </div>
         );
       })}
@@ -1224,6 +1230,7 @@ function CenterPanel({
   maps,
   onRequestBuyMarketListing,
   onConfigureSkillLoadout,
+  onDeleteRole,
   onUnequipItem,
   onSelectItem,
   role,
@@ -1249,6 +1256,7 @@ function CenterPanel({
   maps: MapConfig[];
   onRequestBuyMarketListing: (listingId: string) => void;
   onConfigureSkillLoadout: (skillKey: string, action: "equip" | "unequip") => void;
+  onDeleteRole: () => void;
   onUnequipItem: (backpackId: string) => void;
   onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
@@ -1356,15 +1364,12 @@ function CenterPanel({
                 按物品类型分组查看库存，点选任意物品后在右侧快速比较属性与用途。
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <DataPill label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
-              <DataPill label={copy.dashboard.equipmentCount} value={formatNumber(equipmentCount, locale)} />
-              <DataPill
-                label={copy.dashboard.equippedCount}
-                value={formatNumber(backpack.reduce((total, item) => total + (item.equippedCount ?? 0), 0), locale)}
-              />
-              <DataPill label={copy.dashboard.skillBookCount} value={formatNumber(skillBookCount, locale)} />
-              <DataPill label={copy.dashboard.materialCount} value={formatNumber(materialCount, locale)} />
+            <div className="flex flex-wrap gap-2">
+              <CompactStat label={copy.dashboard.inventoryCount} value={formatNumber(backpack.length, locale)} />
+              <CompactStat label={copy.dashboard.equipmentCount} value={formatNumber(equipmentCount, locale)} />
+              <CompactStat label={copy.dashboard.equippedCount} value={formatNumber(backpack.reduce((total, item) => total + (item.equippedCount ?? 0), 0), locale)} />
+              <CompactStat label={copy.dashboard.skillBookCount} value={formatNumber(skillBookCount, locale)} />
+              <CompactStat label={copy.dashboard.materialCount} value={formatNumber(materialCount, locale)} />
             </div>
           </div>
         </div>
@@ -1564,6 +1569,16 @@ function CenterPanel({
               )}
             </div>
           </PanelSubsection>
+        </div>
+        <div className="border-t border-[#30363d] px-4 py-3">
+          <button
+            className="w-full rounded-md border border-rose-800/60 bg-rose-900/20 px-3 py-2 text-xs text-rose-300/80 transition hover:bg-rose-900/40 hover:text-rose-200"
+            disabled={status === "saving"}
+            onClick={onDeleteRole}
+            type="button"
+          >
+            {copy.dashboard.deleteRole}
+          </button>
         </div>
       </SectionCard>
     );
@@ -1859,7 +1874,7 @@ function CenterPanel({
                   <CommandButton
                     disabled={snapshot.afk.status === "active" || status === "saving" || !isRealtimeReady}
                     onClick={() => {
-                      void startAfk().catch(() => {});
+                      void startAfk().catch(() => { });
                     }}
                     tone="primary"
                   >
@@ -1868,7 +1883,7 @@ function CenterPanel({
                   <CommandButton
                     disabled={snapshot.afk.status === "idle" || status === "saving" || !isRealtimeReady || Boolean(activeBattle)}
                     onClick={() => {
-                      void stopAfk().catch(() => {});
+                      void stopAfk().catch(() => { });
                     }}
                     tone="danger"
                   >
@@ -1909,7 +1924,7 @@ function MainDashboard() {
     unequipBackpackItem,
   } = useGameSession();
   const [displayNow, setDisplayNow] = useState(() => Date.now());
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+
   const [itemActionBackpackId, setItemActionBackpackId] = useState<string | null>(null);
   const [marketSellBackpackId, setMarketSellBackpackId] = useState<string | null>(null);
   const [marketSellPrice, setMarketSellPrice] = useState("");
@@ -2015,7 +2030,6 @@ function MainDashboard() {
   const pendingActionDefinition = pendingItemAction
     ? getItemActionDefinition(pendingItemAction.actionKey, messages)
     : null;
-  const isAccountUser = snapshot?.account.mode === "account";
   const isGuestUser = snapshot?.account.mode === "guest";
   const isRealtimeActionDisabled = status === "saving" || !isRealtimeReady;
   const progressCopy = role ? formatPercent(role.currentLevelExp, role.nextLevelExp, messages) : "0%";
@@ -2138,7 +2152,7 @@ function MainDashboard() {
                 setRegisterUsername("");
                 setRegisterPassword("");
                 setRegisterConfirmPassword("");
-              }).catch(() => {});
+              }).catch(() => { });
             }}
           >
             <label className="mt-6 block">
@@ -2219,7 +2233,7 @@ function MainDashboard() {
               onClick={() => {
                 void deleteAccountRole().then(() => {
                   setShowDeleteRoleConfirm(false);
-                }).catch(() => {});
+                }).catch(() => { });
               }}
               type="button"
             >
@@ -2293,20 +2307,20 @@ function MainDashboard() {
                   if (action.actionKey === "equip") {
                     void equipBackpackItem(actionItem.backpackId).then(() => {
                       setItemActionBackpackId(null);
-                    }).catch(() => {});
+                    }).catch(() => { });
                     return;
                   }
 
                   if (action.actionKey === "unequip") {
                     void unequipBackpackItem(actionItem.backpackId).then(() => {
                       setItemActionBackpackId(null);
-                    }).catch(() => {});
+                    }).catch(() => { });
                     return;
                   }
 
-                if (action.actionKey === "sell") {
-                  setItemActionBackpackId(null);
-                  setMarketSellBackpackId(actionItem.backpackId);
+                  if (action.actionKey === "sell") {
+                    setItemActionBackpackId(null);
+                    setMarketSellBackpackId(actionItem.backpackId);
                     const currentMarketPrice =
                       snapshot.market.listings.find((listing) => listing.itemId === actionItem.itemId)?.price
                       ?? null;
@@ -2372,28 +2386,28 @@ function MainDashboard() {
                   void dropBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }
 
                 if (pendingItemAction?.actionKey === "learn") {
                   void learnSkillBook(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }
 
                 if (pendingItemAction?.actionKey === "equip") {
                   void equipBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }
 
                 if (pendingItemAction?.actionKey === "unequip") {
                   void unequipBackpackItem(pendingActionItem.backpackId).then(() => {
                     setPendingItemAction(null);
                     setItemActionBackpackId(null);
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }
               }}
               type="button"
@@ -2502,7 +2516,7 @@ function MainDashboard() {
                   setMarketSellBackpackId(null);
                   setMarketSellPrice("");
                   setMarketSellQuantity("1");
-                }).catch(() => {});
+                }).catch(() => { });
               }}
               type="button"
             >
@@ -2545,7 +2559,7 @@ function MainDashboard() {
               onClick={() => {
                 void buyMarketListing(pendingMarketPurchase.listingId).then(() => {
                   setPendingMarketPurchaseListingId(null);
-                }).catch(() => {});
+                }).catch(() => { });
               }}
               type="button"
             >
@@ -2578,51 +2592,28 @@ function MainDashboard() {
                     </StatusChip>
                     <span className="text-[10px] text-slate-500">Lv.{role.level}</span>
                   </div>
-                  {!isHeaderCollapsed ? (
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-                      <span className="text-slate-500">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
-                      <span className="text-slate-600">·</span>
-                      <span className="text-amber-300">{formatNumber(role.gold, locale)} 金币</span>
-                      <span className="text-slate-600">·</span>
-                      <span className="text-sky-300">{formatNumber(role.aetherCrystal, locale)} 以太</span>
-                      <span className="text-slate-600">·</span>
-                      <span className="text-emerald-300">{formatNumber(role.exp, locale)} 经验</span>
-                    </div>
-                  ) : null}
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                    <span className="text-slate-500">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
+                    <span className="text-slate-600">·</span>
+                    <span className="text-amber-300">{formatNumber(role.gold, locale)} 金币</span>
+                    <span className="text-slate-600">·</span>
+                    <span className="text-sky-300">{formatNumber(role.aetherCrystal, locale)} 以太</span>
+                    <span className="text-slate-600">·</span>
+                    <span className="text-emerald-300">{formatNumber(role.exp, locale)} 经验</span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                {!isHeaderCollapsed ? (
-                  <>
-                    {isGuestUser ? (
-                      <button
-                        className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs text-slate-200 transition hover:bg-[#30363d]"
-                        disabled={status === "saving"}
-                        onClick={() => setShowRegisterAccountModal(true)}
-                        type="button"
-                      >
-                        {copy.dashboard.registerAccount}
-                      </button>
-                    ) : null}
-                    {isAccountUser ? (
-                      <button
-                        className="rounded-md border border-rose-800 bg-rose-900/30 px-3 py-1.5 text-xs text-rose-200 transition hover:bg-rose-900/50"
-                        disabled={status === "saving"}
-                        onClick={() => setShowDeleteRoleConfirm(true)}
-                        type="button"
-                      >
-                        {copy.dashboard.deleteRole}
-                      </button>
-                    ) : null}
-                  </>
+                {isGuestUser ? (
+                  <button
+                    className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-1.5 text-xs text-slate-200 transition hover:bg-[#30363d]"
+                    disabled={status === "saving"}
+                    onClick={() => setShowRegisterAccountModal(true)}
+                    type="button"
+                  >
+                    {copy.dashboard.registerAccount}
+                  </button>
                 ) : null}
-                <button
-                  className="rounded-md border border-[#30363d] bg-[#21262d] px-2 py-1.5 text-xs text-slate-400 transition hover:bg-[#30363d] hover:text-slate-200"
-                  onClick={() => setIsHeaderCollapsed((v) => !v)}
-                  type="button"
-                >
-                  {isHeaderCollapsed ? "展开" : "收起"}
-                </button>
               </div>
             </div>
           </div>
@@ -2654,7 +2645,7 @@ function MainDashboard() {
           <MobileDashboardCollapse
             title="主面板"
           >
-            <div className="grid gap-3 xl:min-h-0 xl:flex-1 xl:overflow-hidden xl:grid-rows-[minmax(0,1fr)_minmax(280px,38%)]">
+            <div className="flex flex-col gap-3 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
               <CenterPanel
                 activePanel={activePanel}
                 backpack={backpack}
@@ -2667,10 +2658,11 @@ function MainDashboard() {
                 onConfigureSkillLoadout={(skillKey, action) => {
                   void configureSkillLoadout(skillKey, action).then(() => {
                     pushNotice(action === "equip" ? "技能携带成功。" : "技能已卸下。", "success");
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }}
+                onDeleteRole={() => setShowDeleteRoleConfirm(true)}
                 onUnequipItem={(backpackId) => {
-                  void unequipBackpackItem(backpackId).catch(() => {});
+                  void unequipBackpackItem(backpackId).catch(() => { });
                 }}
                 onSelectItem={handleSelectBackpackItem}
                 role={role}
