@@ -343,9 +343,11 @@ function OverlayModal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-black/60 px-4 py-6">
-      <div className="mx-auto w-full max-w-lg max-h-[calc(100vh-3rem)] overflow-y-auto rounded-lg border border-[#30363d] bg-[#161b22] p-5 sm:p-6">
-        {children}
+    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/70 px-2 py-2 sm:px-4 sm:py-4">
+      <div className="mx-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] sm:max-h-[calc(100dvh-2rem)]">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -407,7 +409,7 @@ function DataPill({
       ].join(" ")}
     >
       <p className={["text-[10px] uppercase tracking-[0.16em] text-slate-500", labelClassName].join(" ")}>{label}</p>
-      <p className={["mt-0.5 truncate text-sm font-medium leading-5 text-slate-200", valueClassName].join(" ")}>{value}</p>
+      <p className={["mt-0.5 break-words text-sm font-medium leading-5 text-slate-200 sm:truncate", valueClassName].join(" ")}>{value}</p>
     </div>
   );
 }
@@ -932,7 +934,7 @@ function RailButton({
       type="button"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-medium">{label}</span>
+        <span className="min-w-0 break-words text-sm font-medium leading-5 sm:truncate">{label}</span>
         {count ? (
           <span
             className={[
@@ -991,7 +993,7 @@ function ItemTile({
           <Icon className="h-[min(1.25rem,52%)] w-[min(1.25rem,52%)]" />
         </span>
       </div>
-      <span className="pointer-events-none absolute bottom-1 left-1.5 right-7 truncate text-[9px] font-medium leading-3.5 text-slate-300/80 sm:bottom-1.5 sm:left-2 sm:right-8 sm:text-[10px]">
+      <span className="pointer-events-none absolute bottom-1 left-1.5 right-7 line-clamp-2 text-[9px] font-medium leading-3.5 text-slate-300/80 sm:bottom-1.5 sm:left-2 sm:right-8 sm:line-clamp-1 sm:text-[10px]">
         {itemName}
       </span>
       <span className="absolute bottom-1 right-1 rounded-full bg-[#0d1117]/80 px-1.5 py-0.5 text-[9px] font-medium text-slate-300 sm:bottom-1.5 sm:right-1.5">
@@ -1650,7 +1652,7 @@ function CenterPanel({
                       className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-white">{skill.name}</p>
+                        <p className="break-words text-xs font-semibold leading-4 text-white sm:truncate">{skill.name}</p>
                         <p className="text-[10px] text-slate-300/70">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
                       </div>
                       <button
@@ -1677,7 +1679,7 @@ function CenterPanel({
                       className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-white">{skill.name}</p>
+                        <p className="break-words text-xs font-semibold leading-4 text-white sm:truncate">{skill.name}</p>
                         <p className="text-[10px] text-slate-300/70">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
                       </div>
                       <button
@@ -1769,8 +1771,8 @@ function CenterPanel({
                 <div key={listing.listingId} className={`rounded-lg border p-2 ${marketItemCardAccent(listing.rarity)}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
-                      <p className="mt-0.5 truncate text-[10px] text-slate-500">{listing.sellerName}</p>
+                      <p className="break-words text-sm font-semibold leading-5 text-white sm:truncate">{localizeItemName(listing.itemId, listing.name, locale)}</p>
+                      <p className="mt-0.5 break-all text-[10px] leading-4 text-slate-500 sm:truncate">{listing.sellerName}</p>
                     </div>
                     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${itemAccent(listing.rarity)}`}>
                       {formatNumber(listing.price, locale)}
@@ -1783,7 +1785,7 @@ function CenterPanel({
                     <span className="text-[10px] text-slate-600">·</span>
                     <span className="text-[10px] text-slate-500">x{formatNumber(listing.availableCount, locale)}</span>
                   </div>
-                  <p className="mt-1 line-clamp-1 text-[11px] leading-4 text-sky-100/60">{formatStatsSummary(listing.stats, locale, messages)}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-sky-100/60 sm:line-clamp-1">{formatStatsSummary(listing.stats, locale, messages)}</p>
                   <div className="mt-1.5 flex items-center justify-end gap-2">
                     <button
                       className="min-h-8 shrink-0 rounded-md border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2.5 py-1 text-[11px] font-medium text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -1808,14 +1810,16 @@ function CenterPanel({
   }
 
   if (activeBattle) {
+    const isPvpBattle = activeBattle.mode === "pvp";
+
     return (
       <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden sm:min-h-[24rem] xl:h-full xl:min-h-0">
         <div className="border-b border-[#30363d] px-3 py-2 sm:px-3.5 sm:py-2.5">
-          <SectionEyebrow>{copy.dashboard.battleTitle}</SectionEyebrow>
+          <SectionEyebrow>{isPvpBattle ? copy.dashboard.pvpBattleTitle : copy.dashboard.battleTitle}</SectionEyebrow>
           <div className="mt-1 flex flex-col gap-2 sm:gap-2.5 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-[-0.04em] text-white sm:text-[1.35rem]">{copy.dashboard.battleTitle}</h2>
-              <p className="mt-0.5 max-w-2xl text-[11px] leading-5 text-slate-300/72 sm:text-xs">{copy.dashboard.battleSummary}</p>
+              <h2 className="text-lg font-semibold tracking-[-0.04em] text-white sm:text-[1.35rem]">{isPvpBattle ? copy.dashboard.pvpBattleTitle : copy.dashboard.battleTitle}</h2>
+              <p className="mt-0.5 max-w-2xl text-[11px] leading-5 text-slate-300/72 sm:text-xs">{isPvpBattle ? copy.dashboard.pvpBattleSummary : copy.dashboard.battleSummary}</p>
             </div>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2">
               <DataPill className="px-2 py-1.5 sm:px-2.5" label={copy.dashboard.battleStatus} value={battleStatusCopy} />
@@ -1830,7 +1834,7 @@ function CenterPanel({
             <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-2 border-l-[#3fb950] ${isPlayerHit ? "scale-[0.985] border-l-[#f85149]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-white truncate">{activeBattle.player.name}</p>
+                  <p className="break-words text-base font-semibold leading-5 text-white sm:truncate">{activeBattle.player.name}</p>
                   <p className="mt-0.5 text-[10px] text-slate-500">{copy.dashboard.selfInfo}</p>
                 </div>
                 <BattleStatusBar combatant={activeBattle.player} />
@@ -1880,7 +1884,7 @@ function CenterPanel({
             <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-2 border-l-[#f85149] ${isEnemyHit ? "scale-[0.985]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-base font-semibold text-white truncate">{activeBattle.enemy.name}</p>
+                  <p className="break-words text-base font-semibold leading-5 text-white sm:truncate">{activeBattle.enemy.name}</p>
                   <p className="mt-0.5 text-[10px] text-slate-500">Lv.{formatNumber(activeBattle.enemy.level, locale)} · {copy.dashboard.enemyInfo}</p>
                 </div>
                 <BattleStatusBar combatant={activeBattle.enemy} />
@@ -2259,12 +2263,12 @@ function MainDashboard() {
       {showRegisterAccountModal && snapshot ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.bindAccount}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.registerTitle}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-[1.7rem]">{copy.dashboard.registerTitle}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
             {formatMessage(copy.dashboard.registerSummary, { roleName: role.name })}
           </p>
           <form
-            className="contents"
+            className="mt-4 space-y-3"
             onSubmit={(event) => {
               event.preventDefault();
               void registerAccount({
@@ -2279,20 +2283,20 @@ function MainDashboard() {
               }).catch(() => { });
             }}
           >
-            <label className="mt-6 block">
-              <span className="text-sm font-medium text-emerald-100">{copy.landing.username}</span>
+            <label className="block">
+              <span className="text-xs font-medium tracking-[0.08em] text-emerald-100/90">{copy.landing.username}</span>
               <input
-                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                className="mt-1.5 w-full rounded-md border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-emerald-300"
                 onChange={(event) => setRegisterUsername(event.target.value)}
                 placeholder={copy.dashboard.registerUsernamePlaceholder}
                 value={registerUsername}
               />
             </label>
 
-            <label className="mt-4 block">
-              <span className="text-sm font-medium text-emerald-100">{copy.landing.password}</span>
+            <label className="block">
+              <span className="text-xs font-medium tracking-[0.08em] text-emerald-100/90">{copy.landing.password}</span>
               <input
-                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                className="mt-1.5 w-full rounded-md border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-emerald-300"
                 onChange={(event) => setRegisterPassword(event.target.value)}
                 placeholder={copy.dashboard.registerPasswordPlaceholder}
                 type="password"
@@ -2300,10 +2304,10 @@ function MainDashboard() {
               />
             </label>
 
-            <label className="mt-4 block">
-              <span className="text-sm font-medium text-emerald-100">{copy.dashboard.registerConfirmPassword}</span>
+            <label className="block">
+              <span className="text-xs font-medium tracking-[0.08em] text-emerald-100/90">{copy.dashboard.registerConfirmPassword}</span>
               <input
-                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-emerald-300"
+                className="mt-1.5 w-full rounded-md border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-emerald-300"
                 onChange={(event) => setRegisterConfirmPassword(event.target.value)}
                 placeholder={copy.dashboard.registerConfirmPasswordPlaceholder}
                 type="password"
@@ -2311,9 +2315,9 @@ function MainDashboard() {
               />
             </label>
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-2 pt-1 sm:flex-row">
               <button
-                className="flex-1 rounded-md bg-[#1f6feb] px-4 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex-1 rounded-md bg-[#1f6feb] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={
                   status === "saving"
                   || !registerUsername.trim()
@@ -2325,7 +2329,7 @@ function MainDashboard() {
                 {status === "saving" ? messages.common.submit : copy.dashboard.registerSubmit}
               </button>
               <button
-                className="rounded-md border border-[#30363d] bg-[#21262d] px-4 py-4 text-sm text-slate-200 transition hover:bg-[#30363d]"
+                className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-2.5 text-sm text-slate-200 transition hover:bg-[#30363d]"
                 disabled={status === "saving"}
                 onClick={() => {
                   setShowRegisterAccountModal(false);
@@ -2342,17 +2346,17 @@ function MainDashboard() {
       {showDeleteRoleConfirm && snapshot ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.deleteRole}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{copy.dashboard.deleteRoleTitle}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-[1.7rem]">{copy.dashboard.deleteRoleTitle}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
             {formatMessage(copy.dashboard.deleteRoleSummary, {
               roleName: role.name,
               username: snapshot.account.username ?? messages.common.boundAccount,
             })}
           </p>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
-              className="flex-1 rounded-[1rem] bg-rose-500 px-4 py-4 text-base font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-md bg-rose-500 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={status === "saving"}
               onClick={() => {
                 void deleteAccountRole().then(() => {
@@ -2361,10 +2365,10 @@ function MainDashboard() {
               }}
               type="button"
             >
-              {status === "saving" ? copy.dashboard.deleteRoleLoading : copy.dashboard.deleteRoleSubmit}
-            </button>
+                {status === "saving" ? copy.dashboard.deleteRoleLoading : copy.dashboard.deleteRoleSubmit}
+              </button>
             <button
-              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               disabled={status === "saving"}
               onClick={() => setShowDeleteRoleConfirm(false)}
               type="button"
@@ -2378,19 +2382,19 @@ function MainDashboard() {
       {actionItem ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.itemActions}</SectionEyebrow>
-          <div className="mt-4 flex items-start gap-3 sm:gap-4">
-            <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1rem] border text-3xl font-semibold sm:h-[4.5rem] sm:w-[4.5rem] ${itemAccent(actionItem.rarity)}`}>
+          <div className="mt-3 flex items-start gap-3">
+            <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border text-2xl font-semibold sm:h-16 sm:w-16 sm:text-3xl ${itemAccent(actionItem.rarity)}`}>
               {(() => {
                 const ActionItemIcon = getGameIconByKey(
                   actionItem.iconKey,
                   getItemTypeFallbackIconKey(actionItem.itemType),
                 );
-                return <ActionItemIcon className="h-8 w-8" />;
+                return <ActionItemIcon className="h-7 w-7 sm:h-8 sm:w-8" />;
               })()}
             </div>
             <div className="min-w-0">
-              <h2 className="text-xl font-semibold leading-8 text-white sm:text-2xl">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>
-              <p className="mt-2 text-xs leading-6 text-slate-300 sm:text-sm">
+              <h2 className="text-lg font-semibold leading-6 text-white sm:text-xl">{localizeItemName(actionItem.itemId, actionItem.name, locale)}</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-300 sm:text-sm">
                 {formatMessage(copy.dashboard.actionItemMeta, {
                   equippedCount: actionItem.equippedCount ?? 0,
                   itemType: itemTypeLabel(actionItem.itemType, messages),
@@ -2399,20 +2403,20 @@ function MainDashboard() {
                   slot: slotLabel(actionItem.slot, messages),
                 })}
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
-              <p className="mt-2 text-xs leading-6 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
+              <p className="mt-1.5 text-sm leading-5 text-slate-300">{localizeItemDescription(actionItem.itemId, actionItem.description, locale)}</p>
+              <p className="mt-1.5 text-xs leading-5 text-sky-100/75">{formatStatsSummary(actionItem.stats, locale, messages)}</p>
               {actionItem.itemType === "equipment" ? (
-                <p className="mt-2 text-xs leading-6 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
+                <p className="mt-1.5 text-xs leading-5 text-slate-400">{formatMessage(copy.dashboard.occupiedSlots, { slots: formatEquippedGroupSummary(actionItem.equippedSlotGroups, messages) })}</p>
               ) : null}
             </div>
           </div>
 
-          <div className="mt-5 max-h-[42vh] space-y-2 overflow-y-auto pr-1">
+          <div className="mt-3 space-y-2">
             {getAvailableItemActions(actionItem, messages).map((action) => (
               <button
                 key={action.actionKey}
                 className={[
-                  "w-full rounded-[1rem] border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
+                  "w-full rounded-md border px-3 py-2.5 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
                   action.tone === "danger"
                     ? "border-rose-300/30 bg-rose-300/10 text-rose-100 hover:bg-rose-300/18"
                     : "border-white/10 bg-white/[0.04] text-white hover:border-sky-200/25",
@@ -2461,12 +2465,12 @@ function MainDashboard() {
                 }}
                 type="button"
               >
-                <p className="text-sm font-semibold">{action.label}</p>
-                <p className="mt-1 text-xs leading-5 text-current/75">{action.summary}</p>
+                <p className="text-sm font-semibold leading-5">{action.label}</p>
+                <p className="mt-0.5 text-xs leading-4.5 text-current/75">{action.summary}</p>
               </button>
             ))}
             <button
-              className="w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200"
+              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               onClick={() => setItemActionBackpackId(null)}
               type="button"
             >
@@ -2479,10 +2483,10 @@ function MainDashboard() {
       {pendingActionItem && pendingActionDefinition && (pendingItemAction?.actionKey === "drop" || pendingItemAction?.actionKey === "learn") ? (
         <OverlayModal>
           <SectionEyebrow>{copy.dashboard.confirmAction}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-white sm:text-[1.7rem]">
             {pendingActionDefinition.confirmTitle}
           </h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <p className="mt-2 text-sm leading-6 text-slate-300">
             {formatMessage(copy.dashboard.pendingActionSummary, {
               extra: pendingActionDefinition.confirmCopy,
               itemName: localizeItemName(pendingActionItem.itemId, pendingActionItem.name, locale),
@@ -2490,16 +2494,16 @@ function MainDashboard() {
             })}
           </p>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={messages.common.type} value={itemTypeLabel(pendingActionItem.itemType, messages)} />
             <DataPill label={messages.common.rarity} value={rarityLabel(pendingActionItem.rarity, messages)} />
             <DataPill label={messages.common.sellPrice} value={formatNumber(pendingActionItem.sellPrice, locale)} />
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
               className={[
-                "flex-1 rounded-[1rem] px-4 py-4 text-base font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
+                "flex-1 rounded-md px-3 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
                 pendingActionDefinition.tone === "danger"
                   ? "bg-rose-500 hover:bg-rose-400"
                   : "bg-sky-500 hover:bg-sky-400",
@@ -2539,7 +2543,7 @@ function MainDashboard() {
               {status === "saving" ? messages.common.processing : pendingActionDefinition.confirmVerb}
             </button>
             <button
-              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               disabled={status === "saving"}
               onClick={() => {
                 setPendingItemAction(null);
@@ -2556,29 +2560,29 @@ function MainDashboard() {
       {marketSellItem ? (
         <OverlayModal>
           <SectionEyebrow>{copy.market.sellTitle}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{localizeItemName(marketSellItem.itemId, marketSellItem.name, locale)}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <h2 className="mt-2 break-words text-2xl font-semibold tracking-[-0.03em] text-white sm:text-[1.7rem]">{localizeItemName(marketSellItem.itemId, marketSellItem.name, locale)}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
             {formatMessage(copy.market.sellSummary, {
               feeRate: snapshot.market.feeRatePercent,
               itemName: localizeItemName(marketSellItem.itemId, marketSellItem.name, locale),
             })}
           </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={messages.common.rarity} value={rarityLabel(marketSellItem.rarity, messages)} />
             <DataPill label={messages.common.slot} value={slotLabel(marketSellItem.slot, messages)} />
             <DataPill label={copy.market.sellableQuantity} value={formatNumber(marketSellableQuantity, locale)} />
           </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-sm font-medium text-amber-100">{copy.market.sellPriceLabel}</span>
+              <span className="text-xs font-medium tracking-[0.08em] text-amber-100/90">{copy.market.sellPriceLabel}</span>
               <input
-                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-amber-300"
+                className="mt-1.5 w-full rounded-md border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-300"
                 inputMode="numeric"
                 onChange={(event) => setMarketSellPrice(event.target.value.replace(/[^\d]/g, ""))}
                 placeholder={marketReferencePrice === null ? copy.market.sellPricePlaceholderEmpty : copy.market.sellPricePlaceholder}
                 value={marketSellPrice}
               />
-              <p className="mt-2 text-xs leading-6 text-slate-400">
+              <p className="mt-1.5 text-xs leading-5 text-slate-400">
                 {marketReferencePrice === null
                   ? copy.market.noMarketQuote
                   : marketSellPriceValue <= 0
@@ -2597,20 +2601,20 @@ function MainDashboard() {
               </p>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-amber-100">{copy.market.sellQuantityLabel}</span>
+              <span className="text-xs font-medium tracking-[0.08em] text-amber-100/90">{copy.market.sellQuantityLabel}</span>
               <input
-                className="mt-3 w-full rounded-[1rem] border border-white/10 bg-slate-950/70 px-4 py-4 text-base text-white outline-none transition focus:border-amber-300"
+                className="mt-1.5 w-full rounded-md border border-white/10 bg-slate-950/70 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-300"
                 inputMode="numeric"
                 onChange={(event) => setMarketSellQuantity(event.target.value.replace(/[^\d]/g, ""))}
                 placeholder={copy.market.sellQuantityPlaceholder}
                 value={marketSellQuantity}
               />
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-xs leading-6 text-slate-400">
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <p className="text-xs leading-5 text-slate-400">
                   {formatMessage(copy.market.sellQuantityHint, { quantity: formatNumber(marketSellableQuantity, locale) })}
                 </p>
                 <button
-                  className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[11px] font-medium text-amber-100 transition hover:bg-amber-300/18"
+                  className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-medium text-amber-100 transition hover:bg-amber-300/18"
                   onClick={() => setMarketSellQuantity(String(marketSellableQuantity))}
                   type="button"
                 >
@@ -2619,14 +2623,14 @@ function MainDashboard() {
               </div>
             </label>
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={messages.common.sellPrice} value={formatNumber(marketSellItem.sellPrice, locale)} />
             <DataPill label={copy.market.feePreview} value={formatNumber(Math.floor((Number(marketSellPrice || 0) * snapshot.market.feeRatePercent) / 100), locale)} />
             <DataPill label={copy.market.receivePreview} value={formatNumber(Math.max(0, Number(marketSellPrice || 0) - Math.floor((Number(marketSellPrice || 0) * snapshot.market.feeRatePercent) / 100)), locale)} />
           </div>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
-              className="flex-1 rounded-[1rem] bg-amber-400 px-4 py-4 text-base font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-md bg-amber-400 px-3 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={
                 isRealtimeActionDisabled
                 || !marketSellItem
@@ -2643,11 +2647,11 @@ function MainDashboard() {
                 }).catch(() => { });
               }}
               type="button"
-            >
+              >
               {copy.market.confirmSell}
             </button>
             <button
-              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               onClick={() => {
                 setMarketSellBackpackId(null);
                 setMarketSellPrice("");
@@ -2664,21 +2668,21 @@ function MainDashboard() {
       {pendingMarketPurchase ? (
         <OverlayModal>
           <SectionEyebrow>{copy.market.buyTitle}</SectionEyebrow>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">{localizeItemName(pendingMarketPurchase.itemId, pendingMarketPurchase.name, locale)}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <h2 className="mt-2 break-words text-2xl font-semibold tracking-[-0.03em] text-white sm:text-[1.7rem]">{localizeItemName(pendingMarketPurchase.itemId, pendingMarketPurchase.name, locale)}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
             {formatMessage(copy.market.buySummary, {
               price: formatNumber(pendingMarketPurchase.price, locale),
               sellerName: pendingMarketPurchase.sellerName,
             })}
           </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             <DataPill label={copy.market.lowestPrice} value={formatNumber(pendingMarketPurchase.price, locale)} />
             <DataPill label={copy.market.availableCount} value={formatNumber(pendingMarketPurchase.availableCount, locale)} />
             <DataPill label={copy.market.feeRule} value={`${snapshot.market.feeRatePercent}%`} />
           </div>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button
-              className="flex-1 rounded-md bg-[#1f6feb] px-4 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-md bg-[#1f6feb] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={isRealtimeActionDisabled}
               onClick={() => {
                 void buyMarketListing(pendingMarketPurchase.listingId).then(() => {
@@ -2686,11 +2690,11 @@ function MainDashboard() {
                 }).catch(() => { });
               }}
               type="button"
-            >
+              >
               {copy.market.confirmBuy}
             </button>
             <button
-              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-4 text-sm text-slate-200"
+              className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               onClick={() => setPendingMarketPurchaseListingId(null)}
               type="button"
             >
@@ -2710,7 +2714,7 @@ function MainDashboard() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 sm:gap-x-2">
-                    <span className="truncate text-[13px] font-medium leading-none text-white sm:text-sm">{role.name}</span>
+                    <span className="break-words text-[13px] font-medium leading-4 text-white sm:truncate sm:text-sm">{role.name}</span>
                     <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
                       {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
                     </StatusChip>

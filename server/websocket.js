@@ -20,6 +20,7 @@ const {
   configureSkillLoadoutForGuest,
   getSessionSnapshot,
   learnSkillBookForGuest,
+  startPvpBattleForGuest,
   startAfkForGuest,
   stopAfkForGuest,
   unequipBackpackItemForGuest,
@@ -317,6 +318,15 @@ async function handleChatSend(session, packet) {
   broadcastChatMessage(message);
 }
 
+async function handlePvpChallenge(connection, session, packet) {
+  const targetRoleId = typeof packet.payload?.targetRoleId === "string"
+    ? packet.payload.targetRoleId
+    : "";
+  const snapshot = await startPvpBattleForGuest(session.guestToken, targetRoleId);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "pvp-start");
+}
+
 async function handlePacket(connection, packet) {
   if (packet.type === "game:session:start") {
     await handleSessionStart(connection, packet);
@@ -389,6 +399,11 @@ async function handlePacket(connection, packet) {
     return;
   }
 
+  if (packet.type === "game:pvp:challenge") {
+    await handlePvpChallenge(connection, session, packet);
+    return;
+  }
+
   if (packet.type === "game:chat:send") {
     await handleChatSend(session, packet);
   }
@@ -421,7 +436,7 @@ async function handleIncomingMessage(connection, message) {
 async function pushProgressUpdate(connection, session) {
   const snapshot = session.snapshot;
 
-  if (!snapshot?.role || snapshot.afk.status !== "active") {
+  if (!snapshot?.role) {
     return;
   }
 
@@ -430,6 +445,10 @@ async function pushProgressUpdate(connection, session) {
     session.snapshot = nextSnapshot;
     session.lastProgressSecond = nextSnapshot.afk.accruedSeconds;
     sendSnapshot(connection, nextSnapshot, "battle");
+    return;
+  }
+
+  if (snapshot.afk.status !== "active") {
     return;
   }
 

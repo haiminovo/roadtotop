@@ -739,6 +739,19 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, sendSocketMessage]);
 
+  const challengePlayer = useCallback(async (targetRoleId: string) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage("game:pvp:challenge", { targetRoleId });
+      setActivePanel("afk");
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "发起切磋失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
   const dismissError = useCallback(() => {
     setError(null);
     setStatus((current) => (current === "error" ? "ready" : current));
@@ -751,6 +764,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       buyMarketListing,
       cancelMarketListing,
       chatMessages,
+      challengePlayer,
       claimOfflineReward,
       createMarketListing,
       createRole,
@@ -781,6 +795,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       buyMarketListing,
       cancelMarketListing,
       chatMessages,
+      challengePlayer,
       claimOfflineReward,
       createMarketListing,
       createRole,

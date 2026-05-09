@@ -103,6 +103,7 @@ export type BattleStatusEffectEntry = {
 export type BattleSnapshot = {
   battleId: string;
   active: boolean;
+  mode?: "afk" | "pvp";
   status: "active" | "finished";
   turnCount: number;
   winner: "player" | "enemy" | null;
@@ -339,6 +340,7 @@ export type GameSessionContextValue = {
   activePanel: PanelKey;
   accountLogin: (draft: AccountLoginDraft) => Promise<void>;
   chatMessages: ChatMessage[];
+  challengePlayer: (targetRoleId: string) => Promise<void>;
   createRole: (draft: CreateRoleDraft) => Promise<void>;
   createMarketListing: (backpackId: string, price: number, quantity: number) => Promise<void>;
   cancelMarketListing: (listingId: string) => Promise<void>;

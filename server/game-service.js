@@ -1721,6 +1721,29 @@ function createEnemyProfile(role, backpack = [], mapKey = null) {
   };
 }
 
+function createPvpEnemyProfile(targetRole, targetBackpack = []) {
+  const stats = getRoleEffectiveStats(targetRole, targetBackpack);
+  const raceLabel = raceConfigs.find((item) => item.key === targetRole.race_key)?.label || targetRole.race_key;
+  const classLabel = classConfigs.find((item) => item.key === targetRole.class_key)?.label || targetRole.class_key;
+  const maxHealth = getRoleMaxHealth(targetRole, targetBackpack);
+
+  return {
+    key: "pvp-opponent",
+    roleId: targetRole.role_id,
+    level: normalizeNumber(targetRole.level),
+    name: targetRole.name,
+    summary: `${raceLabel} · ${classLabel}`,
+    fixedSkillKeys: [],
+    skillCaps: {
+      guard: 0,
+      spell: 0,
+    },
+    currentHealth: clamp(normalizeNumber(targetRole.current_health), 1, maxHealth),
+    maxHealth,
+    stats,
+  };
+}
+
 function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.now()) {
   const player = getPlayerBattleProfile(role, backpack);
   const playerSkillCollection = buildPlayerSkillCollection(role, backpack);
@@ -1734,6 +1757,7 @@ function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.
   return {
     active: true,
     battleId,
+    mode: "afk",
     enemy,
     lastResolvedAt: startedAt,
     logs: normalizeBattleLog([
@@ -1775,6 +1799,62 @@ function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.
   };
 }
 
+function createPvpBattleState(challengerRole, challengerBackpack = [], targetRole, targetBackpack = [], startedAt = Date.now()) {
+  const player = getPlayerBattleProfile(challengerRole, challengerBackpack);
+  const challengerSkillCollection = buildPlayerSkillCollection(challengerRole, challengerBackpack);
+  const enemy = createPvpEnemyProfile(targetRole, targetBackpack);
+  const targetSkillCollection = buildPlayerSkillCollection(targetRole, targetBackpack);
+  const battleId = makeBattleId();
+  const playerBattleSkills = buildBattleSkills(challengerSkillCollection.equippedSkills, player.stats, "player");
+  const enemyBattleSkills = buildBattleSkills(targetSkillCollection.equippedSkills, enemy.stats, "enemy");
+  const playerTotalSkillUseLimit = challengerSkillCollection.battleSkillUseLimit;
+  const enemyTotalSkillUseLimit = targetSkillCollection.battleSkillUseLimit;
+
+  return {
+    active: true,
+    battleId,
+    mode: "pvp",
+    enemy,
+    lastResolvedAt: startedAt,
+    logs: normalizeBattleLog([
+      {
+        id: makeBattleLogId(),
+        text: `${challengerRole.name} 向 ${targetRole.name} 发起了切磋，PVP 对战开始。`,
+        timestamp: startedAt,
+        type: "system",
+      },
+    ]),
+    outcome: null,
+    player: buildBattleCombatant({
+      currentHealth: player.currentHealth,
+      intelligence: player.stats.intelligence,
+      label: "我方",
+      maxHealth: player.maxHealth,
+      name: player.name,
+      side: "player",
+      skills: playerBattleSkills,
+      totalSkillUseLimit: playerTotalSkillUseLimit,
+      totalSkillUsesRemaining: playerTotalSkillUseLimit,
+      stats: player.stats,
+    }),
+    status: "active",
+    turnCount: 0,
+    winner: null,
+    enemyCombatant: buildBattleCombatant({
+      currentHealth: enemy.currentHealth,
+      intelligence: enemy.stats.intelligence,
+      label: "对手",
+      maxHealth: enemy.maxHealth,
+      name: enemy.name,
+      side: "enemy",
+      skills: enemyBattleSkills,
+      totalSkillUseLimit: enemyTotalSkillUseLimit,
+      totalSkillUsesRemaining: enemyTotalSkillUseLimit,
+      stats: enemy.stats,
+    }),
+  };
+}
+
 function normalizeBattleState(value) {
   if (!value || typeof value !== "object") {
     return { active: false, logs: [] };
@@ -1787,8 +1867,10 @@ function normalizeBattleState(value) {
   return {
     active: Boolean(value.active),
     battleId: typeof value.battleId === "string" ? value.battleId : null,
+    mode: value.mode === "pvp" ? "pvp" : "afk",
     enemy: {
       key: typeof enemy.key === "string" ? enemy.key : "unknown-enemy",
+      roleId: typeof enemy.roleId === "string" ? enemy.roleId : null,
       level: normalizeNumber(enemy.level),
       name: typeof enemy.name === "string" ? enemy.name : "未知敌人",
       summary: typeof enemy.summary === "string" ? enemy.summary : "",
@@ -2144,9 +2226,25 @@ function handleBattleOutcome(role, battleState, backpack = []) {
   return true;
 }
 
+function settlePvpBattleOutcome(role, battleState, backpack = []) {
+  if (battleState?.mode !== "pvp" || isBattleActive(battleState)) {
+    return false;
+  }
+
+  const maxHealth = getRoleMaxHealth(role, backpack);
+
+  if (normalizeNumber(role.current_health) === maxHealth) {
+    return false;
+  }
+
+  role.current_health = maxHealth;
+  return true;
+}
+
 function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   const now = options.now || Date.now();
   const battleState = normalizeBattleState(afk.battle_state);
+  const isPvpBattle = battleState.mode === "pvp";
 
   if (!isBattleActive(battleState)) {
     afk.battle_state = battleState;
@@ -2227,7 +2325,7 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   const battleFinishedAt = battleState.lastResolvedAt;
   const enemyName = battleState.enemy?.name || "未知敌人";
 
-  if (!isBattleActive(battleState) && battleState.outcome?.winner === "enemy") {
+  if (!isBattleActive(battleState) && battleState.outcome?.winner === "enemy" && !isPvpBattle) {
     const previousLevel = normalizeNumber(role.level);
     didMutateRole = handleBattleOutcome(role, battleState, backpack) || didMutateRole;
     const nextLevel = normalizeNumber(role.level);
@@ -2251,7 +2349,7 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
     }) || didMutateAfk;
   }
 
-  if (!isBattleActive(battleState) && battleState.outcome?.winner === "player") {
+  if (!isBattleActive(battleState) && battleState.outcome?.winner === "player" && !isPvpBattle) {
     const battleEventResults = evaluateEventRules("enemy_kill", {
       enemyKey: battleState.enemy?.key || null,
       mapKey: afk.map_key || null,
@@ -2335,6 +2433,10 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
       },
       triggeredAt: battleFinishedAt,
     }) || didMutateAfk;
+  }
+
+  if (!isBattleActive(battleState) && isPvpBattle) {
+    didMutateRole = settlePvpBattleOutcome(role, battleState, backpack) || didMutateRole;
   }
 
   battleState.enemy.currentHealth = battleState.enemyCombatant.currentHealth;
@@ -3114,76 +3216,63 @@ async function findRoleByUserId(userId) {
   return role;
 }
 
-async function requireDashboardData(guestToken) {
-  await ensureRuntimeGameConfig();
-  const user = await findUserByGuestToken(guestToken);
+async function findRoleByRoleId(roleId) {
+  const result = await query(
+    `
+      SELECT
+        role_id,
+        user_id,
+        name,
+        race_key,
+        class_key,
+        level,
+        exp,
+        exp_curve_version,
+        gold,
+        aether_crystal,
+        strength,
+        agility,
+        intelligence,
+        vitality,
+        current_health,
+        skill_state,
+        avatar_seed
+      FROM "role"
+      WHERE role_id = $1
+    `,
+    [roleId],
+  );
 
-  if (!user) {
-    throw createServiceError("游客会话不存在，请重新登录。", 401);
-  }
+  return result.rows[0] || null;
+}
 
-  const role = await findRoleByUserId(user.user_id);
+async function getBackpackRowsForRole(roleId) {
+  const backpackResult = await query(
+    `
+      SELECT
+        backpack.backpack_id,
+        backpack.item_id,
+        backpack.quantity,
+        backpack.equipped,
+        backpack.equipped_slot_groups,
+        item.name,
+        item.rarity,
+        item.item_type,
+        item.skill_key,
+        item.icon_key,
+        item.slot,
+        item.slot_usage,
+        item.description,
+        item.sell_price,
+        item.stat_json
+      FROM backpack
+      JOIN item ON item.item_id = backpack.item_id
+      WHERE backpack.role_id = $1
+      ORDER BY backpack.equipped DESC, item.rarity DESC, item.name ASC
+    `,
+    [roleId],
+  );
 
-  if (!role) {
-    throw createServiceError("角色不存在，请先创建角色。", 404);
-  }
-
-  const [afkResult, backpackResult] = await Promise.all([
-    query(
-      `
-        SELECT
-          afk_id,
-          role_id,
-          status,
-          map_key,
-          started_at,
-          last_settled_at,
-          pending_gold,
-        pending_aether_crystal,
-        pending_exp,
-        accrued_seconds,
-        recent_encounters,
-        battle_state
-        FROM afk
-        WHERE role_id = $1
-      `,
-      [role.role_id],
-    ),
-    query(
-      `
-        SELECT
-          backpack.backpack_id,
-          backpack.item_id,
-          backpack.quantity,
-          backpack.equipped,
-          backpack.equipped_slot_groups,
-          item.name,
-          item.rarity,
-          item.item_type,
-          item.skill_key,
-          item.icon_key,
-          item.slot,
-          item.slot_usage,
-          item.description,
-          item.sell_price,
-          item.stat_json
-        FROM backpack
-        JOIN item ON item.item_id = backpack.item_id
-        WHERE backpack.role_id = $1
-        ORDER BY backpack.equipped DESC, item.rarity DESC, item.name ASC
-      `,
-      [role.role_id],
-    ),
-  ]);
-
-  const afk = afkResult.rows[0];
-
-  if (!afk) {
-    throw createServiceError("挂机状态不存在，请重新创建角色。", 404);
-  }
-
-  afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
-  afk.battle_state = normalizeBattleState(afk.battle_state);
   backpackResult.rows.forEach((item) => {
     const itemSeed = itemSeedById.get(item.item_id);
     if (itemSeed) {
@@ -3204,12 +3293,62 @@ async function requireDashboardData(guestToken) {
     item.equipped_slot_groups = normalizeEquippedSlotGroups(item.equipped_slot_groups);
     item.equipped = item.equipped_slot_groups.length > 0;
   });
+
   sortBackpackRows(backpackResult.rows);
+  return backpackResult.rows;
+}
+
+async function requireDashboardData(guestToken) {
+  await ensureRuntimeGameConfig();
+  const user = await findUserByGuestToken(guestToken);
+
+  if (!user) {
+    throw createServiceError("游客会话不存在，请重新登录。", 401);
+  }
+
+  const role = await findRoleByUserId(user.user_id);
+
+  if (!role) {
+    throw createServiceError("角色不存在，请先创建角色。", 404);
+  }
+
+  const [afkResult, backpackRows] = await Promise.all([
+    query(
+      `
+        SELECT
+          afk_id,
+          role_id,
+          status,
+          map_key,
+          started_at,
+          last_settled_at,
+          pending_gold,
+        pending_aether_crystal,
+        pending_exp,
+        accrued_seconds,
+        recent_encounters,
+        battle_state
+        FROM afk
+        WHERE role_id = $1
+      `,
+      [role.role_id],
+    ),
+    getBackpackRowsForRole(role.role_id),
+  ]);
+
+  const afk = afkResult.rows[0];
+
+  if (!afk) {
+    throw createServiceError("挂机状态不存在，请重新创建角色。", 404);
+  }
+
+  afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
+  afk.battle_state = normalizeBattleState(afk.battle_state);
   const market = await getMarketSnapshotForRole(role.role_id);
 
   return {
     afk,
-    backpack: backpackResult.rows,
+    backpack: backpackRows,
     market,
     role,
     user,
@@ -3445,6 +3584,19 @@ async function getSessionSnapshot(guestToken) {
   const data = await requireDashboardData(guestToken);
   const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
   const now = Date.now();
+  let didMutateRoleFromPvp = false;
+  let didMutateBackpackFromPvp = false;
+  let pvpItemDrops = [];
+
+  if (data.afk.status !== "active" && isBattleActive(data.afk.battle_state)) {
+    const pvpProgress = resolveBattleProgress(data.role, data.afk, data.backpack, { now });
+    didMutateRoleFromPvp = pvpProgress.didMutateRole;
+    if (pvpProgress.itemDrops.length > 0) {
+      didMutateBackpackFromPvp = applyEncounterItemsToBackpack(data.backpack, pvpProgress.itemDrops) || didMutateBackpackFromPvp;
+      pvpItemDrops = pvpProgress.itemDrops;
+    }
+  }
+
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
   const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
   const simulation = settleAfkState(data, {
@@ -3459,14 +3611,17 @@ async function getSessionSnapshot(guestToken) {
 
   await withTransaction(async (client) => {
     await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
-    if (didNormalizeRoleHealth || simulation.didMutateRole) {
+    if (didNormalizeRoleHealth || didMutateRoleFromPvp || simulation.didMutateRole) {
       await persistRole(client, data.role);
+    }
+    if (pvpItemDrops.length > 0) {
+      await persistBackpackItemRewards(client, data.role.role_id, pvpItemDrops);
     }
     if (simulation.itemDrops.length > 0) {
       await persistBackpackItemRewards(client, data.role.role_id, simulation.itemDrops);
     }
     await persistAfk(client, data.afk);
-    if (simulation.didMutateBackpack) {
+    if (didMutateBackpackFromPvp || simulation.didMutateBackpack) {
       await persistBackpackEquipState(client, data.backpack);
     }
   });
@@ -3589,6 +3744,46 @@ async function claimAfkRewardForGuest(guestToken) {
     if (simulation.didMutateBackpack) {
       await persistBackpackEquipState(client, data.backpack);
     }
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
+async function startPvpBattleForGuest(guestToken, targetRoleId) {
+  await ensureRuntimeGameConfig();
+  const normalizedTargetRoleId = typeof targetRoleId === "string" ? targetRoleId.trim() : "";
+
+  if (!normalizedTargetRoleId) {
+    throw createServiceError("缺少切磋目标。", 400);
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
+
+  if (data.role.role_id === normalizedTargetRoleId) {
+    throw createServiceError("不能对自己发起切磋。", 400);
+  }
+
+  if (isBattleActive(data.afk.battle_state)) {
+    throw createServiceError("当前已经处于战斗中，暂时不能发起新的切磋。", 409);
+  }
+
+  const targetRole = await findRoleByRoleId(normalizedTargetRoleId);
+
+  if (!targetRole) {
+    throw createServiceError("目标角色不存在或已下线。", 404);
+  }
+
+  const targetBackpack = await getBackpackRowsForRole(targetRole.role_id);
+  const now = Date.now();
+
+  data.afk.battle_state = createPvpBattleState(data.role, data.backpack, targetRole, targetBackpack, now);
+
+  await withTransaction(async (client) => {
+    if (didNormalizeRoleHealth) {
+      await persistRole(client, data.role);
+    }
+    await persistAfk(client, data.afk);
   });
 
   return getSessionSnapshot(guestToken);
@@ -4171,6 +4366,7 @@ module.exports = {
   dismissMarketSoldNotificationForGuest,
   getSessionSnapshot,
   createMarketListingForGuest,
+  startPvpBattleForGuest,
   startAfkForGuest,
   stopAfkForGuest,
   claimAfkRewardForGuest,

@@ -73,7 +73,7 @@ function EventFeedItem({
       <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${accentClassName}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-[13px] font-semibold leading-5 text-white sm:text-sm">{title}</p>
+          <p className="break-words text-[13px] font-semibold leading-5 text-white sm:truncate sm:text-sm">{title}</p>
           <span className="shrink-0 text-[10px] leading-none text-slate-500">{meta}</span>
         </div>
         <div className="mt-0.5 text-[12px] leading-5 text-slate-300 sm:text-[13px] sm:leading-5">{body}</div>
@@ -82,10 +82,44 @@ function EventFeedItem({
   );
 }
 
+function CompactMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-2 text-center">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-0.5 text-sm font-semibold leading-5 text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+function CompactInlineStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-1.5">
+      <span className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</span>
+      <span className="text-sm font-medium leading-5 text-slate-100">{value}</span>
+    </div>
+  );
+}
+
 function RoleProfileModal({
+  isChallenging = false,
+  onChallenge,
   onClose,
   role,
 }: {
+  isChallenging?: boolean;
+  onChallenge?: ((roleId: string) => void) | null;
   onClose: () => void;
   role: ChatRoleProfile | null;
 }) {
@@ -109,116 +143,142 @@ function RoleProfileModal({
   const raceLabel = role ? getRaceCopy(locale, role.raceKey)?.label ?? role.raceKey : "";
   const classLabel = role ? getClassCopy(locale, role.classKey)?.label ?? role.classKey : "";
   const healthPercent = role ? Math.max(0, Math.min(100, (role.currentHealth / Math.max(1, role.maxHealth)) * 100)) : 0;
+  const canChallenge = Boolean(role?.roleId && onChallenge);
 
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4"
+      className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/70 px-2 py-2 sm:px-4 sm:py-4"
       onClick={onClose}
       role="dialog"
     >
       <div
-        className="w-full max-w-2xl rounded-lg border border-[#30363d] bg-[#161b22] p-6"
+        className="flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl min-h-0 flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] sm:max-h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.roleProfileTitle}</p>
-            <h3 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-              {role?.name ?? copy.roleProfileTitle}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              {role ? `${messages.common.levelShort}${role.level} · ${raceLabel} / ${classLabel}` : copy.roleMissing}
-            </p>
-            {role ? (
-              <p className="mt-2 text-xs font-medium tracking-[0.24em] text-[#58a6ff]">
-                {role.avatarSeed}
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.roleProfileTitle}</p>
+              <h3 className="mt-2 break-words text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">
+                {role?.name ?? copy.roleProfileTitle}
+              </h3>
+              <p className="mt-1 text-[13px] leading-5 text-slate-300 sm:text-sm sm:leading-6">
+                {role ? `${messages.common.levelShort}${role.level} · ${raceLabel} / ${classLabel}` : copy.roleMissing}
               </p>
-            ) : (
-              <p className="mt-3 text-sm leading-6 text-slate-400">{copy.roleProfileSummary}</p>
-            )}
-          </div>
-          <button
-            className="rounded-md border border-[#30363d] bg-[#21262d] px-3 py-2 text-sm text-slate-200 transition hover:border-[#484f58] hover:text-white"
-            onClick={onClose}
-            type="button"
-          >
-            {messages.common.close}
-          </button>
-        </div>
-
-        {role ? (
-          <>
-            <div className="mt-6">
-              <div className="mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] text-slate-300">
-                <span>{messages.game.dashboard.currentHealth}</span>
-                <span>{Math.floor(healthPercent)}%</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full bg-[#21262d]">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500"
-                  style={{ width: `${healthPercent}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.currentHealth}</p>
-                <p className="mt-1 text-sm font-semibold leading-5 text-white">
-                  {formatNumber(role.currentHealth, locale)} / {formatNumber(role.maxHealth, locale)}
+              {role ? (
+                <p className="mt-1 text-[11px] font-medium tracking-[0.18em] text-[#58a6ff]">
+                  {role.avatarSeed}
                 </p>
-              </div>
-              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.gold}</p>
-                <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(role.gold, locale)}</p>
-              </div>
-              <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{messages.game.dashboard.aetherCrystal}</p>
-                <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(role.aetherCrystal, locale)}</p>
-              </div>
+              ) : (
+                <p className="mt-2 text-[13px] leading-5 text-slate-400 sm:text-sm sm:leading-6">{copy.roleProfileSummary}</p>
+              )}
             </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {canChallenge ? (
+                <button
+                  className="rounded-md border border-rose-800/60 bg-rose-900/20 px-2.5 py-2 text-xs text-rose-200 transition hover:bg-rose-900/35 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:text-sm"
+                  disabled={isChallenging}
+                  onClick={() => {
+                    if (role?.roleId) {
+                      onChallenge?.(role.roleId);
+                    }
+                  }}
+                  type="button"
+                >
+                  {isChallenging ? copy.pkLoading : copy.pkAction}
+                </button>
+              ) : null}
+              <button
+                className="rounded-md border border-[#30363d] bg-[#21262d] px-2.5 py-2 text-xs text-slate-200 transition hover:border-[#484f58] hover:text-white sm:px-3 sm:text-sm"
+                onClick={onClose}
+                type="button"
+              >
+                {messages.common.close}
+              </button>
+            </div>
+          </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(role.stats).map(([key, value]) => (
-                <div key={key} className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{statLabel(key, messages)}</p>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-white">{formatNumber(value, locale)}</p>
+          {role ? (
+            <>
+              <div className="mt-4">
+                <div className="mb-1.5 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-300">
+                  <span>{messages.game.dashboard.currentHealth}</span>
+                  <span>{Math.floor(healthPercent)}%</span>
                 </div>
-              ))}
-            </div>
-
-            <div className="mt-6">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.equippedItems}</p>
-              <div className="mt-3 space-y-2">
-                {role.equippedItems.length === 0 ? (
-                  <p className="rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm text-slate-400">
-                    {copy.equippedEmpty}
-                  </p>
-                ) : (
-                  role.equippedItems.map((item) => (
-                    <div
-                      key={item.backpackId}
-                      className="rounded-md border border-[#30363d] bg-[#0d1117] px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-white">{item.name}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-400">
-                            {slotLabel(item.slot, messages)} · {formatEquippedGroupSummary(item.equippedSlotGroups, messages)}
-                          </p>
-                        </div>
-                        <span className="rounded-full border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2.5 py-1 text-[11px] font-medium text-[#58a6ff]">
-                          x{formatNumber(item.equippedCount, locale)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
+                <div className="h-2.5 overflow-hidden rounded-full bg-[#21262d]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500"
+                    style={{ width: `${healthPercent}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          </>
-        ) : null}
+
+              <div className="mt-4 grid gap-2 lg:grid-cols-[1.05fr_0.95fr]">
+                <div className="rounded-md border border-[#30363d] bg-[#11161d] p-2.5">
+                  <div className="grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
+                    <CompactInlineStat label={messages.game.dashboard.level} value={formatNumber(role.level, locale)} />
+                    <CompactInlineStat label={statLabel("strength", messages)} value={formatNumber(role.stats.strength, locale)} />
+                    <CompactInlineStat label={statLabel("agility", messages)} value={formatNumber(role.stats.agility, locale)} />
+                    <CompactInlineStat label={statLabel("vitality", messages)} value={formatNumber(role.stats.vitality, locale)} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 lg:grid-cols-2">
+                  <CompactMetric
+                    label={messages.game.dashboard.currentHealth}
+                    value={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`}
+                  />
+                  <CompactMetric label={messages.game.dashboard.gold} value={formatNumber(role.gold, locale)} />
+                  <CompactMetric label={messages.game.dashboard.aetherCrystal} value={formatNumber(role.aetherCrystal, locale)} />
+                  <CompactMetric label={statLabel("intelligence", messages)} value={formatNumber(role.stats.intelligence, locale)} />
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{messages.game.dashboard.characterSheet}</p>
+                <div className="mt-2 grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
+                  {Object.entries(role.stats).map(([key, value]) => (
+                    <CompactMetric key={key} label={statLabel(key, messages)} value={formatNumber(value, locale)} />
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{copy.equippedItems}</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {role.equippedItems.length === 0 ? (
+                    <p className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-[13px] text-slate-400 sm:col-span-2 sm:text-sm">
+                      {copy.equippedEmpty}
+                    </p>
+                  ) : (
+                    role.equippedItems.map((item) => (
+                      <div
+                        key={item.backpackId}
+                        className="rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2.5"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="break-words text-sm font-semibold leading-5 text-white">{item.name}</p>
+                            <p className="mt-0.5 text-[11px] leading-4.5 text-slate-400">
+                              {slotLabel(item.slot, messages)}
+                            </p>
+                            <p className="mt-0.5 text-[11px] leading-4.5 text-slate-500">
+                              {formatEquippedGroupSummary(item.equippedSlotGroups, messages)}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2 py-0.5 text-[10px] font-medium text-[#58a6ff]">
+                            x{formatNumber(item.equippedCount, locale)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -226,7 +286,7 @@ function RoleProfileModal({
 
 export default function Chat() {
   const { locale, messages: i18n } = useI18n();
-  const { snapshot } = useGameSession();
+  const { challengePlayer, snapshot, status } = useGameSession();
   const copy = i18n.chat;
   const {
     activeChannel,
@@ -546,6 +606,13 @@ export default function Chat() {
 
       {isRoleModalOpen ? (
         <RoleProfileModal
+          isChallenging={status === "saving"}
+          onChallenge={(roleId) => {
+            void challengePlayer(roleId).then(() => {
+              setIsRoleModalOpen(false);
+              setSelectedRole(null);
+            }).catch(() => {});
+          }}
           onClose={() => {
             setIsRoleModalOpen(false);
             setSelectedRole(null);
