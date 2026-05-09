@@ -1,6 +1,6 @@
 export const zhCN = {
   app: {
-    title: "伊洛纳网页挂机 MMO · 迈向顶点",
+    title: "Road To Top",
     description: "支持游客登录、角色创建、挂机、装备管理与离线收益结算的网页原型。",
   },
   common: {
@@ -235,13 +235,16 @@ export const zhCN = {
       skillSlotsSummary: "已携带 {used} / {total}，剩余 {remaining} 个技能槽位。",
       skillBattleUseIntelligenceRule: "当前智力 {intelligence}，单场对战总技能释放次数上限为 {count}。",
       equippedSkillsTitle: "携带技能",
-      learnedSkillsTitle: "已学会技能",
+      learnedSkillsTitle: "可携带技能",
       skillBookTitle: "技能书",
       equippedSkillsEmpty: "当前还没有携带技能。先获得技能书并完成学习，之后才能携带进战斗。",
-      learnedSkillsEmpty: "当前还没有学会任何技能。技能必须先通过技能书学习后，才会出现在这里。",
+      learnedSkillsEmpty: "当前还没有可携带技能。技能必须先通过技能书学习，未携带时才会出现在这里。",
+      learnedSkillsAllEquipped: "已学会的技能都已经加入当前携带栏。",
       skillBooksEmpty: "当前还没有技能书。后续可以通过奇遇、掉落或活动途径获取技能书。",
       skillBookSource: "获取途径",
       skillEquippedBadge: "已携带",
+      skillEquipAction: "加入携带",
+      skillUnequipAction: "取消携带",
       skillBattleUseLimit: "单场上限 {count}",
       skillBattleUseRemaining: "剩余释放 {count}",
       statusBarTitle: "状态栏",

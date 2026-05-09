@@ -55,6 +55,8 @@ function formatEventTime(timestamp: number, locale: string) {
   });
 }
 
+const CHAT_MESSAGE_MAX_LENGTH = 100;
+
 function EventFeedItem({
   accentClassName,
   body,
@@ -67,14 +69,14 @@ function EventFeedItem({
   title: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-3 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2">
-      <div className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${accentClassName}`} />
+    <div className="flex gap-2.5 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-2 sm:px-3">
+      <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${accentClassName}`} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <p className="truncate text-sm font-semibold text-white">{title}</p>
-          <span className="shrink-0 text-[10px] text-slate-500">{meta}</span>
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-[13px] font-semibold leading-5 text-white sm:text-sm">{title}</p>
+          <span className="shrink-0 text-[10px] leading-none text-slate-500">{meta}</span>
         </div>
-        <div className="mt-1 text-xs leading-6 text-slate-300">{body}</div>
+        <div className="mt-0.5 text-[12px] leading-5 text-slate-300 sm:text-[13px] sm:leading-5">{body}</div>
       </div>
     </div>
   );
@@ -320,48 +322,49 @@ export default function Chat() {
       <div
         key={message.id}
         className={[
-          "flex items-baseline gap-2 border-b border-[#21262d] py-1.5 text-sm last:border-b-0",
+          "grid grid-cols-[minmax(4.75rem,7.5rem)_minmax(0,1fr)] items-start gap-x-3 border-b border-[#21262d] py-2 text-sm last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-x-4 sm:py-2.5",
           message.senderUserId === currentUserId
             ? "text-[#58a6ff]"
             : "text-slate-200",
         ].join(" ")}
         title={`${message.senderName}${shouldShowGuestId(message.senderName) ? ` ${message.senderUserId}` : ""} ${message.content}`}
       >
-        <button
-          className={[
-            "shrink-0 text-[11px] font-medium tracking-[0.08em] transition",
-            message.senderUserId === currentUserId ? "text-[#58a6ff]" : "text-slate-400",
-            canOpenRole ? "cursor-pointer hover:text-white" : "cursor-default",
-          ].join(" ")}
-          disabled={!canOpenRole}
-          onClick={() => {
-            setSelectedRole(message.senderRole);
-            setIsRoleModalOpen(true);
-          }}
-          type="button"
-        >
-          {message.senderName}
-        </button>
-        {shouldShowGuestId(message.senderName) ? (
-          <span className="shrink-0 font-mono text-[10px] text-slate-500">
-            {message.senderUserId}
-          </span>
-        ) : null}
-        <span className="shrink-0 text-[10px] text-slate-600">:</span>
-        <p className="min-w-0 flex-1 truncate whitespace-nowrap text-slate-100">{message.content}</p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <button
+            className={[
+              "truncate text-left text-xs font-medium leading-5 tracking-[0.04em] transition sm:text-[13px]",
+              message.senderUserId === currentUserId ? "text-[#58a6ff]" : "text-slate-400",
+              canOpenRole ? "cursor-pointer hover:text-white" : "cursor-default",
+            ].join(" ")}
+            disabled={!canOpenRole}
+            onClick={() => {
+              setSelectedRole(message.senderRole);
+              setIsRoleModalOpen(true);
+            }}
+            type="button"
+          >
+            {message.senderName}
+          </button>
+          {shouldShowGuestId(message.senderName) ? (
+            <span className="shrink-0 font-mono text-[10px] leading-5 text-slate-500 sm:text-[11px]">
+              {message.senderUserId}
+            </span>
+          ) : null}
+          <span className="shrink-0 text-[10px] leading-5 text-slate-600 sm:text-[11px]">:</span>
+        </div>
+        <p className="min-w-0 whitespace-pre-wrap break-words pt-0.5 text-[13px] leading-5 text-slate-100 sm:text-sm">{message.content}</p>
       </div>
     );
   }), [currentUserId, messages]);
 
   return (
     <>
-      <section className="flex min-h-[18rem] flex-col rounded-lg border border-[#30363d] bg-[#161b22] p-3 text-slate-200 xl:h-full xl:min-h-0">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
+      <section className="flex h-[20rem] max-h-[65vh] min-h-[20rem] flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] p-2 text-slate-200 sm:h-[24rem] sm:min-h-[24rem] sm:p-3 xl:h-full xl:max-h-none xl:min-h-0">
+        <div className="mb-1.5 flex items-center justify-between gap-2 sm:mb-2">
+          <div className="min-w-0 flex flex-1 items-center gap-1.5 sm:gap-2">
               <button
                 className={[
-                  "relative rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
+                  "relative inline-flex min-h-8 items-center justify-center rounded-md border px-2.5 py-1 text-xs font-medium leading-none transition sm:min-h-9 sm:px-3",
                   activeTab === "chat"
                     ? "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff]"
                     : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
@@ -378,7 +381,7 @@ export default function Chat() {
               </button>
               <button
                 className={[
-                  "rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
+                  "inline-flex min-h-8 items-center justify-center rounded-md border px-2.5 py-1 text-xs font-medium leading-none transition sm:min-h-9 sm:px-3",
                   activeTab === "battle"
                     ? "border-[#a371f7] bg-[#a371f7]/10 text-[#bc8cff]"
                     : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
@@ -390,7 +393,7 @@ export default function Chat() {
               </button>
               <button
                 className={[
-                  "rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
+                  "inline-flex min-h-8 items-center justify-center rounded-md border px-2.5 py-1 text-xs font-medium leading-none transition sm:min-h-9 sm:px-3",
                   activeTab === "encounter"
                     ? "border-amber-600 bg-amber-600/10 text-amber-300"
                     : "border-[#30363d] bg-[#21262d] text-slate-400 hover:text-white",
@@ -400,16 +403,15 @@ export default function Chat() {
               >
                 {copy.encounter}
               </button>
-            </div>
           </div>
           {activeTab === "chat" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center justify-end">
               <div className="relative" ref={channelMenuRef}>
                 <button
                   aria-expanded={isChannelMenuOpen}
                   aria-haspopup="menu"
                   className={[
-                    "flex items-center gap-2 rounded-md border px-2.5 py-1 text-[11px] font-medium transition",
+                    "inline-flex min-h-8 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium leading-none transition sm:min-h-9 sm:gap-2 sm:px-3",
                     isChannelMenuOpen
                       ? "border-[#1f6feb] bg-[#1f6feb]/10 text-[#58a6ff]"
                       : "border-[#30363d] bg-[#21262d] text-slate-200 hover:border-[#484f58] hover:text-white",
@@ -471,17 +473,17 @@ export default function Chat() {
           ) : null}
         </div>
 
-        <div ref={feedScrollRef} className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-md border border-[#30363d] bg-[#0d1117] px-3">
+        <div ref={feedScrollRef} className="mb-1.5 min-h-0 flex-1 overflow-y-auto rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 sm:mb-2 sm:px-3">
           {activeTab === "chat" ? (
             messages.length === 0 ? (
-              <p className="py-3 text-sm text-slate-500">{copy.quiet}</p>
+              <p className="py-2.5 text-[13px] text-slate-500 sm:py-3 sm:text-sm">{copy.quiet}</p>
             ) : (
               messageItems
             )
           ) : activeTab === "battle" ? (
-            <div className="space-y-2 py-3">
+            <div className="space-y-1.5 py-2 sm:space-y-2 sm:py-3">
               {battleItems.length === 0 ? (
-                <p className="text-sm text-slate-500">{copy.battleQuiet}</p>
+                <p className="text-[13px] text-slate-500 sm:text-sm">{copy.battleQuiet}</p>
               ) : (
                 battleItems.map((item) => (
                   <EventFeedItem
@@ -495,9 +497,9 @@ export default function Chat() {
               )}
             </div>
           ) : (
-            <div className="space-y-2 py-3">
+            <div className="space-y-1.5 py-2 sm:space-y-2 sm:py-3">
               {encounterItems.length === 0 ? (
-                <p className="text-sm text-slate-500">{copy.eventQuiet}</p>
+                <p className="text-[13px] text-slate-500 sm:text-sm">{copy.eventQuiet}</p>
               ) : (
                 encounterItems.map((item) => (
                   <EventFeedItem
@@ -514,24 +516,25 @@ export default function Chat() {
         </div>
 
         {activeTab === "chat" ? (
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-1.5 sm:gap-2">
             <input
               type="text"
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => setInput(event.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   void sendMessage().catch(() => {});
                 }
               }}
-              className="flex-1 rounded-md border border-[#30363d] bg-[#0d1117] px-3 py-2 text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-[#484f58]"
+              className="h-10 flex-1 rounded-md border border-[#30363d] bg-[#0d1117] px-3 text-[13px] leading-none text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-[#484f58] sm:h-11 sm:text-sm"
+              maxLength={CHAT_MESSAGE_MAX_LENGTH}
               placeholder={`${copy.sendTo}${channels.find((channel) => channel.key === activeChannel)?.label ?? copy.currentChannel}...`}
             />
             <button
               onClick={() => {
                 void sendMessage().catch(() => {});
               }}
-              className="rounded-md bg-[#1f6feb] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-[#1f6feb] px-3.5 text-[13px] font-medium leading-none text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:px-4 sm:text-sm"
               disabled={!isRealtimeReady || input.trim().length === 0 || remainingCooldownMs > 0}
               type="button"
             >
