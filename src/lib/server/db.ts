@@ -1,7 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
+import { createRequire } from "node:module";
 import { Pool, types, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
 import { logger } from "@/lib/server/logger";
+
+const require = createRequire(import.meta.url);
+const { runMigrations } = require("../../../server/migrations") as {
+  runMigrations: (pool: Pool, options?: { logger?: typeof logger }) => Promise<string[]>;
+};
 
 types.setTypeParser(20, (value) => Number.parseInt(value, 10));
 
@@ -19,16 +23,11 @@ declare global {
   var __roadToTopDbInitPromise: Promise<void> | undefined;
 }
 
-function loadInitSql() {
-  const sqlPath = path.join(process.cwd(), "server", "sql", "init.sql");
-  return fs.readFileSync(sqlPath, "utf8");
-}
-
 export async function ensureDatabaseInitialized() {
   if (!global.__roadToTopDbInitPromise) {
     global.__roadToTopDbInitPromise = (async () => {
-      logger.info("Initializing game database schema.");
-      await pool.query(loadInitSql());
+      logger.info("Running database migrations.");
+      await runMigrations(pool, { logger });
     })().catch((error) => {
       global.__roadToTopDbInitPromise = undefined;
       logger.error("Failed to initialize game database schema.", error);

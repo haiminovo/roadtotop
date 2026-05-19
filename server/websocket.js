@@ -3,6 +3,11 @@ const fs = require("fs/promises");
 const path = require("path");
 const WebSocketServer = require("websocket").server;
 const {
+  CLIENT_MESSAGE_TYPES,
+  SERVER_MESSAGE_TYPES,
+  validateClientMessage,
+} = require("../shared/realtime-protocol");
+const {
   CHAT_CHANNELS,
   createChatMessageForGuest,
   getRecentChatMessages,
@@ -59,21 +64,21 @@ function send(connection, message) {
 
 function sendError(connection, content) {
   send(connection, {
-    type: "game:error",
+    type: SERVER_MESSAGE_TYPES.ERROR,
     payload: { content, status: 400 },
   });
 }
 
 function sendErrorWithStatus(connection, content, status = 400) {
   send(connection, {
-    type: "game:error",
+    type: SERVER_MESSAGE_TYPES.ERROR,
     payload: { content, status },
   });
 }
 
 function sendChatHistory(connection, messages) {
   send(connection, {
-    type: "game:chat:history",
+    type: SERVER_MESSAGE_TYPES.CHAT_HISTORY,
     payload: {
       channels: CHAT_CHANNELS,
       messages,
@@ -84,7 +89,7 @@ function sendChatHistory(connection, messages) {
 function broadcastChatMessage(message) {
   for (const connection of sessions.keys()) {
     send(connection, {
-      type: "game:chat:message",
+      type: SERVER_MESSAGE_TYPES.CHAT_MESSAGE,
       payload: { message },
     });
   }
@@ -102,7 +107,7 @@ function setSession(connection, guestToken, snapshot) {
   });
 }
 
-function sendSnapshot(connection, snapshot, reason, messageType = "game:state:update") {
+function sendSnapshot(connection, snapshot, reason, messageType = SERVER_MESSAGE_TYPES.STATE_UPDATE) {
   send(connection, {
     type: messageType,
     payload: {
@@ -198,7 +203,7 @@ async function handleSessionStart(connection, packet) {
   const snapshot = await getSessionSnapshot(guestToken);
   const chatMessages = await getRecentChatMessages();
   setSession(connection, guestToken, snapshot);
-  sendSnapshot(connection, snapshot, "ready", "game:session:ready");
+  sendSnapshot(connection, snapshot, "ready", SERVER_MESSAGE_TYPES.SESSION_READY);
   sendChatHistory(connection, chatMessages);
 }
 
@@ -328,7 +333,7 @@ async function handlePvpChallenge(connection, session, packet) {
 }
 
 async function handlePacket(connection, packet) {
-  if (packet.type === "game:session:start") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.SESSION_START) {
     await handleSessionStart(connection, packet);
     return;
   }
@@ -339,72 +344,72 @@ async function handlePacket(connection, packet) {
     throw createServiceError("会话尚未初始化。", 401);
   }
 
-  if (packet.type === "game:afk:start") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.AFK_START) {
     await handleAfkStart(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:afk:stop") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.AFK_STOP) {
     await handleAfkStop(connection, session);
     return;
   }
 
-  if (packet.type === "game:afk:claim") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.AFK_CLAIM) {
     await handleAfkClaim(connection, session);
     return;
   }
 
-  if (packet.type === "game:backpack:drop") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.BACKPACK_DROP) {
     await handleBackpackDrop(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:backpack:equip") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.BACKPACK_EQUIP) {
     await handleBackpackEquip(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:backpack:unequip") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.BACKPACK_UNEQUIP) {
     await handleBackpackUnequip(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:backpack:learn-skill-book") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.BACKPACK_LEARN_SKILL_BOOK) {
     await handleBackpackLearnSkillBook(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:skill:configure-loadout") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.SKILL_CONFIGURE_LOADOUT) {
     await handleSkillConfigureLoadout(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:market:create") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_CREATE) {
     await handleMarketCreate(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:market:cancel") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_CANCEL) {
     await handleMarketCancel(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:market:buy") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_BUY) {
     await handleMarketBuy(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:market:sold:dismiss") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_SOLD_DISMISS) {
     await handleMarketSoldDismiss(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:pvp:challenge") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.PVP_CHALLENGE) {
     await handlePvpChallenge(connection, session, packet);
     return;
   }
 
-  if (packet.type === "game:chat:send") {
+  if (packet.type === CLIENT_MESSAGE_TYPES.CHAT_SEND) {
     await handleChatSend(session, packet);
   }
 }
@@ -423,8 +428,15 @@ async function handleIncomingMessage(connection, message) {
     return;
   }
 
+  const validation = validateClientMessage(packet);
+
+  if (!validation.ok) {
+    sendError(connection, validation.error);
+    return;
+  }
+
   try {
-    await handlePacket(connection, packet);
+    await handlePacket(connection, validation.message);
   } catch (error) {
     const status = error && typeof error === "object" && "status" in error
       ? Number(error.status) || 500

@@ -21,6 +21,14 @@ import type {
   GameSessionContextValue,
   SessionSnapshot,
 } from "@/features/game/types";
+import {
+  CLIENT_MESSAGE_TYPES,
+  SERVER_MESSAGE_TYPES,
+  createClientMessage,
+  parseServerMessage,
+  type ClientMessagePayloads,
+  type ClientMessageType,
+} from "../../../../shared/realtime-protocol";
 
 const GUEST_TOKEN_KEY = "roadtotop.guest-token";
 
@@ -176,14 +184,17 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     setSelectedMapKey(nextSnapshot.afk.mapKey ?? nextSnapshot.config.maps[0]?.key ?? "palmia-wilds");
   }, []);
 
-  const sendSocketMessage = useCallback((type: string, payload?: Record<string, unknown>) => {
+  const sendSocketMessage = useCallback(<TType extends ClientMessageType>(
+    type: TType,
+    payload: ClientMessagePayloads[TType],
+  ) => {
     const socket = socketRef.current;
 
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       throw new Error(localizeErrorMessage(locale, "与挂机服务器的连接尚未建立。"));
     }
 
-    socket.send(JSON.stringify({ payload, type }));
+    socket.send(JSON.stringify(createClientMessage(type, payload)));
   }, [locale]);
 
   const handleRealtimeError = useCallback((statusCode: number, message?: string) => {
@@ -255,14 +266,13 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
 
     socket.addEventListener("open", () => {
       setIsRealtimeReady(true);
-      socket.send(JSON.stringify({
-        payload: { guestToken: nextGuestToken },
-        type: "game:session:start",
-      }));
+      socket.send(JSON.stringify(createClientMessage(CLIENT_MESSAGE_TYPES.SESSION_START, {
+        guestToken: nextGuestToken,
+      })));
     });
 
     socket.addEventListener("message", (event) => {
-      const packet = JSON.parse(event.data) as {
+      const packet = parseServerMessage(JSON.parse(event.data)) as null | {
         payload?: {
           message?: ChatMessage;
           messages?: ChatMessage[];
@@ -273,7 +283,11 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         type: string;
       };
 
-      if (packet.type === "game:error") {
+      if (!packet) {
+        return;
+      }
+
+      if (packet.type === SERVER_MESSAGE_TYPES.ERROR) {
         const statusCode = typeof packet.payload?.status === "number"
           ? Math.trunc(packet.payload.status)
           : 500;
@@ -281,19 +295,19 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         return;
       }
 
-      if (packet.type === "game:session:ready" || packet.type === "game:state:update") {
+      if (packet.type === SERVER_MESSAGE_TYPES.SESSION_READY || packet.type === SERVER_MESSAGE_TYPES.STATE_UPDATE) {
         if (packet.payload?.snapshot) {
           handleIncomingSnapshot(packet.payload.snapshot);
         }
         return;
       }
 
-      if (packet.type === "game:chat:history") {
+      if (packet.type === SERVER_MESSAGE_TYPES.CHAT_HISTORY) {
         setChatMessages(packet.payload?.messages ?? []);
         return;
       }
 
-      if (packet.type === "game:chat:message" && packet.payload?.message) {
+      if (packet.type === SERVER_MESSAGE_TYPES.CHAT_MESSAGE && packet.payload?.message) {
         const incomingMessage = packet.payload.message;
 
         setChatMessages((current) => {
@@ -493,7 +507,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
         setActivePanel("afk");
 
         if (socketRef.current?.readyState === WebSocket.OPEN) {
-          sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+          sendSocketMessage(CLIENT_MESSAGE_TYPES.SESSION_START, { guestToken: currentGuestToken });
         } else {
           void connectSocket(currentGuestToken);
         }
@@ -555,7 +569,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       setActivePanel("afk");
 
       if (socketRef.current?.readyState === WebSocket.OPEN) {
-        sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+        sendSocketMessage(CLIENT_MESSAGE_TYPES.SESSION_START, { guestToken: currentGuestToken });
       } else {
         void connectSocket(currentGuestToken);
       }
@@ -570,7 +584,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:afk:start", { mapKey: selectedMapKey });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.AFK_START, { mapKey: selectedMapKey });
       setActivePanel("afk");
     } catch (sendError) {
       setStatus("error");
@@ -583,7 +597,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:afk:stop");
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.AFK_STOP, {});
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "停止挂机失败。"));
@@ -609,7 +623,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       handleIncomingSnapshot(payload.snapshot);
 
       if (socketRef.current?.readyState === WebSocket.OPEN) {
-        sendSocketMessage("game:session:start", { guestToken: currentGuestToken });
+        sendSocketMessage(CLIENT_MESSAGE_TYPES.SESSION_START, { guestToken: currentGuestToken });
       } else {
         void connectSocket(currentGuestToken);
       }
@@ -624,7 +638,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:market:create", { backpackId, price, quantity });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.MARKET_CREATE, { backpackId, price, quantity });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "上架商品失败。"));
@@ -636,7 +650,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:market:cancel", { listingId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.MARKET_CANCEL, { listingId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "下架商品失败。"));
@@ -648,7 +662,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:market:sold:dismiss", { listingId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.MARKET_SOLD_DISMISS, { listingId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "处理出售通知失败。"));
@@ -660,7 +674,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:market:buy", { listingId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.MARKET_BUY, { listingId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "购买商品失败。"));
@@ -672,7 +686,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:backpack:drop", { backpackId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.BACKPACK_DROP, { backpackId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "丢弃物品失败。"));
@@ -684,7 +698,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:backpack:equip", { backpackId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.BACKPACK_EQUIP, { backpackId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "装备物品失败。"));
@@ -696,7 +710,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:backpack:learn-skill-book", { backpackId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.BACKPACK_LEARN_SKILL_BOOK, { backpackId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "学习技能书失败。"));
@@ -708,7 +722,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:skill:configure-loadout", { action, skillKey });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.SKILL_CONFIGURE_LOADOUT, { action, skillKey });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "配置技能失败。"));
@@ -720,7 +734,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:backpack:unequip", { backpackId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.BACKPACK_UNEQUIP, { backpackId });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "脱下物品失败。"));
@@ -731,7 +745,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const sendChatMessage = useCallback(async (channelKey: ChatChannelKey, content: string) => {
     try {
       setError(null);
-      sendSocketMessage("game:chat:send", { channelKey, content });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.CHAT_SEND, { channelKey, content });
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "发送聊天消息失败。"));
@@ -743,7 +757,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage("game:pvp:challenge", { targetRoleId });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.PVP_CHALLENGE, { targetRoleId });
       setActivePanel("afk");
     } catch (sendError) {
       setStatus("error");

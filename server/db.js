@@ -1,7 +1,6 @@
-const fs = require("fs");
-const path = require("path");
 const dotenv = require("dotenv");
 const { Pool, types } = require("pg");
+const { runMigrations } = require("./migrations");
 
 dotenv.config();
 
@@ -39,9 +38,7 @@ async function withTransaction(callback) {
 }
 
 async function initDatabase() {
-  const sqlPath = path.join(__dirname, "sql", "init.sql");
-  const sql = fs.readFileSync(sqlPath, "utf8");
-  await query(sql);
+  await runMigrations(pool);
 }
 
 async function closeDatabase() {

@@ -1,16 +1,13 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
-import type { PoolClient } from "pg";
+import { createRequire } from "node:module";
 import {
-  AFK_TASK_SECONDS,
   EXP_GROWTH_PER_LEVEL,
   EXP_PER_LEVEL,
-  getCurrentLevelProgress,
   getExpRequiredForLevel,
   getLevelBaseExp,
   getLevelFromExp,
   getMaxHealth,
   LEVEL_CURVE_VERSION,
-  MAX_OFFLINE_SECONDS,
   classConfigs as defaultClassConfigs,
   mapConfigs as defaultMapConfigs,
   raceConfigs as defaultRaceConfigs,
@@ -29,14 +26,39 @@ import {
 import { query, withTransaction } from "@/lib/server/db";
 import {
   getBodySlotCapacitiesFromRace,
-  getBodySlotTypeLabelRuntime,
   getLevelTable,
   refreshRuntimeGameConfig,
-  type GameEventRule,
   type RuntimeItemSeed,
 } from "@/lib/server/dynamic-game-config";
 import { ApiError } from "@/lib/server/http";
-import { deleteRedisKey, setRedisJson } from "@/lib/server/redis";
+import { deleteRedisKey } from "@/lib/server/redis";
+import { normalizeNonNegativeInteger } from "../../../shared/domain/economy";
+
+const require = createRequire(import.meta.url);
+
+type SharedGameService = {
+  buyMarketListingForGuest: (guestToken: string, listingId: string) => Promise<GameSessionSnapshot>;
+  cancelMarketListingForGuest: (guestToken: string, listingId: string) => Promise<GameSessionSnapshot>;
+  claimAfkRewardForGuest: (guestToken: string) => Promise<GameSessionSnapshot>;
+  createMarketListingForGuest: (
+    guestToken: string,
+    backpackId: string,
+    price: number,
+    quantity: number,
+  ) => Promise<GameSessionSnapshot>;
+  dismissMarketSoldNotificationForGuest: (guestToken: string, listingId: string) => Promise<GameSessionSnapshot>;
+  dropBackpackItemForGuest: (guestToken: string, backpackId: string) => Promise<GameSessionSnapshot>;
+  equipBackpackItemForGuest: (guestToken: string, backpackId: string) => Promise<GameSessionSnapshot>;
+  getSessionSnapshot: (
+    guestToken: string,
+    options?: { forceOfflineSettlement?: boolean },
+  ) => Promise<GameSessionSnapshot>;
+  startAfkForGuest: (guestToken: string, mapKey: string) => Promise<GameSessionSnapshot>;
+  stopAfkForGuest: (guestToken: string) => Promise<GameSessionSnapshot>;
+  unequipBackpackItemForGuest: (guestToken: string, backpackId: string) => Promise<GameSessionSnapshot>;
+};
+
+const sharedGameService = require("../../../server/game-service") as SharedGameService;
 
 type UserRow = {
   user_id: string;
@@ -195,31 +217,8 @@ type RewardPreview = {
   exp: number;
 };
 
-type RewardDelta = {
-  aetherCrystal: number;
-  encounters: AfkEncounterLogEntry[];
-  exp: number;
-  itemDrops: EncounterGrantedItem[];
-  executions: number;
-  gold: number;
-  seconds: number;
-};
-
 type ItemSeed = {
   itemId: string;
-  name: string;
-  rarity: ItemRarity;
-  iconKey: string | null;
-  slot: BodySlotType;
-  slotUsage: number;
-  description: string;
-  sellPrice: number;
-  stats: Record<string, number>;
-};
-
-type EncounterGrantedItem = {
-  itemId: string;
-  quantity: number;
   name: string;
   rarity: ItemRarity;
   iconKey: string | null;
@@ -291,14 +290,6 @@ type AfkEncounterLogEntry = {
   description: string;
   reward: AfkEncounterReward;
   triggeredAt: number;
-};
-
-type DashboardData = {
-  user: UserRow;
-  role: RoleRow;
-  afk: AfkRow;
-  backpack: BackpackRow[];
-  market: MarketSnapshot;
 };
 
 export type GameSessionSnapshot = {
@@ -411,7 +402,6 @@ export type AccountRegistrationInput = {
 };
 
 const levelTable = getLevelTable();
-const OFFLINE_MODAL_THRESHOLD_MS = 45 * 1000;
 const MAX_RECENT_ENCOUNTERS = 8;
 const MIN_PASSWORD_LENGTH = 6;
 const MIN_USERNAME_LENGTH = 4;
@@ -427,7 +417,6 @@ const MARKET_CATEGORY_OPTIONS = [
 }>;
 let itemSeeds: ItemSeed[] = [];
 let itemSeedById = new Map<string, ItemSeed>();
-let eventRules: GameEventRule[] = [];
 let classConfigs: ClassConfig[] = defaultClassConfigs;
 let mapConfigs: MapConfig[] = defaultMapConfigs;
 let raceConfigs: RaceConfig[] = defaultRaceConfigs;
@@ -469,7 +458,6 @@ function applyRuntimeConfig(config: Awaited<ReturnType<typeof refreshRuntimeGame
   MARKET_FEE_RATE_PERCENT = config.systemBalance.marketFeeRatePercent;
   itemSeeds = config.itemCatalog as ItemSeed[];
   itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
-  eventRules = Array.isArray(config.eventRules) ? config.eventRules : [];
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
   raceConfigs = config.raceConfigs;
@@ -487,16 +475,8 @@ function getClassConfig(classKey: string) {
   return classConfigs.find((item) => item.key === classKey) ?? null;
 }
 
-function getMapConfig(mapKey: string) {
-  return mapConfigs.find((item) => item.key === mapKey) ?? null;
-}
-
 function getBodySlotCapacities(raceKey: string) {
   return getBodySlotCapacitiesFromRace(raceKey, raceConfigs);
-}
-
-function getBodySlotTypeLabel(slotType: BodySlotType) {
-  return getBodySlotTypeLabelRuntime(slotType);
 }
 
 function makeId(prefix: string) {
@@ -557,55 +537,12 @@ function toMillis(value: Date | null) {
 }
 
 function normalizeNumber(value: number) {
-  const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
+  return normalizeNonNegativeInteger(value);
 }
 
 function normalizeSignedNumber(value: number) {
   const numericValue = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numericValue) ? Math.trunc(numericValue) : 0;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeItemType(value: unknown): "equipment" | "skill_book" | "material" {
-  if (value === "skill_book" || value === "material") {
-    return value;
-  }
-
-  return "equipment";
-}
-
-function normalizeSkillKey(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-function calculateSecondaryStats(stats: {
-  strength: number;
-  agility: number;
-  intelligence: number;
-  vitality: number;
-}): SecondaryStats {
-  const strength = Math.max(1, Number(stats.strength) || 0);
-  const agility = Math.max(1, Number(stats.agility) || 0);
-  const intelligence = Math.max(1, Number(stats.intelligence) || 0);
-  const vitality = Math.max(1, Number(stats.vitality) || 0);
-
-  return {
-    critChance: clamp(0.05 + agility * 0.006 + strength * 0.0015, 0.05, 0.65),
-    critDamage: clamp(1.35 + strength * 0.018 + intelligence * 0.008, 1.35, 3),
-    dodgeChance: clamp(0.02 + agility * 0.005 + intelligence * 0.0015, 0.02, 0.5),
-    blockChance: clamp(0.03 + vitality * 0.004 + strength * 0.0015, 0.03, 0.45),
-    blockDamageReduction: clamp(0.15 + vitality * 0.006 + strength * 0.003, 0.15, 0.6),
-    healthRegenRate: clamp(0.003 + vitality * 0.0009 + intelligence * 0.0004, 0, 0.04),
-  };
 }
 
 function migrateLegacyRoleExp(role: RoleRow) {
@@ -629,15 +566,6 @@ function migrateLegacyRoleExp(role: RoleRow) {
   role.level = getLevelFromExp(role.exp);
   role.exp_curve_version = LEVEL_CURVE_VERSION;
   return true;
-}
-
-function calculateMarketFee(price: number) {
-  const normalizedPrice = normalizeNumber(price);
-  const feeAmount = Math.floor((normalizedPrice * MARKET_FEE_RATE_PERCENT) / 100);
-  return {
-    feeAmount,
-    sellerReceiveAmount: Math.max(0, normalizedPrice - feeAmount),
-  };
 }
 
 function getRarityRank(rarity: string) {
@@ -721,37 +649,6 @@ function buildMarketSnapshot(
   };
 }
 
-function getBackpackEquippedCount(backpackRow: Pick<BackpackRow, "equipped_slot_groups">) {
-  return backpackRow.equipped_slot_groups.length;
-}
-
-function getRoleEffectiveStats(
-  role: Pick<RoleRow, "strength" | "agility" | "intelligence" | "vitality">,
-  backpack: Array<Pick<BackpackRow, "equipped_slot_groups" | "stat_json">> = [],
-) {
-  const nextStats = {
-    strength: normalizeNumber(role.strength),
-    agility: normalizeNumber(role.agility),
-    intelligence: normalizeNumber(role.intelligence),
-    vitality: normalizeNumber(role.vitality),
-  };
-
-  backpack.forEach((item) => {
-    const equippedCount = getBackpackEquippedCount(item);
-
-    if (equippedCount <= 0) {
-      return;
-    }
-
-    nextStats.strength += normalizeNumber(item.stat_json?.strength) * equippedCount;
-    nextStats.agility += normalizeNumber(item.stat_json?.agility) * equippedCount;
-    nextStats.intelligence += normalizeNumber(item.stat_json?.intelligence) * equippedCount;
-    nextStats.vitality += normalizeNumber(item.stat_json?.vitality) * equippedCount;
-  });
-
-  return nextStats;
-}
-
 function normalizeEquippedSlotGroups(value: unknown): string[][] {
   if (!Array.isArray(value)) {
     return [];
@@ -772,201 +669,9 @@ function normalizeEquippedSlotGroups(value: unknown): string[][] {
     .filter((group): group is string[] => Boolean(group));
 }
 
-function buildBodySlotKeys(capacities: BodySlotCapacities) {
-  const entries: Array<[BodySlotType, number]> = [
-    ["head", capacities.head],
-    ["hand", capacities.hand],
-    ["torso", capacities.torso],
-    ["legs", capacities.legs],
-    ["feet", capacities.feet],
-    ["neck", capacities.neck],
-    ["accessory", capacities.accessory],
-  ];
-
-  return entries.flatMap(([slotType, count]) =>
-    Array.from({ length: Math.max(0, count) }, (_, index) => `${slotType}-${index + 1}`),
-  );
-}
-
 function buildAvailableBodySlotKeys(capacities: BodySlotCapacities, slotType: BodySlotType) {
   const count = Math.max(0, capacities[slotType]);
   return Array.from({ length: count }, (_, index) => `${slotType}-${index + 1}`);
-}
-
-function getBodySlotIndex(slotKey: string) {
-  return Number(slotKey.split("-")[1]) || 0;
-}
-
-function allocateEquipmentSlots(
-  role: Pick<RoleRow, "race_key">,
-  backpack: BackpackRow[],
-  item: Pick<BackpackRow, "backpack_id" | "slot" | "slot_usage" | "quantity" | "equipped_slot_groups" | "equipped">,
-) {
-  if (item.quantity <= getBackpackEquippedCount(item)) {
-    throw new ApiError("这件物品已经没有可装备的数量了。", 409);
-  }
-
-  const capacities = getBodySlotCapacities(role.race_key);
-  const candidateSlotKeys = buildAvailableBodySlotKeys(capacities, item.slot);
-
-  if (candidateSlotKeys.length < item.slot_usage) {
-    throw new ApiError("当前种族没有足够的对应肢体槽位。", 409);
-  }
-
-  const occupiedSlots = new Set(
-    backpack.flatMap((entry) => entry.equipped_slot_groups.flatMap((group) => group)),
-  );
-  const freeSlots = candidateSlotKeys.filter((slotKey) => !occupiedSlots.has(slotKey));
-
-  if (freeSlots.length >= item.slot_usage) {
-    const allocatedSlots = freeSlots.slice(0, item.slot_usage);
-    item.equipped_slot_groups.push(allocatedSlots);
-    item.equipped = item.equipped_slot_groups.length > 0;
-    return allocatedSlots;
-  }
-
-  const releasedSlots = [...freeSlots];
-  const groupsToRelease: Array<{ entry: BackpackRow; group: string[] }> = [];
-  const slotOwners = new Map<string, { entry: BackpackRow; group: string[] }>();
-
-  backpack.forEach((entry) => {
-    entry.equipped_slot_groups.forEach((group) => {
-      if (!group.every((slotKey) => candidateSlotKeys.includes(slotKey))) {
-        return;
-      }
-
-      group.forEach((slotKey) => {
-        slotOwners.set(slotKey, { entry, group });
-      });
-    });
-  });
-
-  const candidateSlotsByPriority = [...candidateSlotKeys].sort((left, right) => getBodySlotIndex(right) - getBodySlotIndex(left));
-  const markedGroups = new Set<string[]>();
-
-  for (const slotKey of candidateSlotsByPriority) {
-    if (releasedSlots.length >= item.slot_usage) {
-      break;
-    }
-
-    const owner = slotOwners.get(slotKey);
-
-    if (!owner || markedGroups.has(owner.group)) {
-      continue;
-    }
-
-    markedGroups.add(owner.group);
-    groupsToRelease.push(owner);
-    releasedSlots.push(...owner.group);
-  }
-
-  if (releasedSlots.length < item.slot_usage) {
-    throw new ApiError("对应肢体部位已经被占满，无法继续装备。", 409);
-  }
-
-  const groupsMarkedForRelease = new Set(groupsToRelease.map((entry) => entry.group));
-  const touchedEntries = new Set(groupsToRelease.map((entry) => entry.entry));
-
-  touchedEntries.forEach((entry) => {
-    entry.equipped_slot_groups = entry.equipped_slot_groups.filter((group) => !groupsMarkedForRelease.has(group));
-    entry.equipped = entry.equipped_slot_groups.length > 0;
-  });
-
-  const availableAfterRelease = candidateSlotKeys.filter((slotKey) => releasedSlots.includes(slotKey));
-  const allocatedSlots = availableAfterRelease.slice(0, item.slot_usage);
-  item.equipped_slot_groups.push(allocatedSlots);
-  item.equipped = item.equipped_slot_groups.length > 0;
-
-  return allocatedSlots;
-}
-
-function removeOneEquippedGroup(backpackItem: BackpackRow) {
-  if (backpackItem.equipped_slot_groups.length === 0) {
-    throw new ApiError("这件物品当前没有处于装备状态。", 409);
-  }
-
-  backpackItem.equipped_slot_groups.shift();
-  backpackItem.equipped = backpackItem.equipped_slot_groups.length > 0;
-}
-
-function buildRoleBodySlots(role: Pick<RoleRow, "race_key">, backpack: BackpackRow[]): RoleBodySlotView[] {
-  const capacities = getBodySlotCapacities(role.race_key);
-  const bodySlotKeys = buildBodySlotKeys(capacities);
-  const equippedBySlotKey = new Map<string, BackpackRow>();
-
-  for (const item of backpack) {
-    for (const group of item.equipped_slot_groups) {
-      for (const slotKey of group) {
-        equippedBySlotKey.set(slotKey, item);
-      }
-    }
-  }
-
-  return bodySlotKeys.map((slotKey) => {
-    const [slotType, indexText] = slotKey.split("-");
-    const equippedItem = equippedBySlotKey.get(slotKey) ?? null;
-    const capacity = capacities[slotType as BodySlotType];
-    const baseLabel = getBodySlotTypeLabel(slotType as BodySlotType);
-    const index = Number(indexText);
-    const label = capacity > 1 && Number.isFinite(index)
-      ? `${baseLabel} ${index}`
-      : baseLabel;
-
-    return {
-      key: slotKey,
-      label,
-      slotType: slotType as BodySlotType,
-      item: equippedItem
-        ? {
-            backpackId: equippedItem.backpack_id,
-            itemId: equippedItem.item_id,
-            name: equippedItem.name,
-            rarity: equippedItem.rarity,
-          }
-        : null,
-    };
-  });
-}
-
-function applyEncounterItemsToBackpack(backpack: BackpackRow[], itemDrops: EncounterGrantedItem[]) {
-  if (itemDrops.length === 0) {
-    return false;
-  }
-
-  let didMutate = false;
-
-  for (const itemDrop of itemDrops) {
-    const existing = backpack.find((entry) => entry.item_id === itemDrop.itemId);
-
-    if (existing) {
-      existing.quantity += itemDrop.quantity;
-      didMutate = true;
-      continue;
-    }
-
-    backpack.push({
-      backpack_id: makeId("bag"),
-      item_id: itemDrop.itemId,
-      quantity: itemDrop.quantity,
-      equipped: false,
-      equipped_slot_groups: [],
-      name: itemDrop.name,
-      rarity: itemDrop.rarity,
-      icon_key: itemDrop.iconKey,
-      slot: itemDrop.slot,
-      slot_usage: itemDrop.slotUsage,
-      description: itemDrop.description,
-      sell_price: itemDrop.sellPrice,
-      stat_json: itemDrop.stats,
-    });
-    didMutate = true;
-  }
-
-  if (didMutate) {
-    sortBackpackRows(backpack);
-  }
-
-  return didMutate;
 }
 
 function normalizeEncounterRewardItems(
@@ -1054,566 +759,6 @@ function normalizeEncounterLog(value: unknown): AfkEncounterLogEntry[] {
   }
 
   return entries.slice(0, MAX_RECENT_ENCOUNTERS);
-}
-
-function getSortedEventRulesByTrigger(triggerType: "afk_tick" | "enemy_kill") {
-  return eventRules
-    .filter((rule) => rule?.enabled !== false && rule?.trigger?.type === triggerType)
-    .slice()
-    .sort((left, right) => normalizeSignedNumber(left?.priority) - normalizeSignedNumber(right?.priority));
-}
-
-function ruleMatchesTrigger(rule: GameEventRule, context: { mapKey?: string | null; enemyKey?: string }) {
-  const trigger = rule?.trigger ?? {};
-
-  if (Array.isArray(trigger.mapKeys) && trigger.mapKeys.length > 0) {
-    if (!context.mapKey || !trigger.mapKeys.includes(context.mapKey)) {
-      return false;
-    }
-  }
-
-  if (Array.isArray(trigger.enemyKeys) && trigger.enemyKeys.length > 0) {
-    if (!context.enemyKey || !trigger.enemyKeys.includes(context.enemyKey)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function toBackpackItemDrop(itemSeed: ItemSeed, quantity: number): EncounterGrantedItem {
-  return {
-    itemId: itemSeed.itemId,
-    quantity,
-    name: itemSeed.name,
-    rarity: itemSeed.rarity,
-    iconKey: itemSeed.iconKey,
-    slot: itemSeed.slot,
-    slotUsage: itemSeed.slotUsage,
-    description: itemSeed.description,
-    sellPrice: itemSeed.sellPrice,
-    stats: itemSeed.stats,
-  };
-}
-
-function applyRuleAction(
-  action: GameEventRule["actions"][number],
-  accumulator: {
-    gold: number;
-    aetherCrystal: number;
-    exp: number;
-    healthDelta: number;
-    itemDrops: EncounterGrantedItem[];
-  },
-) {
-  const actionChance = action?.chance === undefined ? 1 : Number(action.chance);
-
-  if (!Number.isFinite(actionChance) || actionChance <= 0 || Math.random() >= actionChance) {
-    return;
-  }
-
-  switch (action.type) {
-    case "grant_gold":
-      accumulator.gold += normalizeNumber(action.amount ?? 0);
-      break;
-    case "grant_aether":
-      accumulator.aetherCrystal += normalizeNumber(action.amount ?? 0);
-      break;
-    case "grant_exp":
-      accumulator.exp += normalizeNumber(action.amount ?? 0);
-      break;
-    case "adjust_health":
-      accumulator.healthDelta += normalizeSignedNumber(action.amount ?? 0);
-      break;
-    case "grant_item": {
-      if (typeof action.itemId !== "string" || !action.itemId.trim()) {
-        return;
-      }
-      const itemSeed = itemSeedById.get(action.itemId);
-      if (!itemSeed) {
-        return;
-      }
-      let quantity = 0;
-      if (Number.isFinite(Number(action.quantity))) {
-        quantity = Math.max(1, normalizeNumber(action.quantity as number));
-      } else {
-        const min = Math.max(1, normalizeNumber(action.min ?? 1));
-        const max = Math.max(min, normalizeNumber(action.max ?? min));
-        quantity = min + Math.floor(Math.random() * (max - min + 1));
-      }
-      if (quantity <= 0) {
-        return;
-      }
-      accumulator.itemDrops.push(toBackpackItemDrop(itemSeed, quantity));
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-function evaluateEventRules(
-  triggerType: "afk_tick" | "enemy_kill",
-  context: { mapKey?: string | null; enemyKey?: string } = {},
-) {
-  const matches: Array<{
-    rule: GameEventRule;
-    reward: {
-      gold: number;
-      aetherCrystal: number;
-      exp: number;
-      healthDelta: number;
-      itemDrops: EncounterGrantedItem[];
-    };
-  }> = [];
-
-  const rules = getSortedEventRulesByTrigger(triggerType);
-
-  rules.forEach((rule) => {
-    if (!ruleMatchesTrigger(rule, context)) {
-      return;
-    }
-
-    const chance = Number(rule.chance);
-    if (!Number.isFinite(chance) || chance <= 0 || Math.random() >= chance) {
-      return;
-    }
-
-    const reward = {
-      gold: 0,
-      aetherCrystal: 0,
-      exp: 0,
-      healthDelta: 0,
-      itemDrops: [] as EncounterGrantedItem[],
-    };
-
-    (Array.isArray(rule.actions) ? rule.actions : []).forEach((action) => {
-      if (!action || typeof action !== "object") {
-        return;
-      }
-      applyRuleAction(action, reward);
-    });
-
-    matches.push({ rule, reward });
-  });
-
-  return matches;
-}
-
-function getEncounterRatesFromEventRules() {
-  const rates: Record<EncounterTier, number> = {
-    common: 0,
-    rare: 0,
-    legendary: 0,
-  };
-
-  eventRules.forEach((rule) => {
-    if (rule?.enabled === false || rule?.trigger?.type !== "afk_tick") {
-      return;
-    }
-    const tier = rule.encounter?.tier;
-    if (tier !== "common" && tier !== "rare" && tier !== "legendary") {
-      return;
-    }
-    const chance = Number(rule.chance);
-    if (!Number.isFinite(chance) || chance <= 0) {
-      return;
-    }
-    rates[tier] += chance;
-  });
-
-  return rates;
-}
-
-function buildEncounterDelta(executions: number, settledAt: number, mapKey: string | null) {
-  const delta: Pick<RewardDelta, "aetherCrystal" | "encounters" | "exp" | "gold" | "itemDrops"> = {
-    aetherCrystal: 0,
-    encounters: [],
-    exp: 0,
-    gold: 0,
-    itemDrops: [],
-  };
-
-  for (let index = 0; index < executions; index += 1) {
-    const matches = evaluateEventRules("afk_tick", {
-      mapKey: mapKey || null,
-    });
-
-    matches.forEach((match) => {
-      const reward: AfkEncounterReward = {
-        gold: normalizeNumber(match.reward.gold),
-        aetherCrystal: normalizeNumber(match.reward.aetherCrystal),
-        exp: normalizeNumber(match.reward.exp),
-        ...(normalizeSignedNumber(match.reward.healthDelta) !== 0
-          ? { healthDelta: normalizeSignedNumber(match.reward.healthDelta) }
-          : {}),
-        items: match.reward.itemDrops.map((item) => ({
-          itemId: item.itemId,
-          quantity: item.quantity,
-          name: item.name,
-          rarity: item.rarity,
-        })),
-      };
-
-      delta.gold += reward.gold;
-      delta.aetherCrystal += reward.aetherCrystal;
-      delta.exp += reward.exp;
-      delta.itemDrops.push(...match.reward.itemDrops);
-
-      if (match.rule?.encounter?.title && match.rule?.encounter?.description) {
-        delta.encounters.push({
-          id: makeId("encounter"),
-          key: typeof match.rule.key === "string" ? match.rule.key : `event-${Date.now()}`,
-          tier: match.rule.encounter.tier === "common" || match.rule.encounter.tier === "rare" || match.rule.encounter.tier === "legendary"
-            ? match.rule.encounter.tier
-            : "common",
-          title: match.rule.encounter.title,
-          description: match.rule.encounter.description,
-          reward,
-          triggeredAt: settledAt,
-        });
-      }
-    });
-  }
-
-  return delta;
-}
-
-function buildHourlyReward(mapKey: MapKey | null): RewardPreview {
-  const map = mapKey ? getMapConfig(mapKey) : null;
-
-  if (!map) {
-    return {
-      seconds: 3600,
-      gold: 0,
-      aetherCrystal: 0,
-      exp: 0,
-    };
-  }
-
-  return {
-    seconds: 3600,
-    gold: map.goldPerMinute * 60,
-    aetherCrystal: Math.floor(map.aetherPerMinute * 60),
-    exp: map.expPerMinute * 60,
-  };
-}
-
-function buildRewardForSeconds(mapKey: MapKey | null, seconds: number): RewardPreview {
-  const map = mapKey ? getMapConfig(mapKey) : null;
-
-  if (!map) {
-    return {
-      seconds,
-      gold: 0,
-      aetherCrystal: 0,
-      exp: 0,
-    };
-  }
-
-  return {
-    seconds,
-    gold: Math.floor((seconds * map.goldPerMinute) / 60),
-    aetherCrystal: Math.floor((seconds * map.aetherPerMinute) / 60),
-    exp: Math.floor((seconds * map.expPerMinute) / 60),
-  };
-}
-
-function buildRewardDeltaForExecutions(mapKey: MapKey | null, previousExecutions: number, nextExecutions: number): RewardDelta {
-  const previousSeconds = previousExecutions * AFK_TASK_SECONDS;
-  const nextSeconds = nextExecutions * AFK_TASK_SECONDS;
-  const previousReward = buildRewardForSeconds(mapKey, previousSeconds);
-  const nextReward = buildRewardForSeconds(mapKey, nextSeconds);
-
-  return {
-    aetherCrystal: Math.max(0, nextReward.aetherCrystal - previousReward.aetherCrystal),
-    encounters: [],
-    exp: Math.max(0, nextReward.exp - previousReward.exp),
-    itemDrops: [],
-    executions: Math.max(0, nextExecutions - previousExecutions),
-    gold: Math.max(0, nextReward.gold - previousReward.gold),
-    seconds: Math.max(0, nextSeconds - previousSeconds),
-  };
-}
-
-function getRoleMaxHealth(
-  role: Pick<RoleRow, "level" | "strength" | "agility" | "intelligence" | "vitality">,
-  backpack: Array<Pick<BackpackRow, "equipped_slot_groups" | "stat_json">> = [],
-) {
-  return getMaxHealth(getRoleEffectiveStats(role, backpack).vitality, role.level);
-}
-
-function normalizeRoleHealth(role: RoleRow, backpack: BackpackRow[] = []) {
-  const maxHealth = getRoleMaxHealth(role, backpack);
-  const rawHealth = Number(role.current_health);
-  const nextHealth =
-    Number.isFinite(rawHealth) && rawHealth > 0
-      ? Math.min(maxHealth, Math.floor(rawHealth))
-      : maxHealth;
-
-  if (nextHealth === role.current_health) {
-    return false;
-  }
-
-  role.current_health = nextHealth;
-  return true;
-}
-
-function applyEncounterEffectsToRole(role: RoleRow, encounters: AfkEncounterLogEntry[], backpack: BackpackRow[] = []) {
-  let didMutate = false;
-
-  for (const encounter of encounters) {
-    const healthDelta = normalizeSignedNumber(encounter.reward.healthDelta ?? 0);
-
-    if (healthDelta === 0) {
-      continue;
-    }
-
-    didMutate = true;
-
-    if (healthDelta > 0) {
-      role.current_health = Math.min(getRoleMaxHealth(role, backpack), role.current_health + healthDelta);
-      continue;
-    }
-
-    role.current_health += healthDelta;
-
-    if (role.current_health > 0) {
-      continue;
-    }
-
-    const nextLevel = Math.max(1, role.level - 1);
-    role.level = nextLevel;
-    role.exp = getLevelBaseExp(nextLevel);
-    role.current_health = getRoleMaxHealth(role, backpack);
-  }
-
-  return didMutate;
-}
-
-function applyRewardToRole(role: RoleRow, reward: RewardDelta, backpack: BackpackRow[] = []) {
-  if (reward.gold <= 0 && reward.aetherCrystal <= 0 && reward.exp <= 0) {
-    return false;
-  }
-
-  const previousLevel = role.level;
-  const previousMaxHealth = getRoleMaxHealth(role, backpack);
-  role.gold += reward.gold;
-  role.aether_crystal += reward.aetherCrystal;
-  role.exp += reward.exp;
-  role.level = getLevelFromExp(role.exp);
-  const nextMaxHealth = getRoleMaxHealth(role, backpack);
-
-  if (role.level > previousLevel) {
-    role.current_health = Math.min(
-      nextMaxHealth,
-      role.current_health + Math.max(0, nextMaxHealth - previousMaxHealth),
-    );
-  } else {
-    role.current_health = Math.min(nextMaxHealth, role.current_health);
-  }
-
-  return true;
-}
-
-function applyPendingRewardToRole(role: RoleRow, afk: AfkRow, backpack: BackpackRow[] = []) {
-  const pendingReward: RewardDelta = {
-    aetherCrystal: afk.pending_aether_crystal,
-    encounters: [],
-    exp: afk.pending_exp,
-    itemDrops: [],
-    executions: 0,
-    gold: afk.pending_gold,
-    seconds: afk.accrued_seconds,
-  };
-
-  return applyRewardToRole(role, pendingReward, backpack);
-}
-
-function settleAfkState(afk: AfkRow, options?: { capSeconds?: number; now?: number }): RewardDelta {
-  const now = options?.now ?? Date.now();
-
-  const emptyReward: RewardDelta = {
-    aetherCrystal: 0,
-    encounters: [],
-    exp: 0,
-    itemDrops: [],
-    executions: 0,
-    gold: 0,
-    seconds: 0,
-  };
-
-  if (afk.status !== "active" || !afk.map_key || !afk.last_settled_at) {
-    return emptyReward;
-  }
-
-  const elapsedSeconds = Math.max(
-    0,
-    Math.floor((now - new Date(afk.last_settled_at).getTime()) / 1000),
-  );
-
-  if (elapsedSeconds <= 0) {
-    return emptyReward;
-  }
-
-  const grantedSeconds =
-    options?.capSeconds === undefined ? elapsedSeconds : Math.min(elapsedSeconds, Math.max(0, options.capSeconds));
-  const previousTotalSeconds = Math.max(0, afk.accrued_seconds);
-  const nextTotalSeconds = previousTotalSeconds + grantedSeconds;
-  const previousExecutions = Math.floor(previousTotalSeconds / AFK_TASK_SECONDS);
-  const nextExecutions = Math.floor(nextTotalSeconds / AFK_TASK_SECONDS);
-  const rewardDelta = buildRewardDeltaForExecutions(afk.map_key, previousExecutions, nextExecutions);
-  const encounterDelta = buildEncounterDelta(rewardDelta.executions, now, afk.map_key);
-
-  rewardDelta.gold += encounterDelta.gold;
-  rewardDelta.aetherCrystal += encounterDelta.aetherCrystal;
-  rewardDelta.exp += encounterDelta.exp;
-  rewardDelta.encounters = encounterDelta.encounters;
-  rewardDelta.itemDrops = encounterDelta.itemDrops;
-  afk.pending_gold += rewardDelta.gold;
-  afk.pending_aether_crystal += rewardDelta.aetherCrystal;
-  afk.pending_exp += rewardDelta.exp;
-  afk.recent_encounters = [
-    ...encounterDelta.encounters.slice().reverse(),
-    ...normalizeEncounterLog(afk.recent_encounters),
-  ].slice(0, MAX_RECENT_ENCOUNTERS);
-  afk.accrued_seconds = nextTotalSeconds % AFK_TASK_SECONDS;
-  afk.last_settled_at = new Date(now);
-
-  return rewardDelta;
-}
-
-function consumePendingReward(afk: AfkRow, reward: RewardDelta) {
-  afk.pending_gold = Math.max(0, afk.pending_gold - reward.gold);
-  afk.pending_aether_crystal = Math.max(0, afk.pending_aether_crystal - reward.aetherCrystal);
-  afk.pending_exp = Math.max(0, afk.pending_exp - reward.exp);
-}
-
-function discardCurrentTaskProgress(afk: AfkRow) {
-  afk.accrued_seconds = 0;
-}
-
-async function persistRole(client: PoolClient, role: RoleRow) {
-  await client.query(
-    `
-      UPDATE "role"
-      SET
-        level = $2,
-        exp = $3,
-        exp_curve_version = $4,
-        gold = $5,
-        aether_crystal = $6,
-        current_health = $7,
-        updated_at = NOW()
-      WHERE role_id = $1
-    `,
-    [
-      role.role_id,
-      role.level,
-      normalizeNumber(role.exp),
-      role.exp_curve_version ?? LEVEL_CURVE_VERSION,
-      normalizeNumber(role.gold),
-      normalizeNumber(role.aether_crystal),
-      normalizeNumber(role.current_health),
-    ],
-  );
-}
-
-async function persistAfk(client: PoolClient, afk: AfkRow) {
-  await client.query(
-    `
-      UPDATE afk
-      SET
-        status = $2,
-        map_key = $3,
-        started_at = $4,
-        last_settled_at = $5,
-        pending_gold = $6,
-        pending_aether_crystal = $7,
-        pending_exp = $8,
-        accrued_seconds = $9,
-        recent_encounters = $10::jsonb,
-        updated_at = NOW()
-      WHERE afk_id = $1
-    `,
-    [
-      afk.afk_id,
-      afk.status,
-      afk.map_key,
-      afk.started_at,
-      afk.last_settled_at,
-      normalizeNumber(afk.pending_gold),
-      normalizeNumber(afk.pending_aether_crystal),
-      normalizeNumber(afk.pending_exp),
-      normalizeNumber(afk.accrued_seconds),
-      JSON.stringify(normalizeEncounterLog(afk.recent_encounters)),
-    ],
-  );
-}
-
-async function persistBackpackItemRewards(client: PoolClient, roleId: string, itemDrops: EncounterGrantedItem[]) {
-  if (itemDrops.length === 0) {
-    return;
-  }
-
-  const itemDropsById = itemDrops.reduce<Map<string, number>>((accumulator, itemDrop) => {
-    accumulator.set(itemDrop.itemId, (accumulator.get(itemDrop.itemId) ?? 0) + itemDrop.quantity);
-    return accumulator;
-  }, new Map());
-
-  for (const [itemId, quantity] of itemDropsById.entries()) {
-    await client.query(
-      `
-        INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, equipped_slot_groups, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, FALSE, '[]'::jsonb, NOW(), NOW())
-        ON CONFLICT (role_id, item_id)
-        DO UPDATE SET
-          quantity = backpack.quantity + EXCLUDED.quantity,
-          updated_at = NOW()
-      `,
-      [makeId("bag"), roleId, itemId, quantity],
-    );
-  }
-}
-
-async function persistBackpackEquipState(client: PoolClient, backpack: BackpackRow[]) {
-  for (const item of backpack) {
-    await client.query(
-      `
-        UPDATE backpack
-        SET
-          equipped = $2,
-          equipped_slot_groups = $3::jsonb,
-          updated_at = NOW()
-        WHERE backpack_id = $1
-      `,
-      [
-        item.backpack_id,
-        item.equipped_slot_groups.length > 0,
-        JSON.stringify(item.equipped_slot_groups),
-      ],
-    );
-  }
-}
-
-async function upsertBackpackItemQuantity(client: PoolClient, roleId: string, itemId: string, quantity: number) {
-  const normalizedQuantity = normalizeNumber(quantity);
-
-  if (normalizedQuantity <= 0) {
-    return;
-  }
-
-  await client.query(
-    `
-      INSERT INTO backpack (backpack_id, role_id, item_id, quantity, equipped, equipped_slot_groups, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, FALSE, '[]'::jsonb, NOW(), NOW())
-      ON CONFLICT (role_id, item_id)
-      DO UPDATE SET
-        quantity = backpack.quantity + EXCLUDED.quantity,
-        updated_at = NOW()
-    `,
-    [makeId("bag"), roleId, itemId, normalizedQuantity],
-  );
 }
 
 async function getMarketActiveSummaryRows() {
@@ -1769,27 +914,6 @@ async function getMarketSnapshotForRole(roleId: string | null) {
   ]);
 
   return buildMarketSnapshot(roleId, activeListings, ownListings);
-}
-
-async function syncAfkRedis(afk: AfkRow) {
-  const key = `afk:${afk.role_id}`;
-
-  if (afk.status === "idle") {
-    await deleteRedisKey(key);
-    return;
-  }
-
-  await setRedisJson(key, {
-    accruedSeconds: afk.accrued_seconds,
-    lastSettledAt: toMillis(afk.last_settled_at),
-    mapKey: afk.map_key,
-    pendingAetherCrystal: afk.pending_aether_crystal,
-    pendingExp: afk.pending_exp,
-    pendingGold: afk.pending_gold,
-    recentEncounters: normalizeEncounterLog(afk.recent_encounters),
-    startedAt: toMillis(afk.started_at),
-    status: afk.status,
-  });
 }
 
 async function findUserByGuestToken(guestToken: string) {
@@ -1971,180 +1095,12 @@ async function requireDashboardData(guestToken: string) {
   };
 }
 
-async function deleteBackpackEntry(client: PoolClient, roleId: string, backpackId: string) {
-  const result = await client.query(
-    `
-      DELETE FROM backpack
-      WHERE role_id = $1 AND backpack_id = $2
-    `,
-    [roleId, backpackId],
-  );
-
-  return (result.rowCount ?? 0) > 0;
-}
-
 export async function equipBackpackItem(guestToken: string, backpackId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedBackpackId = backpackId.trim();
-
-  if (!normalizedBackpackId) {
-    throw new ApiError("缺少背包物品标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
-
-  if (!matchedItem) {
-    throw new ApiError("要装备的物品不存在。", 404);
-  }
-
-  allocateEquipmentSlots(data.role, data.backpack, matchedItem);
-  sortBackpackRows(data.backpack);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
-
-  await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth) {
-      await persistRole(client, data.role);
-    }
-    await persistBackpackEquipState(client, data.backpack);
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.equipBackpackItemForGuest(guestToken, backpackId);
 }
 
 export async function unequipBackpackItem(guestToken: string, backpackId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedBackpackId = backpackId.trim();
-
-  if (!normalizedBackpackId) {
-    throw new ApiError("缺少背包物品标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
-
-  if (!matchedItem) {
-    throw new ApiError("要脱下的物品不存在。", 404);
-  }
-
-  removeOneEquippedGroup(matchedItem);
-  sortBackpackRows(data.backpack);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
-
-  await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth) {
-      await persistRole(client, data.role);
-    }
-    await persistBackpackEquipState(client, data.backpack);
-  });
-
-  return getFullSessionSnapshot(guestToken);
-}
-
-function buildSnapshot(data: DashboardData, options?: { shouldShowOfflineRewardModal?: boolean }): GameSessionSnapshot {
-  const progress = getCurrentLevelProgress(data.role.exp);
-  const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
-  const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
-  const bodySlots = buildRoleBodySlots(data.role, data.backpack);
-  const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
-  const secondaryStats = calculateSecondaryStats(effectiveStats);
-  const maxHealth = getRoleMaxHealth(data.role, data.backpack);
-  const currentHealth = Math.min(maxHealth, normalizeNumber(data.role.current_health));
-
-  return {
-    serverTime: Date.now(),
-    account: {
-      guestToken: data.user.guest_token,
-      hasRole: true,
-      mode: data.user.account_type,
-      username: data.user.username,
-      userId: data.user.user_id,
-    },
-    config: {
-      classes: classConfigs,
-      levels: levelTable,
-      maps: mapConfigs,
-      races: raceConfigs,
-    },
-    role: {
-      roleId: data.role.role_id,
-      name: data.role.name,
-      raceKey: data.role.race_key,
-      classKey: data.role.class_key,
-      level: data.role.level,
-      exp: data.role.exp,
-      currentLevelExp: progress.currentLevelExp,
-      nextLevelExp: progress.nextLevelExp,
-      currentHealth,
-      maxHealth,
-      gold: data.role.gold,
-      aetherCrystal: data.role.aether_crystal,
-      avatarSeed: data.role.avatar_seed,
-      stats: effectiveStats,
-      secondaryStats,
-      skillSlots: {
-        total: 0,
-        used: 0,
-        remaining: 0,
-      },
-      battleSkillUseLimit: 0,
-      equippedSkills: [],
-      learnedSkills: [],
-      skillBooks: [],
-      bodySlotCapacities,
-      bodySlots,
-    },
-    backpack: data.backpack.map((item) => ({
-      backpackId: item.backpack_id,
-      itemId: item.item_id,
-      itemType: normalizeItemType(item.item_type),
-      skillKey: normalizeSkillKey(item.skill_key),
-      iconKey: item.icon_key,
-      quantity: item.quantity,
-      equipped: item.equipped,
-      equippedCount: getBackpackEquippedCount(item),
-      equippedSlotGroups: item.equipped_slot_groups,
-      name: item.name,
-      rarity: item.rarity,
-      slot: item.slot,
-      slotUsage: item.slot_usage,
-      description: item.description,
-      sellPrice: item.sell_price,
-      stats: item.stat_json ?? {},
-    })),
-    afk: {
-      status: data.afk.status,
-      mapKey: data.afk.map_key,
-      startedAt: toMillis(data.afk.started_at),
-      lastSettledAt: toMillis(data.afk.last_settled_at),
-      shouldShowOfflineRewardModal: options?.shouldShowOfflineRewardModal ?? false,
-      accruedSeconds: data.afk.accrued_seconds,
-      taskDurationSeconds: AFK_TASK_SECONDS,
-      maxOfflineSeconds: MAX_OFFLINE_SECONDS,
-      mapOptions: mapConfigs,
-      currentMap: currentMap
-        ? {
-            key: currentMap.key,
-            label: currentMap.label,
-            summary: currentMap.summary,
-            goldPerMinute: currentMap.goldPerMinute,
-            aetherPerMinute: currentMap.aetherPerMinute,
-            expPerMinute: currentMap.expPerMinute,
-          }
-        : null,
-      pendingReward: {
-        seconds: data.afk.accrued_seconds,
-        gold: data.afk.pending_gold,
-        aetherCrystal: data.afk.pending_aether_crystal,
-        exp: data.afk.pending_exp,
-      },
-      battle: null,
-      estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
-      encounterRates: getEncounterRatesFromEventRules(),
-      recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
-    },
-    market: data.market,
-  };
+  return sharedGameService.unequipBackpackItemForGuest(guestToken, backpackId);
 }
 
 export async function loginGuest(existingGuestToken?: string | null): Promise<GuestLoginResult> {
@@ -2404,712 +1360,47 @@ export async function getGuestBootstrap(
   guestToken?: string | null,
   options?: { forceOfflineSettlement?: boolean },
 ) {
-  await ensureRuntimeGameConfig();
   const loginResult = await loginGuest(guestToken);
-
-  if (!loginResult.hasRole) {
-    return {
-      account: {
-        guestToken: loginResult.guestToken,
-        hasRole: false,
-        mode: loginResult.mode,
-        username: loginResult.username,
-        userId: loginResult.userId,
-      },
-      afk: {
-        status: "idle" as const,
-        mapKey: null,
-        startedAt: null,
-        lastSettledAt: null,
-        shouldShowOfflineRewardModal: false,
-        accruedSeconds: 0,
-        taskDurationSeconds: AFK_TASK_SECONDS,
-        maxOfflineSeconds: MAX_OFFLINE_SECONDS,
-        mapOptions: mapConfigs,
-        currentMap: null,
-        pendingReward: {
-          seconds: 0,
-          gold: 0,
-          aetherCrystal: 0,
-          exp: 0,
-        },
-        battle: null,
-        estimatedHourlyReward: {
-          seconds: 3600,
-          gold: 0,
-          aetherCrystal: 0,
-          exp: 0,
-        },
-        encounterRates: getEncounterRatesFromEventRules(),
-        recentEncounters: [],
-      },
-      market: await getMarketSnapshotForRole(null),
-      backpack: [],
-      config: {
-        classes: classConfigs,
-        levels: levelTable,
-        maps: mapConfigs,
-        races: raceConfigs,
-      },
-      role: null,
-      serverTime: Date.now(),
-    };
-  }
-
-  return getFullSessionSnapshot(loginResult.guestToken, options);
+  return sharedGameService.getSessionSnapshot(loginResult.guestToken, options);
 }
 
 export async function getFullSessionSnapshot(
   guestToken: string,
   options?: { forceOfflineSettlement?: boolean },
 ) {
-  await ensureRuntimeGameConfig();
-  const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
-  const now = Date.now();
-  const lastSeenAt = new Date(data.user.last_seen_at).getTime();
-  const wasOffline =
-    options?.forceOfflineSettlement === true
-    || now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
-  const rewardDelta = settleAfkState(data.afk, {
-    capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
-    now,
-  });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-  const didAutoSettleReward = applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didAutoSettleReward) {
-    consumePendingReward(data.afk, rewardDelta);
-  }
-
-  await withTransaction(async (client) => {
-    await client.query(`UPDATE "user" SET last_seen_at = NOW() WHERE user_id = $1`, [data.user.user_id]);
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didAutoSettleReward) {
-      await persistRole(client, data.role);
-    }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
-    }
-    await persistAfk(client, data.afk);
-  });
-
-  await syncAfkRedis(data.afk);
-  data.role.level = getLevelFromExp(data.role.exp);
-  return buildSnapshot(data, { shouldShowOfflineRewardModal: false });
+  return sharedGameService.getSessionSnapshot(guestToken, options);
 }
 
 export async function startAfk(guestToken: string, mapKey: MapKey) {
-  await ensureRuntimeGameConfig();
-  const map = getMapConfig(mapKey);
-
-  if (!map) {
-    throw new ApiError("地图不存在。", 404);
-  }
-
-  const data = await requireDashboardData(guestToken);
-  const now = Date.now();
-  settleAfkState(data.afk, { now });
-
-  if (data.afk.status === "active") {
-    throw new ApiError("当前已经处于挂机中，请先停止。", 409);
-  }
-
-  data.afk.status = "active";
-  data.afk.map_key = mapKey;
-  data.afk.started_at = new Date(now);
-  data.afk.last_settled_at = new Date(now);
-
-  await withTransaction(async (client) => {
-    await persistAfk(client, data.afk);
-  });
-
-  await syncAfkRedis(data.afk);
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.startAfkForGuest(guestToken, mapKey);
 }
 
 export async function stopAfk(guestToken: string) {
-  await ensureRuntimeGameConfig();
-  const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
-  const now = Date.now();
-  const rewardDelta = settleAfkState(data.afk, { now });
-
-  if (data.afk.status === "idle") {
-    return buildSnapshot(data);
-  }
-
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-  const didApplyReward = applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didApplyReward) {
-    consumePendingReward(data.afk, rewardDelta);
-  }
-
-  data.afk.status = "idle";
-  data.afk.last_settled_at = new Date(now);
-  discardCurrentTaskProgress(data.afk);
-
-  await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyReward) {
-      await persistRole(client, data.role);
-    }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
-    }
-    await persistAfk(client, data.afk);
-  });
-
-  await syncAfkRedis(data.afk);
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.stopAfkForGuest(guestToken);
 }
 
 export async function claimAfkReward(guestToken: string) {
-  await ensureRuntimeGameConfig();
-  const data = await requireDashboardData(guestToken);
-  const didNormalizeRoleHealth = normalizeRoleHealth(data.role, data.backpack);
-  const now = Date.now();
-  const rewardDelta = settleAfkState(data.afk, {
-    capSeconds: MAX_OFFLINE_SECONDS,
-    now,
-  });
-  const didApplyEncounterEffects = applyEncounterEffectsToRole(data.role, rewardDelta.encounters, data.backpack);
-  const didApplyEncounterItems = applyEncounterItemsToBackpack(data.backpack, rewardDelta.itemDrops);
-
-  const lastSeenAt = new Date(data.user.last_seen_at).getTime();
-  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
-
-  const didApplyOnlineReward = !wasOffline && applyRewardToRole(data.role, rewardDelta, data.backpack);
-
-  if (didApplyOnlineReward) {
-    consumePendingReward(data.afk, rewardDelta);
-  }
-
-  if (
-    data.afk.pending_gold <= 0 &&
-    data.afk.pending_aether_crystal <= 0 &&
-    data.afk.pending_exp <= 0
-  ) {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didApplyEncounterItems) {
-      await withTransaction(async (client) => {
-        if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward) {
-          await persistRole(client, data.role);
-        }
-        if (didApplyEncounterItems) {
-          await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
-        }
-        await persistAfk(client, data.afk);
-      });
-      await syncAfkRedis(data.afk);
-    }
-    return buildSnapshot(data);
-  }
-
-  const didClaimPendingReward = applyPendingRewardToRole(data.role, data.afk, data.backpack);
-  data.afk.pending_gold = 0;
-  data.afk.pending_aether_crystal = 0;
-  data.afk.pending_exp = 0;
-  data.afk.last_settled_at = new Date(now);
-
-  await withTransaction(async (client) => {
-    if (didNormalizeRoleHealth || didApplyEncounterEffects || didApplyOnlineReward || didClaimPendingReward) {
-      await persistRole(client, data.role);
-    }
-    if (didApplyEncounterItems) {
-      await persistBackpackItemRewards(client, data.role.role_id, rewardDelta.itemDrops);
-    }
-    await persistAfk(client, data.afk);
-  });
-
-  await syncAfkRedis(data.afk);
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.claimAfkRewardForGuest(guestToken);
 }
 
 export async function dropBackpackItem(guestToken: string, backpackId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedBackpackId = backpackId.trim();
-
-  if (!normalizedBackpackId) {
-    throw new ApiError("缺少背包物品标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
-
-  if (!matchedItem) {
-    throw new ApiError("要丢弃的物品不存在。", 404);
-  }
-
-  await withTransaction(async (client) => {
-    const deleted = await deleteBackpackEntry(client, data.role.role_id, normalizedBackpackId);
-
-    if (!deleted) {
-      throw new ApiError("物品丢弃失败，请稍后重试。", 409);
-    }
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.dropBackpackItemForGuest(guestToken, backpackId);
 }
 
 export async function createMarketListing(guestToken: string, backpackId: string, price: number, quantity: number) {
-  await ensureRuntimeGameConfig();
-  const normalizedBackpackId = backpackId.trim();
-  const normalizedPrice = normalizeNumber(price);
-  const normalizedQuantity = normalizeNumber(quantity);
-
-  if (!normalizedBackpackId) {
-    throw new ApiError("缺少背包物品标识。", 400);
-  }
-
-  if (normalizedPrice <= 0) {
-    throw new ApiError("上架价格必须大于 0。", 400);
-  }
-
-  if (normalizedQuantity <= 0) {
-    throw new ApiError("上架数量必须大于 0。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-  const matchedItem = data.backpack.find((item) => item.backpack_id === normalizedBackpackId);
-
-  if (!matchedItem) {
-    throw new ApiError("要上架的物品不存在。", 404);
-  }
-
-  if (matchedItem.quantity <= (matchedItem.equipped_slot_groups?.length ?? 0)) {
-    throw new ApiError("这件物品没有可上架的剩余数量。", 409);
-  }
-
-  await withTransaction(async (client) => {
-    const roleResult = await client.query<RoleRow>(
-      `
-        SELECT
-          role_id,
-          user_id,
-          name,
-          race_key,
-          class_key,
-          level,
-          exp,
-          gold,
-          aether_crystal,
-          strength,
-          agility,
-          intelligence,
-          vitality,
-          current_health,
-          avatar_seed
-        FROM "role"
-        WHERE role_id = $1
-        FOR UPDATE
-      `,
-      [data.role.role_id],
-    );
-    const lockedRole = roleResult.rows[0];
-
-    if (!lockedRole) {
-      throw new ApiError("角色不存在，请先创建角色。", 404);
-    }
-
-    const backpackResult = await client.query<BackpackRow>(
-      `
-        SELECT
-          backpack.backpack_id,
-          backpack.item_id,
-          backpack.quantity,
-          backpack.equipped,
-          backpack.equipped_slot_groups,
-          item.name,
-          item.rarity,
-          item.icon_key,
-          item.slot,
-          item.slot_usage,
-          item.description,
-          item.sell_price,
-            item.stat_json,
-            item.item_type
-        FROM backpack
-        JOIN item ON item.item_id = backpack.item_id
-        WHERE backpack.role_id = $1 AND backpack.backpack_id = $2
-        FOR UPDATE
-      `,
-      [lockedRole.role_id, normalizedBackpackId],
-    );
-    const lockedBackpackItem = backpackResult.rows[0];
-
-    if (!lockedBackpackItem) {
-      throw new ApiError("要上架的物品不存在。", 404);
-    }
-
-    lockedBackpackItem.equipped_slot_groups = normalizeEquippedSlotGroups(lockedBackpackItem.equipped_slot_groups);
-    const sellableQuantity = Math.max(0, lockedBackpackItem.quantity - getBackpackEquippedCount(lockedBackpackItem));
-
-    if (sellableQuantity <= 0) {
-      throw new ApiError("这件物品没有可上架的剩余数量。", 409);
-    }
-
-    if (normalizedQuantity > sellableQuantity) {
-      throw new ApiError("上架数量超过了当前可出售数量。", 409);
-    }
-
-    if (lockedBackpackItem.quantity <= normalizedQuantity) {
-      const deleted = await deleteBackpackEntry(client, lockedRole.role_id, lockedBackpackItem.backpack_id);
-
-      if (!deleted) {
-        throw new ApiError("上架失败，请稍后重试。", 409);
-      }
-    } else {
-      await client.query(
-        `
-          UPDATE backpack
-          SET quantity = quantity - $3, updated_at = NOW()
-          WHERE backpack_id = $1 AND role_id = $2 AND quantity >= $3
-        `,
-        [lockedBackpackItem.backpack_id, lockedRole.role_id, normalizedQuantity],
-      );
-    }
-
-    for (let index = 0; index < normalizedQuantity; index += 1) {
-      await client.query(
-        `
-          INSERT INTO market_listing (
-            listing_id,
-            seller_role_id,
-            item_id,
-            category_key,
-            price,
-            status,
-            fee_amount,
-            seller_receive_amount,
-            created_at,
-            updated_at
-          )
-            VALUES ($1, $2, $3, $5, $4, 'active', 0, 0, NOW(), NOW())
-          `,
-        [makeId("listing"), lockedRole.role_id, lockedBackpackItem.item_id, normalizedPrice, lockedBackpackItem.item_type],
-      );
-    }
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.createMarketListingForGuest(guestToken, backpackId, price, quantity);
 }
 
 export async function cancelMarketListing(guestToken: string, listingId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedListingId = listingId.trim();
-
-  if (!normalizedListingId) {
-    throw new ApiError("缺少市场挂单标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-
-  await withTransaction(async (client) => {
-    const listingResult = await client.query<MarketListingRow>(
-      `
-        SELECT
-          market_listing.listing_id,
-          market_listing.seller_role_id,
-          seller_role.name AS seller_name,
-          market_listing.item_id,
-          market_listing.category_key,
-          market_listing.price,
-          market_listing.status,
-          market_listing.buyer_role_id,
-          market_listing.sold_price,
-          market_listing.fee_amount,
-          market_listing.seller_receive_amount,
-          market_listing.created_at,
-          market_listing.updated_at,
-          market_listing.sold_at,
-          market_listing.cancelled_at,
-          item.name,
-          item.rarity,
-          item.slot,
-          item.slot_usage,
-          item.description,
-          item.sell_price,
-          item.stat_json
-        FROM market_listing
-        JOIN item ON item.item_id = market_listing.item_id
-        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
-        WHERE market_listing.listing_id = $1
-        FOR UPDATE
-      `,
-      [normalizedListingId],
-    );
-    const listing = listingResult.rows[0];
-
-    if (!listing || listing.seller_role_id !== data.role.role_id) {
-      throw new ApiError("要下架的挂单不存在。", 404);
-    }
-
-    if (listing.status !== "active") {
-      throw new ApiError("该挂单当前不能下架。", 409);
-    }
-
-    const siblingResult = await client.query<{ listing_count: number }>(
-      `
-        SELECT COUNT(*)::INTEGER AS listing_count
-        FROM market_listing
-        WHERE
-          seller_role_id = $1
-          AND item_id = $2
-          AND price = $3
-          AND status = 'active'
-      `,
-      [data.role.role_id, listing.item_id, listing.price],
-    );
-    const listingCount = normalizeNumber(siblingResult.rows[0]?.listing_count ?? 0);
-
-    await client.query(
-      `
-        UPDATE market_listing
-        SET
-          status = 'cancelled',
-          cancelled_at = NOW(),
-          updated_at = NOW()
-        WHERE
-          seller_role_id = $1
-          AND item_id = $2
-          AND price = $3
-          AND status = 'active'
-      `,
-      [data.role.role_id, listing.item_id, listing.price],
-    );
-
-    await upsertBackpackItemQuantity(client, data.role.role_id, listing.item_id, Math.max(1, listingCount));
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.cancelMarketListingForGuest(guestToken, listingId);
 }
 
 export async function dismissMarketSoldNotification(guestToken: string, listingId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedListingId = listingId.trim();
-
-  if (!normalizedListingId) {
-    throw new ApiError("缺少市场挂单标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-
-  await withTransaction(async (client) => {
-    const listingResult = await client.query<MarketListingRow>(
-      `
-        SELECT
-          market_listing.listing_id,
-          market_listing.seller_role_id,
-          seller_role.name AS seller_name,
-          market_listing.item_id,
-          market_listing.category_key,
-          market_listing.price,
-          market_listing.status,
-          market_listing.buyer_role_id,
-          market_listing.sold_price,
-          market_listing.fee_amount,
-          market_listing.seller_receive_amount,
-          market_listing.seller_notice_seen,
-          market_listing.created_at,
-          market_listing.updated_at,
-          market_listing.sold_at,
-          market_listing.cancelled_at,
-          item.name,
-          item.rarity,
-          item.slot,
-          item.slot_usage,
-          item.description,
-          item.sell_price,
-          item.stat_json
-        FROM market_listing
-        JOIN item ON item.item_id = market_listing.item_id
-        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
-        WHERE market_listing.listing_id = $1
-        FOR UPDATE
-      `,
-      [normalizedListingId],
-    );
-    const listing = listingResult.rows[0];
-
-    if (!listing || listing.seller_role_id !== data.role.role_id || listing.status !== "sold") {
-      throw new ApiError("要处理的出售通知不存在。", 404);
-    }
-
-    await client.query(
-      `
-        UPDATE market_listing
-        SET
-          seller_notice_seen = TRUE,
-          updated_at = NOW()
-        WHERE
-          seller_role_id = $1
-          AND item_id = $2
-          AND price = $3
-          AND status = 'sold'
-          AND seller_notice_seen = FALSE
-      `,
-      [data.role.role_id, listing.item_id, listing.price],
-    );
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.dismissMarketSoldNotificationForGuest(guestToken, listingId);
 }
 
 export async function buyMarketListing(guestToken: string, listingId: string) {
-  await ensureRuntimeGameConfig();
-  const normalizedListingId = listingId.trim();
-
-  if (!normalizedListingId) {
-    throw new ApiError("缺少市场挂单标识。", 400);
-  }
-
-  const data = await requireDashboardData(guestToken);
-
-  await withTransaction(async (client) => {
-    const listingResult = await client.query<MarketListingRow>(
-      `
-        SELECT
-          market_listing.listing_id,
-          market_listing.seller_role_id,
-          seller_role.name AS seller_name,
-          market_listing.item_id,
-          market_listing.category_key,
-          market_listing.price,
-          market_listing.status,
-          market_listing.buyer_role_id,
-          market_listing.sold_price,
-          market_listing.fee_amount,
-          market_listing.seller_receive_amount,
-          market_listing.created_at,
-          market_listing.updated_at,
-          market_listing.sold_at,
-          market_listing.cancelled_at,
-          item.name,
-          item.rarity,
-          item.slot,
-          item.slot_usage,
-          item.description,
-          item.sell_price,
-          item.stat_json
-        FROM market_listing
-        JOIN item ON item.item_id = market_listing.item_id
-        JOIN "role" AS seller_role ON seller_role.role_id = market_listing.seller_role_id
-        WHERE market_listing.listing_id = $1
-        FOR UPDATE
-      `,
-      [normalizedListingId],
-    );
-    const listing = listingResult.rows[0];
-
-    if (!listing || listing.status !== "active") {
-      throw new ApiError("这件商品已经被买走或下架了。", 409);
-    }
-
-    if (listing.seller_role_id === data.role.role_id) {
-      throw new ApiError("不能购买自己上架的物品。", 409);
-    }
-
-    const cheapestResult = await client.query<{ listing_id: string }>(
-      `
-        SELECT listing_id
-        FROM market_listing
-        WHERE item_id = $1 AND status = 'active'
-        ORDER BY price ASC, created_at ASC, listing_id ASC
-        LIMIT 1
-      `,
-      [listing.item_id],
-    );
-    const cheapestListingId = cheapestResult.rows[0]?.listing_id ?? null;
-
-    if (cheapestListingId !== listing.listing_id) {
-      throw new ApiError("当前只能购买这件商品中最便宜的那一件。", 409);
-    }
-
-    const [buyerRoleResult, sellerAfkResult] = await Promise.all([
-      client.query<RoleRow>(
-        `
-          SELECT
-            role_id,
-            user_id,
-            name,
-            race_key,
-            class_key,
-            level,
-            exp,
-            gold,
-            aether_crystal,
-            strength,
-            agility,
-            intelligence,
-            vitality,
-            current_health,
-            avatar_seed
-          FROM "role"
-          WHERE role_id = $1
-          FOR UPDATE
-        `,
-        [data.role.role_id],
-      ),
-      client.query<AfkRow>(
-        `
-          SELECT
-            afk_id,
-            role_id,
-            status,
-            map_key,
-            started_at,
-            last_settled_at,
-            pending_gold,
-            pending_aether_crystal,
-            pending_exp,
-            accrued_seconds,
-            recent_encounters
-          FROM afk
-          WHERE role_id = $1
-          FOR UPDATE
-        `,
-        [listing.seller_role_id],
-      ),
-    ]);
-
-    const buyerRole = buyerRoleResult.rows[0];
-    const sellerAfk = sellerAfkResult.rows[0];
-
-    if (!buyerRole || !sellerAfk) {
-      throw new ApiError("交易角色不存在，请稍后重试。", 409);
-    }
-
-    if (buyerRole.gold < listing.price) {
-      throw new ApiError("金币不足，无法购买这件商品。", 409);
-    }
-
-    const { feeAmount, sellerReceiveAmount } = calculateMarketFee(listing.price);
-    buyerRole.gold -= listing.price;
-    sellerAfk.pending_gold += sellerReceiveAmount;
-
-    await persistRole(client, buyerRole);
-    await persistAfk(client, sellerAfk);
-    await upsertBackpackItemQuantity(client, buyerRole.role_id, listing.item_id, 1);
-    await client.query(
-      `
-        UPDATE market_listing
-        SET
-          status = 'sold',
-          buyer_role_id = $2,
-          sold_price = $3,
-          fee_amount = $4,
-          seller_receive_amount = $5,
-          seller_notice_seen = FALSE,
-          sold_at = NOW(),
-          updated_at = NOW()
-        WHERE listing_id = $1 AND status = 'active'
-      `,
-      [listing.listing_id, buyerRole.role_id, listing.price, feeAmount, sellerReceiveAmount],
-    );
-  });
-
-  return getFullSessionSnapshot(guestToken);
+  return sharedGameService.buyMarketListingForGuest(guestToken, listingId);
 }
 
 export function getCreateRoleOptions() {

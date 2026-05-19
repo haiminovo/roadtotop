@@ -20,6 +20,24 @@ export class ApiError extends Error {
   }
 }
 
+function getErrorStatus(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.status;
+  }
+
+  if (
+    error
+    && typeof error === "object"
+    && "status" in error
+    && typeof error.status === "number"
+    && Number.isInteger(error.status)
+  ) {
+    return error.status;
+  }
+
+  return 500;
+}
+
 export function jsonOk(payload: unknown, status = 200) {
   return NextResponse.json(
     {
@@ -35,7 +53,7 @@ export function jsonOk(payload: unknown, status = 200) {
 
 export function jsonError(error: unknown) {
   const message = error instanceof Error ? error.message : "服务端处理失败。";
-  const status = error instanceof ApiError ? error.status : 500;
+  const status = getErrorStatus(error);
   const details = error instanceof ApiError ? error.details : undefined;
 
   if (status >= 500) {

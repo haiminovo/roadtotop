@@ -1,5 +1,9 @@
 const { query, withTransaction } = require("./db");
 const {
+  calculateMarketFee: calculateSharedMarketFee,
+  normalizeNonNegativeInteger,
+} = require("../shared/domain/economy");
+const {
   DEFAULT_CLASS_CONFIGS,
   DEFAULT_ITEM_CATALOG,
   DEFAULT_LEVEL_TABLE,
@@ -122,8 +126,7 @@ function toMillis(value) {
 }
 
 function normalizeNumber(value) {
-  const numericValue = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numericValue) ? Math.max(0, Math.floor(numericValue)) : 0;
+  return normalizeNonNegativeInteger(value);
 }
 
 function normalizeSignedNumber(value) {
@@ -382,12 +385,7 @@ function migrateLegacyRoleExp(role) {
 }
 
 function calculateMarketFee(price) {
-  const normalizedPrice = normalizeNumber(price);
-  const feeAmount = Math.floor((normalizedPrice * MARKET_FEE_RATE_PERCENT) / 100);
-  return {
-    feeAmount,
-    sellerReceiveAmount: Math.max(0, normalizedPrice - feeAmount),
-  };
+  return calculateSharedMarketFee(price, MARKET_FEE_RATE_PERCENT);
 }
 
 function getRarityRank(rarity) {
@@ -3567,7 +3565,7 @@ function buildBootstrapSnapshot(user, market) {
   };
 }
 
-async function getSessionSnapshot(guestToken) {
+async function getSessionSnapshot(guestToken, options = {}) {
   await ensureRuntimeGameConfig();
   const user = await findUserByGuestToken(guestToken);
 
@@ -3598,7 +3596,9 @@ async function getSessionSnapshot(guestToken) {
   }
 
   const lastSeenAt = new Date(data.user.last_seen_at).getTime();
-  const wasOffline = now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
+  const wasOffline =
+    options.forceOfflineSettlement === true
+    || now - lastSeenAt > OFFLINE_MODAL_THRESHOLD_MS;
   const simulation = settleAfkState(data, {
     capSeconds: wasOffline ? MAX_OFFLINE_SECONDS : undefined,
     now,
