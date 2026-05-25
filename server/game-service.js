@@ -65,6 +65,7 @@ let itemSeedById = new Map(itemSeeds.map((item) => [item.itemId, item]));
 let raceConfigs = DEFAULT_RACE_CONFIGS;
 let classConfigs = DEFAULT_CLASS_CONFIGS;
 let mapConfigs = DEFAULT_MAP_CONFIGS;
+let activityConfigs = [];
 let skillTemplates = DEFAULT_SKILL_TEMPLATES;
 let skillTemplateByKey = new Map(skillTemplates.map((skill) => [skill.key, skill]));
 let eventRules = [];
@@ -96,6 +97,7 @@ function applyRuntimeConfig(config) {
   raceConfigs = config.raceConfigs;
   classConfigs = config.classConfigs;
   mapConfigs = config.mapConfigs;
+  activityConfigs = Array.isArray(config.activityConfigs) ? config.activityConfigs : [];
   eventRules = Array.isArray(config.eventRules) ? config.eventRules : [];
   skillTemplates = Array.isArray(config.skillTemplates) ? config.skillTemplates : DEFAULT_SKILL_TEMPLATES;
   skillTemplateByKey = config.skillTemplateByKey || new Map(skillTemplates.map((skill) => [skill.key, skill]));
@@ -925,6 +927,12 @@ function ruleMatchesTrigger(rule, context = {}) {
   const trigger = rule?.trigger || {};
   if (Array.isArray(trigger.mapKeys) && trigger.mapKeys.length > 0) {
     if (!context.mapKey || !trigger.mapKeys.includes(context.mapKey)) {
+      return false;
+    }
+  }
+
+  if (Array.isArray(trigger.activityKeys) && trigger.activityKeys.length > 0) {
+    if (!context.activityKey || !trigger.activityKeys.includes(context.activityKey)) {
       return false;
     }
   }
@@ -2451,7 +2459,7 @@ function resolveBattleProgress(role, afk, backpack = [], options = {}) {
   };
 }
 
-function buildEncounterDelta(executions, settledAt, mapKey = null) {
+function buildEncounterDelta(executions, settledAt, mapKey = null, activityKey = null) {
   const delta = {
     aetherCrystal: 0,
     encounters: [],
@@ -2463,6 +2471,7 @@ function buildEncounterDelta(executions, settledAt, mapKey = null) {
   for (let index = 0; index < executions; index += 1) {
     const matches = evaluateEventRules("afk_tick", {
       mapKey: mapKey || null,
+      activityKey: activityKey || null,
     });
 
     matches.forEach((match) => {
@@ -2531,6 +2540,15 @@ function getCurrentLevelProgress(exp) {
 
 function getMapConfig(mapKey) {
   return mapConfigs.find((item) => item.key === mapKey) || null;
+}
+
+function getActivityConfig(activityKey) {
+  return activityConfigs.find((item) => item.key === activityKey) || null;
+}
+
+function getTaskDurationForActivity(activityKey) {
+  const activity = getActivityConfig(activityKey);
+  return activity ? activity.taskDurationSeconds : AFK_TASK_SECONDS;
 }
 
 function buildHourlyReward(mapKey) {
@@ -2715,6 +2733,11 @@ function applyPendingRewardToRole(role, afk, backpack = []) {
 }
 
 function maybeStartBattle(data, timestamp, summary) {
+  const activityKey = data.afk.activity_key;
+  if (activityKey !== "combat") {
+    return false;
+  }
+
   if (isBattleActive(data.afk.battle_state) || Math.random() >= BATTLE_TRIGGER_CHANCE) {
     return false;
   }
@@ -2742,8 +2765,10 @@ function maybeStartBattle(data, timestamp, summary) {
 }
 
 function resolveAfkExecution(data, timestamp, options, summary) {
-  const baseReward = buildRewardForSeconds(data.afk.map_key, AFK_TASK_SECONDS);
-  const encounterDelta = buildEncounterDelta(1, timestamp, data.afk.map_key);
+  const activityKey = data.afk.activity_key || "combat";
+  const taskDuration = getTaskDurationForActivity(activityKey);
+  const baseReward = buildRewardForSeconds(data.afk.map_key, taskDuration);
+  const encounterDelta = buildEncounterDelta(1, timestamp, data.afk.map_key, activityKey);
   const rewardDelta = {
     aetherCrystal: baseReward.aetherCrystal + encounterDelta.aetherCrystal,
     encounters: encounterDelta.encounters,
@@ -2814,10 +2839,12 @@ function settleAfkState(data, options = {}) {
       continue;
     }
 
+    const activityKey = data.afk.activity_key || "combat";
+    const taskDuration = getTaskDurationForActivity(activityKey);
     data.afk.accrued_seconds = normalizeNumber(data.afk.accrued_seconds) + EXECUTION_REWARD_TICK_SECONDS;
     summary.didMutateAfk = true;
 
-    if (data.afk.accrued_seconds < AFK_TASK_SECONDS) {
+    if (data.afk.accrued_seconds < taskDuration) {
       continue;
     }
 
@@ -2879,21 +2906,23 @@ async function persistAfk(client, afk) {
       UPDATE afk
       SET
         status = $2,
-        map_key = $3,
-        started_at = $4,
-        last_settled_at = $5,
-        pending_gold = $6,
-        pending_aether_crystal = $7,
-        pending_exp = $8,
-        accrued_seconds = $9,
-        recent_encounters = $10::jsonb,
-        battle_state = $11::jsonb,
+        activity_key = $3,
+        map_key = $4,
+        started_at = $5,
+        last_settled_at = $6,
+        pending_gold = $7,
+        pending_aether_crystal = $8,
+        pending_exp = $9,
+        accrued_seconds = $10,
+        recent_encounters = $11::jsonb,
+        battle_state = $12::jsonb,
         updated_at = NOW()
       WHERE afk_id = $1
     `,
     [
       afk.afk_id,
       afk.status,
+      afk.activity_key || null,
       afk.map_key,
       afk.started_at,
       afk.last_settled_at,
@@ -3356,6 +3385,7 @@ async function requireDashboardData(guestToken) {
 function buildSnapshot(data, options = {}) {
   const progress = getCurrentLevelProgress(data.role.exp);
   const currentMap = data.afk.map_key ? getMapConfig(data.afk.map_key) : null;
+  const currentActivity = data.afk.activity_key ? getActivityConfig(data.afk.activity_key) : null;
   const bodySlotCapacities = getBodySlotCapacities(data.role.race_key);
   const bodySlots = buildRoleBodySlots(data.role, data.backpack);
   const effectiveStats = getRoleEffectiveStats(data.role, data.backpack);
@@ -3377,6 +3407,7 @@ function buildSnapshot(data, options = {}) {
       userId: data.user.user_id,
     },
     config: {
+      activities: activityConfigs,
       classes: classConfigs,
       levels: levelTable,
       maps: mapConfigs,
@@ -3453,13 +3484,16 @@ function buildSnapshot(data, options = {}) {
     })),
     afk: {
       status: data.afk.status,
+      activityKey: data.afk.activity_key || null,
       mapKey: data.afk.map_key,
       startedAt: toMillis(data.afk.started_at),
       lastSettledAt: toMillis(data.afk.last_settled_at),
       shouldShowOfflineRewardModal: options.shouldShowOfflineRewardModal || false,
       accruedSeconds: data.afk.accrued_seconds,
-      taskDurationSeconds: AFK_TASK_SECONDS,
+      taskDurationSeconds: getTaskDurationForActivity(data.afk.activity_key || "combat"),
       maxOfflineSeconds: MAX_OFFLINE_SECONDS,
+      activityOptions: activityConfigs,
+      currentActivity,
       mapOptions: mapConfigs,
       currentMap,
       pendingReward: {
@@ -3527,6 +3561,7 @@ function buildBootstrapSnapshot(user, market) {
     },
     afk: {
       status: "idle",
+      activityKey: null,
       mapKey: null,
       startedAt: null,
       lastSettledAt: null,
@@ -3534,6 +3569,8 @@ function buildBootstrapSnapshot(user, market) {
       accruedSeconds: 0,
       taskDurationSeconds: AFK_TASK_SECONDS,
       maxOfflineSeconds: MAX_OFFLINE_SECONDS,
+      activityOptions: activityConfigs,
+      currentActivity: null,
       mapOptions: mapConfigs,
       currentMap: null,
       pendingReward: {
@@ -3555,6 +3592,7 @@ function buildBootstrapSnapshot(user, market) {
     market,
     backpack: [],
     config: {
+      activities: activityConfigs,
       classes: classConfigs,
       levels: levelTable,
       maps: mapConfigs,
@@ -3630,12 +3668,21 @@ async function getSessionSnapshot(guestToken, options = {}) {
   return buildSnapshot(data, { shouldShowOfflineRewardModal });
 }
 
-async function startAfkForGuest(guestToken, mapKey) {
+async function startAfkForGuest(guestToken, activityKey, mapKey) {
   await ensureRuntimeGameConfig();
   const map = getMapConfig(mapKey);
 
   if (!map) {
     throw createServiceError("地图不存在。", 404);
+  }
+
+  const activity = getActivityConfig(activityKey);
+  if (!activity) {
+    throw createServiceError("活动类型不存在。", 404);
+  }
+
+  if (map.activityKey !== activityKey) {
+    throw createServiceError("该地图不属于当前选择的活动类型。", 400);
   }
 
   const data = await requireDashboardData(guestToken);
@@ -3646,7 +3693,12 @@ async function startAfkForGuest(guestToken, mapKey) {
     throw createServiceError("当前已经处于挂机中，请先停止。", 409);
   }
 
+  if (data.role.level < map.minLevel) {
+    throw createServiceError(`需要达到 ${map.minLevel} 级才能进入该地图。`, 403);
+  }
+
   data.afk.status = "active";
+  data.afk.activity_key = activityKey;
   data.afk.map_key = mapKey;
   data.afk.started_at = new Date(now);
   data.afk.last_settled_at = new Date(now);
@@ -4368,6 +4420,7 @@ module.exports = {
   createMarketListingForGuest,
   startPvpBattleForGuest,
   startAfkForGuest,
+  getActivityConfig,
   stopAfkForGuest,
   claimAfkRewardForGuest,
   dropBackpackItemForGuest,

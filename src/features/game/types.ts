@@ -1,4 +1,6 @@
 import type {
+  ActivityConfig,
+  ActivityKey,
   AfkEncounterReward,
   BodySlotCapacities,
   BodySlotType,
@@ -235,6 +237,7 @@ export type SessionSnapshot = {
     userId: string;
   };
   config: {
+    activities: ActivityConfig[];
     classes: ClassConfig[];
     levels: Array<{ level: number; totalExpRequired: number }>;
     maps: MapConfig[];
@@ -286,6 +289,7 @@ export type SessionSnapshot = {
   backpack: BackpackEntry[];
   afk: {
     status: "idle" | "active";
+    activityKey: ActivityKey | null;
     mapKey: MapKey | null;
     startedAt: number | null;
     lastSettledAt: number | null;
@@ -293,6 +297,8 @@ export type SessionSnapshot = {
     accruedSeconds: number;
     taskDurationSeconds: number;
     maxOfflineSeconds: number;
+    activityOptions: ActivityConfig[];
+    currentActivity: ActivityConfig | null;
     mapOptions: MapConfig[];
     currentMap: MapConfig | null;
     pendingReward: RewardPreview;
@@ -358,7 +364,9 @@ export type GameSessionContextValue = {
   isRealtimeReady: boolean;
   registerAccount: (draft: AccountRegistrationDraft) => Promise<void>;
   sendChatMessage: (channelKey: ChatChannelKey, content: string) => Promise<void>;
+  selectedActivityKey: ActivityKey;
   selectedMapKey: MapKey;
+  selectActivity: (activityKey: ActivityKey) => void;
   selectMap: (mapKey: MapKey) => void;
   setActivePanel: (panel: PanelKey) => void;
   snapshot: SessionSnapshot | null;

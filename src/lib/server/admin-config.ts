@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import type {
+  ActivityConfig,
   AfkEncounterConfig,
   BodySlotCapacities,
   BodySlotType,
@@ -10,6 +11,7 @@ import type {
   RaceConfig,
 } from "@/lib/game-config";
 import {
+  activityConfigs as defaultActivityConfigs,
   AFK_TASK_SECONDS,
   BASE_HEALTH,
   classConfigs as defaultClassConfigs,
@@ -164,6 +166,14 @@ export type GameEventRule = {
 };
 
 export type DynamicGameConfig = {
+  activityConfigs: Array<{
+    key: string;
+    label: string;
+    summary: string;
+    iconKey?: string;
+    taskDurationSeconds: number;
+    baseEncounterChance: number;
+  }>;
   afkEncounterChances: Record<EncounterTier, number>;
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
@@ -1878,6 +1888,45 @@ function normalizeClasses(value: unknown): ClassConfig[] {
   return merged;
 }
 
+function normalizeActivities(value: unknown): ActivityConfig[] {
+  const normalized = Array.isArray(value)
+    ? value
+    .map((entry) => {
+      const source = asObject(entry);
+
+      if (!source || !asString(source.key).trim()) {
+        return null;
+      }
+
+      return {
+        key: asString(source.key).trim(),
+        label: asString(source.label),
+        summary: asString(source.summary),
+        iconKey: asString(source.iconKey).trim() || undefined,
+        taskDurationSeconds: Math.max(1, asInt(source.taskDurationSeconds, 10)),
+        baseEncounterChance: asNumber(source.baseEncounterChance, 0.06),
+      } as ActivityConfig;
+    })
+    .filter((entry): entry is ActivityConfig => Boolean(entry))
+    : [];
+  const merged = [...defaultActivityConfigs];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
+
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
+}
+
 function normalizeMaps(value: unknown): MapConfig[] {
   const normalized = Array.isArray(value)
     ? value
@@ -1892,6 +1941,8 @@ function normalizeMaps(value: unknown): MapConfig[] {
         key: asString(source.key).trim(),
         label: asString(source.label),
         summary: asString(source.summary),
+        activityKey: asString(source.activityKey, "combat").trim() || "combat",
+        minLevel: Math.max(1, asInt(source.minLevel, 1)),
         goldPerMinute: asNumber(source.goldPerMinute, 0),
         aetherPerMinute: asNumber(source.aetherPerMinute, 0),
         expPerMinute: asNumber(source.expPerMinute, 0),
@@ -2410,6 +2461,7 @@ export async function getDynamicGameConfig(): Promise<DynamicGameConfig> {
   const configByKey = new Map(configResult.rows.map((row) => [row.config_key, row.value]));
 
   return {
+    activityConfigs: normalizeActivities(configByKey.get("activities")),
     afkEncounterChances: normalizeEncounterChances(configByKey.get("afk-encounter-rates")),
     afkEncounterPool: normalizeEncounters(configByKey.get("afk-encounters")),
     battleEnemyTemplates: normalizeBattleEnemies(configByKey.get("battle-enemies")),

@@ -1,4 +1,5 @@
 import type {
+  ActivityConfig,
   AfkEncounterConfig,
   BodySlotCapacities,
   BodySlotType,
@@ -33,6 +34,7 @@ import {
 export type RuntimeItemSeed = DynamicGameConfig["itemCatalog"][number];
 
 type RuntimeGameConfig = DynamicGameConfig & {
+  activityConfigs: ActivityConfig[];
   afkEncounterPoolByMapAndTier: Record<string, Record<EncounterTier, AfkEncounterConfig[]>>;
   battleEnemyTemplatesByMap: Record<string, BattleEnemyTemplate[]>;
   itemSeedById: Map<string, RuntimeItemSeed>;
@@ -94,6 +96,7 @@ function buildBattleEnemyTemplatesByMap(templates: BattleEnemyTemplate[], mapCon
 function buildRuntimeConfig(source: DynamicGameConfig): RuntimeGameConfig {
   return {
     ...source,
+    activityConfigs: Array.isArray(source.activityConfigs) ? source.activityConfigs as ActivityConfig[] : [],
     afkEncounterPoolByMapAndTier: buildAfkEncounterPoolByMapAndTier(source.afkEncounterPool, source.mapConfigs),
     battleEnemyTemplatesByMap: buildBattleEnemyTemplatesByMap(source.battleEnemyTemplates, source.mapConfigs),
     itemSeedById: new Map(source.itemCatalog.map((item) => [item.itemId, item])),
@@ -124,6 +127,10 @@ export async function getClassConfigs(): Promise<ClassConfig[]> {
 
 export async function getMapConfigs(): Promise<MapConfig[]> {
   return (await loadRuntimeGameConfig()).mapConfigs;
+}
+
+export async function getActivityConfigs(): Promise<ActivityConfig[]> {
+  return (await loadRuntimeGameConfig()).activityConfigs;
 }
 
 export async function getAfkEncounterChances(): Promise<Record<EncounterTier, number>> {

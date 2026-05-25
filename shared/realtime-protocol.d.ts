@@ -24,7 +24,7 @@ export type ServerMessageType =
 
 export type ClientMessagePayloads = {
   "game:session:start": { guestToken: string };
-  "game:afk:start": { mapKey: string };
+  "game:afk:start": { activityKey: string; mapKey: string };
   "game:afk:stop": Record<string, never>;
   "game:afk:claim": Record<string, never>;
   "game:backpack:drop": { backpackId: string };

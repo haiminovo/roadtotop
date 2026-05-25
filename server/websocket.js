@@ -208,10 +208,13 @@ async function handleSessionStart(connection, packet) {
 }
 
 async function handleAfkStart(connection, session, packet) {
+  const activityKey = typeof packet.payload?.activityKey === "string"
+    ? packet.payload.activityKey
+    : undefined;
   const mapKey = typeof packet.payload?.mapKey === "string"
     ? packet.payload.mapKey
     : undefined;
-  const snapshot = await startAfkForGuest(session.guestToken, mapKey);
+  const snapshot = await startAfkForGuest(session.guestToken, activityKey, mapKey);
   setSession(connection, session.guestToken, snapshot);
   sendSnapshot(connection, snapshot, "start");
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Chat from "@/components/chat";
-import { getMaxHealth, type BodySlotType, type ClassKey, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
+import { getMaxHealth, type ActivityConfig, type ActivityKey, type BodySlotType, type ClassKey, type MapConfig, type MapKey, type PanelKey, type RaceKey } from "@/lib/game-config";
 import { useGameSession } from "@/features/game/context/game-session-provider";
 import {
   formatMessage,
@@ -1074,22 +1074,32 @@ function LandingView() {
                 {status === "booting" ? copy.landing.guestLoading : copy.landing.guestEnter}
               </button>
             ) : (
-              <div className="space-y-3">
-                <input
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-600"
-                  onChange={(event) => setUsername(event.target.value)}
-                  placeholder={copy.landing.usernamePlaceholder}
-                  value={username}
-                />
-                <input
-                  className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-600"
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder={copy.landing.passwordPlaceholder}
-                  type="password"
-                  value={password}
-                />
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-medium text-slate-400">
+                    {copy.landing.username}
+                  </span>
+                  <input
+                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-600"
+                    onChange={(event) => setUsername(event.target.value)}
+                    placeholder={copy.landing.usernamePlaceholder}
+                    value={username}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-medium text-slate-400">
+                    {copy.landing.password}
+                  </span>
+                  <input
+                    className="w-full rounded-lg border border-[#30363d] bg-[#0d1117] px-3.5 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-sky-600"
+                    onChange={(event) => setPassword(event.target.value)}
+                    placeholder={copy.landing.passwordPlaceholder}
+                    type="password"
+                    value={password}
+                  />
+                </label>
                 <button
-                  className="w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-6 w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={status === "booting" || status === "saving" || !username.trim() || !password}
                   onClick={() => {
                     void accountLogin({
@@ -1354,6 +1364,7 @@ function CenterPanel({
   backpack,
   isRealtimeReady,
   currentTaskReward,
+  activities,
   maps,
   onRequestBuyMarketListing,
   onConfigureSkillLoadout,
@@ -1362,6 +1373,8 @@ function CenterPanel({
   onSelectItem,
   role,
   selectedBackpackId,
+  selectedActivityKey,
+  selectActivity,
   selectedMapKey,
   selectMap,
   snapshot,
@@ -1380,6 +1393,7 @@ function CenterPanel({
     exp: number;
     gold: number;
   };
+  activities: ActivityConfig[];
   maps: MapConfig[];
   onRequestBuyMarketListing: (listingId: string) => void;
   onConfigureSkillLoadout: (skillKey: string, action: "equip" | "unequip") => void;
@@ -1388,6 +1402,8 @@ function CenterPanel({
   onSelectItem: (backpackId: string) => void;
   role: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>["role"];
   selectedBackpackId: string | null;
+  selectedActivityKey: ActivityKey;
+  selectActivity: (activityKey: ActivityKey) => void;
   selectedMapKey: MapKey;
   selectMap: (mapKey: MapKey) => void;
   snapshot: NonNullable<ReturnType<typeof useGameSession>["snapshot"]>;
@@ -1958,6 +1974,72 @@ function CenterPanel({
       </div>
 
       <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3">
+        {/* 活动类型 Tab */}
+        <div className="flex gap-1 overflow-x-auto">
+          {activities.map((activity) => (
+            <button
+              key={activity.key}
+              className={[
+                "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                selectedActivityKey === activity.key
+                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                  : "border border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-200",
+              ].join(" ")}
+              onClick={() => {
+                selectActivity(activity.key);
+                const firstMap = maps.find((m) => m.activityKey === activity.key);
+                if (firstMap) {
+                  selectMap(firstMap.key);
+                }
+              }}
+              type="button"
+            >
+              {activity.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 地图列表 */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {maps
+            .filter((map) => map.activityKey === selectedActivityKey)
+            .map((map) => {
+              const isUnlocked = role.level >= map.minLevel;
+              const isSelected = map.key === selectedMapKey;
+              return (
+                <button
+                  key={map.key}
+                  className={[
+                    "relative rounded-lg border p-2.5 text-left transition sm:p-3",
+                    isSelected
+                      ? "border-sky-500/40 bg-sky-500/10"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-white/20",
+                    !isUnlocked && "opacity-60",
+                  ].join(" ")}
+                  disabled={!isUnlocked}
+                  onClick={() => selectMap(map.key)}
+                  type="button"
+                >
+                  <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{map.summary}</p>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    {!isUnlocked ? (
+                      <>
+                        <span className="text-xs text-amber-400">🔒 Lv.{map.minLevel}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-emerald-400">✓ Lv.{map.minLevel}</span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400" />
+                  )}
+                </button>
+              );
+            })}
+        </div>
+
+        {/* 选中地图详情 */}
         <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
           {maps
             .filter((map) => map.key === selectedMapKey)
@@ -1967,13 +2049,6 @@ function CenterPanel({
                   <div className="min-w-0">
                     <p className="text-base font-semibold text-white sm:text-lg">{localizeMapLabel(map.key, map.label, locale)}</p>
                   </div>
-                  <button
-                    className="shrink-0 rounded-full border border-white/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.18em] text-slate-300 transition hover:border-sky-200/30 hover:text-white"
-                    onClick={() => selectMap(map.key)}
-                    type="button"
-                  >
-                    {copy.dashboard.currentMapButton}
-                  </button>
                 </div>
                 <div className="mt-2">
                   <TopStatusBar
@@ -2000,7 +2075,7 @@ function CenterPanel({
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <CommandButton
-                    disabled={snapshot.afk.status === "active" || status === "saving" || !isRealtimeReady}
+                    disabled={snapshot.afk.status === "active" || status === "saving" || !isRealtimeReady || role.level < map.minLevel}
                     onClick={() => {
                       void startAfk().catch(() => { });
                     }}
@@ -2042,7 +2117,9 @@ function MainDashboard() {
     registerAccount,
     isRealtimeReady,
     learnSkillBook,
+    selectedActivityKey,
     selectedMapKey,
+    selectActivity,
     selectMap,
     setActivePanel,
     snapshot,
@@ -2766,6 +2843,7 @@ function MainDashboard() {
               backpack={backpack}
               isRealtimeReady={isRealtimeReady}
               currentTaskReward={currentTaskReward}
+              activities={snapshot.config.activities}
               maps={maps}
               onRequestBuyMarketListing={(listingId) => {
                 setPendingMarketPurchaseListingId(listingId);
@@ -2782,6 +2860,8 @@ function MainDashboard() {
               onSelectItem={handleSelectBackpackItem}
               role={role}
               selectedBackpackId={selectedBackpackId}
+              selectedActivityKey={selectedActivityKey}
+              selectActivity={selectActivity}
               selectedMapKey={selectedMapKey}
               selectMap={selectMap}
               snapshot={snapshot}

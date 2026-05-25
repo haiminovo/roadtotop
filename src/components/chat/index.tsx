@@ -377,24 +377,20 @@ export default function Chat() {
 
   const messageItems = useMemo(() => messages.map((message) => {
     const canOpenRole = Boolean(message.senderRole);
+    const isOwnMessage = message.senderUserId === currentUserId;
 
     return (
       <div
         key={message.id}
-        className={[
-          "grid grid-cols-[minmax(4.75rem,7.5rem)_minmax(0,1fr)] items-start gap-x-3 border-b border-[#21262d] py-2 text-sm last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-x-4 sm:py-2.5",
-          message.senderUserId === currentUserId
-            ? "text-[#58a6ff]"
-            : "text-slate-200",
-        ].join(" ")}
+        className="flex flex-col gap-1 border-b border-[#21262d] px-1 py-2 text-sm last:border-b-0 sm:px-2 sm:py-2.5"
         title={`${message.senderName}${shouldShowGuestId(message.senderName) ? ` ${message.senderUserId}` : ""} ${message.content}`}
       >
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="flex items-baseline gap-2">
           <button
             className={[
-              "truncate text-left text-xs font-medium leading-5 tracking-[0.04em] transition sm:text-[13px]",
-              message.senderUserId === currentUserId ? "text-[#58a6ff]" : "text-slate-400",
-              canOpenRole ? "cursor-pointer hover:text-white" : "cursor-default",
+              "truncate text-xs font-medium leading-none transition sm:text-[13px]",
+              isOwnMessage ? "text-[#58a6ff]" : "text-slate-400",
+              canOpenRole ? "cursor-pointer hover:text-white hover:underline decoration-[#58a6ff]/50" : "cursor-default",
             ].join(" ")}
             disabled={!canOpenRole}
             onClick={() => {
@@ -406,13 +402,13 @@ export default function Chat() {
             {message.senderName}
           </button>
           {shouldShowGuestId(message.senderName) ? (
-            <span className="shrink-0 font-mono text-[10px] leading-5 text-slate-500 sm:text-[11px]">
-              {message.senderUserId}
+            <span className="shrink-0 font-mono text-[10px] leading-none text-slate-500/60 sm:text-[11px]">
+              {message.senderUserId.slice(-6)}
             </span>
           ) : null}
-          <span className="shrink-0 text-[10px] leading-5 text-slate-600 sm:text-[11px]">:</span>
+          <span className="shrink-0 text-xs text-slate-600">:</span>
         </div>
-        <p className="min-w-0 whitespace-pre-wrap break-words pt-0.5 text-[13px] leading-5 text-slate-100 sm:text-sm">{message.content}</p>
+        <p className="min-w-0 whitespace-pre-wrap wrap-break-word py-0.5 text-[13px] leading-relaxed text-slate-200 sm:text-sm">{message.content}</p>
       </div>
     );
   }), [currentUserId, messages]);

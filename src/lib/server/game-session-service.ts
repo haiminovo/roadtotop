@@ -11,6 +11,8 @@ import {
   classConfigs as defaultClassConfigs,
   mapConfigs as defaultMapConfigs,
   raceConfigs as defaultRaceConfigs,
+  type ActivityConfig,
+  type ActivityKey,
   type AfkEncounterReward,
   type BodySlotCapacities,
   type BodySlotType,
@@ -53,7 +55,7 @@ type SharedGameService = {
     guestToken: string,
     options?: { forceOfflineSettlement?: boolean },
   ) => Promise<GameSessionSnapshot>;
-  startAfkForGuest: (guestToken: string, mapKey: string) => Promise<GameSessionSnapshot>;
+  startAfkForGuest: (guestToken: string, activityKey: string, mapKey: string) => Promise<GameSessionSnapshot>;
   stopAfkForGuest: (guestToken: string) => Promise<GameSessionSnapshot>;
   unequipBackpackItemForGuest: (guestToken: string, backpackId: string) => Promise<GameSessionSnapshot>;
 };
@@ -356,6 +358,7 @@ export type GameSessionSnapshot = {
   }>;
   afk: {
     status: "idle" | "active";
+    activityKey: ActivityKey | null;
     mapKey: MapKey | null;
     startedAt: number | null;
     lastSettledAt: number | null;
@@ -363,11 +366,15 @@ export type GameSessionSnapshot = {
     accruedSeconds: number;
     taskDurationSeconds: number;
     maxOfflineSeconds: number;
+    activityOptions: ActivityConfig[];
+    currentActivity: ActivityConfig | null;
     mapOptions: typeof mapConfigs;
     currentMap: null | {
       key: MapKey;
       label: string;
       summary: string;
+      activityKey: ActivityKey;
+      minLevel: number;
       goldPerMinute: number;
       aetherPerMinute: number;
       expPerMinute: number;
@@ -422,6 +429,7 @@ let mapConfigs: MapConfig[] = defaultMapConfigs;
 let raceConfigs: RaceConfig[] = defaultRaceConfigs;
 
 applyRuntimeConfig({
+  activityConfigs: [],
   afkEncounterChances: { common: 0, legendary: 0, rare: 0 },
   afkEncounterPool: [],
   afkEncounterPoolByMapAndTier: {},
@@ -1371,8 +1379,8 @@ export async function getFullSessionSnapshot(
   return sharedGameService.getSessionSnapshot(guestToken, options);
 }
 
-export async function startAfk(guestToken: string, mapKey: MapKey) {
-  return sharedGameService.startAfkForGuest(guestToken, mapKey);
+export async function startAfk(guestToken: string, activityKey: ActivityKey, mapKey: MapKey) {
+  return sharedGameService.startAfkForGuest(guestToken, activityKey, mapKey);
 }
 
 export async function stopAfk(guestToken: string) {

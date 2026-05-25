@@ -115,11 +115,40 @@ const DEFAULT_CLASS_CONFIGS = [
   },
 ];
 
+const DEFAULT_ACTIVITY_CONFIGS = [
+  {
+    key: "combat",
+    label: "战斗",
+    summary: "在野外与怪物战斗，获取经验和装备。",
+    iconKey: "GiCrossedSwords",
+    taskDurationSeconds: 10,
+    baseEncounterChance: 0.06,
+  },
+  {
+    key: "gathering",
+    label: "采集",
+    summary: "在森林和矿山中采集资源。",
+    iconKey: "GiHerbsBundle",
+    taskDurationSeconds: 15,
+    baseEncounterChance: 0.04,
+  },
+  {
+    key: "fishing",
+    label: "钓鱼",
+    summary: "在湖泊和河流中钓鱼，获取食材和稀有材料。",
+    iconKey: "GiFishing",
+    taskDurationSeconds: 20,
+    baseEncounterChance: 0.03,
+  },
+];
+
 const DEFAULT_MAP_CONFIGS = [
   {
     key: "palmia-wilds",
     label: "野外",
     summary: "收益平衡，适合刚创角时开第一张图。",
+    activityKey: "combat",
+    minLevel: 1,
     goldPerMinute: 20,
     aetherPerMinute: 0.25,
     expPerMinute: 10,
@@ -128,9 +157,51 @@ const DEFAULT_MAP_CONFIGS = [
     key: "moonfall-ruins",
     label: "月陨遗迹",
     summary: "更危险的废墟地带，奖励更高，也会出现更强的敌人与稀有奇遇。",
+    activityKey: "combat",
+    minLevel: 5,
     goldPerMinute: 42,
     aetherPerMinute: 0.7,
     expPerMinute: 22,
+  },
+  {
+    key: "timber-camp",
+    label: "伐木林场",
+    summary: "稳定产出木材和树脂，适合采集新手。",
+    activityKey: "gathering",
+    minLevel: 1,
+    goldPerMinute: 8,
+    aetherPerMinute: 0.1,
+    expPerMinute: 8,
+  },
+  {
+    key: "iron-vein-mine",
+    label: "浅层矿脉",
+    summary: "采集矿石，偶尔挖到以太晶矿。",
+    activityKey: "gathering",
+    minLevel: 3,
+    goldPerMinute: 10,
+    aetherPerMinute: 0.18,
+    expPerMinute: 9,
+  },
+  {
+    key: "misty-lake",
+    label: "薄雾湖",
+    summary: "湖面常年薄雾笼罩，盛产淡水鱼群。",
+    activityKey: "fishing",
+    minLevel: 2,
+    goldPerMinute: 12,
+    aetherPerMinute: 0.15,
+    expPerMinute: 7,
+  },
+  {
+    key: "crystal-stream",
+    label: "晶溪",
+    summary: "溪水清澈见底，偶尔能钓到带有微光的稀有鱼种。",
+    activityKey: "fishing",
+    minLevel: 4,
+    goldPerMinute: 18,
+    aetherPerMinute: 0.3,
+    expPerMinute: 11,
   },
 ];
 
@@ -981,6 +1052,45 @@ function normalizeClasses(value) {
   return merged;
 }
 
+function normalizeActivities(value) {
+  const normalized = Array.isArray(value)
+    ? value
+    .map((entry) => {
+      const source = asObject(entry);
+
+      if (!source || !asString(source.key).trim()) {
+        return null;
+      }
+
+      return {
+        key: asString(source.key).trim(),
+        label: asString(source.label),
+        summary: asString(source.summary),
+        iconKey: asString(source.iconKey).trim() || undefined,
+        taskDurationSeconds: Math.max(1, asInt(source.taskDurationSeconds, 10)),
+        baseEncounterChance: asNumber(source.baseEncounterChance, 0.06),
+      };
+    })
+    .filter(Boolean)
+    : [];
+  const merged = [...DEFAULT_ACTIVITY_CONFIGS];
+  const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
+
+  normalized.forEach((entry) => {
+    const existingIndex = indexByKey.get(entry.key);
+
+    if (existingIndex === undefined) {
+      indexByKey.set(entry.key, merged.length);
+      merged.push(entry);
+      return;
+    }
+
+    merged[existingIndex] = entry;
+  });
+
+  return merged;
+}
+
 function normalizeMaps(value) {
   const normalized = Array.isArray(value)
     ? value
@@ -995,6 +1105,8 @@ function normalizeMaps(value) {
         key: asString(source.key).trim(),
         label: asString(source.label),
         summary: asString(source.summary),
+        activityKey: asString(source.activityKey, "combat").trim() || "combat",
+        minLevel: Math.max(1, asInt(source.minLevel, 1)),
         goldPerMinute: asNumber(source.goldPerMinute, 0),
         aetherPerMinute: asNumber(source.aetherPerMinute, 0),
         expPerMinute: asNumber(source.expPerMinute, 0),
@@ -1159,6 +1271,9 @@ function buildLegacyEventRules() {
       });
     });
 
+    const mapKeys = Array.isArray(encounter.mapKeys) && encounter.mapKeys.length > 0 ? encounter.mapKeys : undefined;
+    const activityKeys = encounter.activityKey ? [encounter.activityKey] : undefined;
+
     rules.push({
       key: `legacy-encounter-${encounter.key}`,
       name: encounter.title || encounter.key,
@@ -1167,7 +1282,8 @@ function buildLegacyEventRules() {
       chance: DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] || 0,
       trigger: {
         type: "afk_tick",
-        ...(Array.isArray(encounter.mapKeys) && encounter.mapKeys.length > 0 ? { mapKeys: encounter.mapKeys } : {}),
+        ...(mapKeys ? { mapKeys } : {}),
+        ...(activityKeys ? { activityKeys } : {}),
       },
       actions,
       encounter: {
@@ -1238,6 +1354,7 @@ function normalizeEventRules(value) {
         trigger: {
           type: asEventTriggerType(trigger?.type),
           ...(normalizeMapKeys(trigger?.mapKeys) ? { mapKeys: normalizeMapKeys(trigger?.mapKeys) } : {}),
+          ...(normalizeMapKeys(trigger?.activityKeys) ? { activityKeys: normalizeMapKeys(trigger?.activityKeys) } : {}),
           ...(normalizeMapKeys(trigger?.enemyKeys) ? { enemyKeys: normalizeMapKeys(trigger?.enemyKeys) } : {}),
         },
         actions: normalizeEventActions(row.actions),
@@ -1276,6 +1393,7 @@ function normalizeEncounters(value) {
         key: asString(source.key).trim(),
         tier: asEncounterTier(source.tier),
         ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
+        ...(asString(source.activityKey).trim() ? { activityKey: asString(source.activityKey).trim() } : {}),
         title: asString(source.title),
         description: asString(source.description),
         reward: normalizeEncounterReward(source.reward),
@@ -1553,6 +1671,7 @@ function buildRuntimeConfig(source) {
 }
 
 let cachedRuntimeConfig = buildRuntimeConfig({
+  activityConfigs: DEFAULT_ACTIVITY_CONFIGS,
   afkEncounterChances: DEFAULT_AFK_ENCOUNTER_CHANCES,
   afkEncounterPool: DEFAULT_AFK_ENCOUNTER_POOL,
   battleEnemyTemplates: DEFAULT_BATTLE_ENEMIES,
@@ -1593,6 +1712,7 @@ async function getDynamicGameConfig() {
   const configByKey = new Map(configResult.rows.map((row) => [row.config_key, row.value]));
 
   return {
+    activityConfigs: normalizeActivities(configByKey.get("activities")),
     afkEncounterChances: normalizeEncounterChances(configByKey.get("afk-encounter-rates")),
     afkEncounterPool: normalizeEncounters(configByKey.get("afk-encounters")),
     battleEnemyTemplates: normalizeBattleEnemies(configByKey.get("battle-enemies")),
@@ -1633,6 +1753,7 @@ async function refreshRuntimeGameConfig() {
 }
 
 module.exports = {
+  DEFAULT_ACTIVITY_CONFIGS,
   DEFAULT_AFK_ENCOUNTER_CHANCES,
   DEFAULT_AFK_ENCOUNTER_POOL,
   DEFAULT_BATTLE_ENEMIES,

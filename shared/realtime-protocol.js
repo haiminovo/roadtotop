@@ -26,7 +26,7 @@ const SERVER_MESSAGE_TYPES = Object.freeze({
 
 const CLIENT_MESSAGE_SCHEMAS = Object.freeze({
   [CLIENT_MESSAGE_TYPES.AFK_CLAIM]: {},
-  [CLIENT_MESSAGE_TYPES.AFK_START]: { mapKey: "string" },
+  [CLIENT_MESSAGE_TYPES.AFK_START]: { activityKey: "string", mapKey: "string" },
   [CLIENT_MESSAGE_TYPES.AFK_STOP]: {},
   [CLIENT_MESSAGE_TYPES.BACKPACK_DROP]: { backpackId: "string" },
   [CLIENT_MESSAGE_TYPES.BACKPACK_EQUIP]: { backpackId: "string" },

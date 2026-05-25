@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS afk (
   afk_id TEXT PRIMARY KEY,
   role_id TEXT NOT NULL UNIQUE REFERENCES "role"(role_id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'idle',
+  activity_key TEXT,
   map_key TEXT,
   started_at TIMESTAMPTZ,
   last_settled_at TIMESTAMPTZ,
@@ -176,6 +177,9 @@ CREATE TABLE IF NOT EXISTS afk (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE afk
+ADD COLUMN IF NOT EXISTS activity_key TEXT;
 
 ALTER TABLE afk
 ADD COLUMN IF NOT EXISTS recent_encounters JSONB NOT NULL DEFAULT '[]'::jsonb;

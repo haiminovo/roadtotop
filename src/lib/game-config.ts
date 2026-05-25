@@ -1,6 +1,7 @@
 export type RaceKey = "human" | "elf" | "dwarf" | "orc" | "lizardfolk" | "moonkin";
 export type ClassKey = "warrior" | "mage" | "farmer" | "ranger" | "priest" | "rogue";
 export type MapKey = string;
+export type ActivityKey = "combat" | "gathering" | "fishing";
 export type PanelKey = "role" | "backpack" | "afk" | "market";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
@@ -33,10 +34,21 @@ export type ClassConfig = {
   starterItemId: string;
 };
 
+export type ActivityConfig = {
+  key: ActivityKey;
+  label: string;
+  summary: string;
+  iconKey?: string;
+  taskDurationSeconds: number;
+  baseEncounterChance: number;
+};
+
 export type MapConfig = {
   key: MapKey;
   label: string;
   summary: string;
+  activityKey: ActivityKey;
+  minLevel: number;
   goldPerMinute: number;
   aetherPerMinute: number;
   expPerMinute: number;
@@ -61,6 +73,7 @@ export type AfkEncounterConfig = {
   key: string;
   tier: EncounterTier;
   mapKeys?: MapKey[];
+  activityKey?: ActivityKey;
   title: string;
   description: string;
   reward: AfkEncounterReward;
@@ -186,11 +199,40 @@ export const classConfigs: ClassConfig[] = [
   },
 ];
 
+export const activityConfigs: ActivityConfig[] = [
+  {
+    key: "combat",
+    label: "战斗",
+    summary: "在野外与怪物战斗，获取经验和装备。",
+    iconKey: "GiCrossedSwords",
+    taskDurationSeconds: 10,
+    baseEncounterChance: 0.06,
+  },
+  {
+    key: "gathering",
+    label: "采集",
+    summary: "在森林和矿山中采集资源。",
+    iconKey: "GiHerbsBundle",
+    taskDurationSeconds: 15,
+    baseEncounterChance: 0.04,
+  },
+  {
+    key: "fishing",
+    label: "钓鱼",
+    summary: "在湖泊和河流中钓鱼，获取食材和稀有材料。",
+    iconKey: "GiFishing",
+    taskDurationSeconds: 20,
+    baseEncounterChance: 0.03,
+  },
+];
+
 export const mapConfigs: MapConfig[] = [
   {
     key: "palmia-wilds",
     label: "野外",
     summary: "收益平衡，适合刚创角时开第一张图。",
+    activityKey: "combat",
+    minLevel: 1,
     goldPerMinute: 20,
     aetherPerMinute: 0.25,
     expPerMinute: 10,
@@ -199,9 +241,51 @@ export const mapConfigs: MapConfig[] = [
     key: "moonfall-ruins",
     label: "月陨遗迹",
     summary: "更危险的废墟地带，奖励更高，也会出现更强的敌人与稀有奇遇。",
+    activityKey: "combat",
+    minLevel: 5,
     goldPerMinute: 42,
     aetherPerMinute: 0.7,
     expPerMinute: 22,
+  },
+  {
+    key: "timber-camp",
+    label: "伐木林场",
+    summary: "稳定产出木材和树脂，适合采集新手。",
+    activityKey: "gathering",
+    minLevel: 1,
+    goldPerMinute: 8,
+    aetherPerMinute: 0.1,
+    expPerMinute: 8,
+  },
+  {
+    key: "iron-vein-mine",
+    label: "浅层矿脉",
+    summary: "采集矿石，偶尔挖到以太晶矿。",
+    activityKey: "gathering",
+    minLevel: 3,
+    goldPerMinute: 10,
+    aetherPerMinute: 0.18,
+    expPerMinute: 9,
+  },
+  {
+    key: "misty-lake",
+    label: "薄雾湖",
+    summary: "湖面常年薄雾笼罩，盛产淡水鱼群。",
+    activityKey: "fishing",
+    minLevel: 2,
+    goldPerMinute: 12,
+    aetherPerMinute: 0.15,
+    expPerMinute: 7,
+  },
+  {
+    key: "crystal-stream",
+    label: "晶溪",
+    summary: "溪水清澈见底，偶尔能钓到带有微光的稀有鱼种。",
+    activityKey: "fishing",
+    minLevel: 4,
+    goldPerMinute: 18,
+    aetherPerMinute: 0.3,
+    expPerMinute: 11,
   },
 ];
 
@@ -382,6 +466,18 @@ export function getClassConfig(classKey: ClassKey) {
 
 export function getMapConfig(mapKey: MapKey) {
   return mapConfigs.find((item) => item.key === mapKey) ?? null;
+}
+
+export function getActivityConfig(activityKey: ActivityKey) {
+  return activityConfigs.find((item) => item.key === activityKey) ?? null;
+}
+
+export function getMapsByActivity(activityKey: ActivityKey) {
+  return mapConfigs.filter((map) => map.activityKey === activityKey);
+}
+
+export function isMapUnlocked(mapConfig: MapConfig, roleLevel: number): boolean {
+  return roleLevel >= mapConfig.minLevel;
 }
 
 export function getBodySlotCapacities(raceKey: RaceKey) {

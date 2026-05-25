@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { type MapKey, type PanelKey } from "@/lib/game-config";
+import { type ActivityKey, type MapKey, type PanelKey } from "@/lib/game-config";
 import type { ChatChannelKey, ChatMessage } from "@/features/chat/types";
 import { localizeErrorMessage } from "@/lib/i18n";
 import { useI18n } from "@/lib/i18n/provider";
@@ -170,6 +170,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [error, setError] = useState<string | null>(null);
   const [guestToken, setGuestToken] = useState<string | null>(null);
   const [isRealtimeReady, setIsRealtimeReady] = useState(false);
+  const [selectedActivityKey, setSelectedActivityKey] = useState<ActivityKey>("combat");
   const [selectedMapKey, setSelectedMapKey] = useState<MapKey>("palmia-wilds");
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("booting");
@@ -178,10 +179,22 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const shouldReconnectRef = useRef(true);
   const socketRef = useRef<WebSocket | null>(null);
 
-  const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot) => {
+  const handleIncomingSnapshot = useCallback((nextSnapshot: SessionSnapshot, messageType?: string) => {
     setSnapshot(nextSnapshot);
     setStatus("ready");
-    setSelectedMapKey(nextSnapshot.afk.mapKey ?? nextSnapshot.config.maps[0]?.key ?? "palmia-wilds");
+    // 只在 SESSION_READY 时（或首次加载时）同步活动和地图选择，避免覆盖用户的主动切换
+    if (messageType === SERVER_MESSAGE_TYPES.SESSION_READY || !messageType) {
+      setSelectedActivityKey((current) => {
+        const serverActivity = nextSnapshot.afk.activityKey;
+        if (serverActivity) return serverActivity;
+        return current || nextSnapshot.config.activities[0]?.key || "combat";
+      });
+      setSelectedMapKey((current) => {
+        const serverMap = nextSnapshot.afk.mapKey;
+        if (serverMap) return serverMap;
+        return current || nextSnapshot.config.maps[0]?.key || "palmia-wilds";
+      });
+    }
   }, []);
 
   const sendSocketMessage = useCallback(<TType extends ClientMessageType>(
@@ -297,7 +310,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
 
       if (packet.type === SERVER_MESSAGE_TYPES.SESSION_READY || packet.type === SERVER_MESSAGE_TYPES.STATE_UPDATE) {
         if (packet.payload?.snapshot) {
-          handleIncomingSnapshot(packet.payload.snapshot);
+          handleIncomingSnapshot(packet.payload.snapshot, packet.type);
         }
         return;
       }
@@ -584,14 +597,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     try {
       setStatus("saving");
       setError(null);
-      sendSocketMessage(CLIENT_MESSAGE_TYPES.AFK_START, { mapKey: selectedMapKey });
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.AFK_START, { activityKey: selectedActivityKey, mapKey: selectedMapKey });
       setActivePanel("afk");
     } catch (sendError) {
       setStatus("error");
       setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "开始挂机失败。"));
       throw sendError;
     }
-  }, [locale, selectedMapKey, sendSocketMessage]);
+  }, [locale, selectedActivityKey, selectedMapKey, sendSocketMessage]);
 
   const stopAfk = useCallback(async () => {
     try {
@@ -794,7 +807,9 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       learnSkillBook,
       registerAccount,
       sendChatMessage,
+      selectedActivityKey,
       selectedMapKey,
+      selectActivity: setSelectedActivityKey,
       selectMap: setSelectedMapKey,
       setActivePanel,
       snapshot,
@@ -825,6 +840,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       learnSkillBook,
       registerAccount,
       sendChatMessage,
+      selectedActivityKey,
       selectedMapKey,
       snapshot,
       startAfk,
