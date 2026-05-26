@@ -780,6 +780,12 @@ const DEFAULT_ITEM_CATALOG = [
   { itemId: "material-wolf-fang", name: "狼牙", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "常见野兽掉落材料，可用于后续制作与任务。", sellPrice: 6, stats: {} },
   { itemId: "material-crystal-shard", name: "碎晶片", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "奇遇与遗迹怪物常见材料，带有微弱能量。", sellPrice: 12, stats: {} },
   { itemId: "material-moon-dust", name: "月尘", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiPowder", slot: "accessory", slotUsage: 1, description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。", sellPrice: 24, stats: {} },
+  { itemId: "material-timber", name: "原木", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "伐木获得的基础木材，可用于制作与建设。", sellPrice: 5, stats: {} },
+  { itemId: "material-resin", name: "树脂", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiPowder", slot: "accessory", slotUsage: 1, description: "黏稠的天然树脂，适合做粘合剂与防水涂层。", sellPrice: 7, stats: {} },
+  { itemId: "material-iron-ore", name: "铁矿石", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "浅层矿脉中常见的矿石，可熔炼成基础金属。", sellPrice: 6, stats: {} },
+  { itemId: "material-aether-ore", name: "以太矿石", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "带有以太反应的矿石，是制作魔导器具的稳定材料。", sellPrice: 18, stats: {} },
+  { itemId: "material-fresh-fish", name: "鲜鱼", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "钓鱼获得的常见食材，可用于烹饪和交易。", sellPrice: 6, stats: {} },
+  { itemId: "material-glimmer-scale", name: "微光鳞", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "稀有鱼类留下的发光鳞片，带有稳定的水相以太。", sellPrice: 16, stats: {} },
 ];
 const DEFAULT_SYSTEM_BALANCE = {
   marketFeeRatePercent: 10,
@@ -1246,6 +1252,7 @@ function normalizeEventActions(value) {
 
 function buildLegacyEventRules() {
   const rules = [];
+  const mapByKey = new Map(DEFAULT_MAP_CONFIGS.map((map) => [map.key, map]));
 
   DEFAULT_AFK_ENCOUNTER_POOL.forEach((encounter, index) => {
     const actions = [];
@@ -1271,26 +1278,30 @@ function buildLegacyEventRules() {
       });
     });
 
-    const mapKeys = Array.isArray(encounter.mapKeys) && encounter.mapKeys.length > 0 ? encounter.mapKeys : undefined;
-    const activityKeys = encounter.activityKey ? [encounter.activityKey] : undefined;
+    const targetMapKeys = Array.isArray(encounter.mapKeys) && encounter.mapKeys.length > 0
+      ? encounter.mapKeys
+      : DEFAULT_MAP_CONFIGS.map((map) => map.key);
 
-    rules.push({
-      key: `legacy-encounter-${encounter.key}`,
-      name: encounter.title || encounter.key,
-      enabled: true,
-      priority: 1000 + index,
-      chance: DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] || 0,
-      trigger: {
-        type: "afk_tick",
-        ...(mapKeys ? { mapKeys } : {}),
-        ...(activityKeys ? { activityKeys } : {}),
-      },
-      actions,
-      encounter: {
-        tier: encounter.tier,
-        title: encounter.title,
-        description: encounter.description,
-      },
+    targetMapKeys.forEach((mapKey, mapIndex) => {
+      const activityKey = encounter.activityKey || mapByKey.get(mapKey)?.activityKey || "combat";
+      rules.push({
+        key: `encounter-${encounter.key}-${mapKey}`,
+        name: `${encounter.title || encounter.key} / ${mapByKey.get(mapKey)?.label || mapKey}`,
+        enabled: true,
+        priority: 1000 + index * 10 + mapIndex,
+        chance: DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] || 0,
+        trigger: {
+          type: "afk_tick",
+          activityKeys: [activityKey],
+          mapKeys: [mapKey],
+        },
+        actions,
+        encounter: {
+          tier: encounter.tier,
+          title: encounter.title,
+          description: encounter.description,
+        },
+      });
     });
   });
 
@@ -1324,6 +1335,56 @@ function buildLegacyEventRules() {
 
   appendEnemyDropRules(LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-material", 5000);
   appendEnemyDropRules(LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-skillbook", 7000);
+
+  rules.push(
+    {
+      key: "gathering-timber-camp-common",
+      name: "伐木林场基础产出",
+      enabled: true,
+      priority: 8000,
+      chance: 0.8,
+      trigger: { type: "afk_tick", activityKeys: ["gathering"], mapKeys: ["timber-camp"] },
+      actions: [
+        { type: "grant_item", itemId: "material-timber", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-resin", chance: 0.35, quantity: 1 },
+      ],
+    },
+    {
+      key: "gathering-iron-vein-common",
+      name: "浅层矿脉基础产出",
+      enabled: true,
+      priority: 8010,
+      chance: 0.8,
+      trigger: { type: "afk_tick", activityKeys: ["gathering"], mapKeys: ["iron-vein-mine"] },
+      actions: [
+        { type: "grant_item", itemId: "material-iron-ore", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-aether-ore", chance: 0.2, quantity: 1 },
+      ],
+    },
+    {
+      key: "fishing-misty-lake-common",
+      name: "薄雾湖渔获",
+      enabled: true,
+      priority: 8020,
+      chance: 0.85,
+      trigger: { type: "afk_tick", activityKeys: ["fishing"], mapKeys: ["misty-lake"] },
+      actions: [
+        { type: "grant_item", itemId: "material-fresh-fish", min: 1, max: 2 },
+      ],
+    },
+    {
+      key: "fishing-crystal-stream-common",
+      name: "晶溪渔获",
+      enabled: true,
+      priority: 8030,
+      chance: 0.75,
+      trigger: { type: "afk_tick", activityKeys: ["fishing"], mapKeys: ["crystal-stream"] },
+      actions: [
+        { type: "grant_item", itemId: "material-fresh-fish", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-glimmer-scale", chance: 0.25, quantity: 1 },
+      ],
+    },
+  );
 
   return rules;
 }

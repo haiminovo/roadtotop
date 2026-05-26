@@ -1,4 +1,5 @@
 export type ConfigEditorKey =
+  | "activityConfigs"
   | "raceConfigs"
   | "classConfigs"
   | "mapConfigs"
@@ -14,6 +15,7 @@ export type AdminConfigResponse = {
   config: {
     afkEncounterChances: Record<string, number>;
     afkEncounterPool: unknown[];
+    activityConfigs: unknown[];
     battleEnemyTemplates: unknown[];
     classConfigs: unknown[];
     eventRules: unknown[];
@@ -35,6 +37,7 @@ export type AdminConfigResponse = {
 export const CONFIG_KEYS: ConfigEditorKey[] = [
   "raceConfigs",
   "classConfigs",
+  "activityConfigs",
   "mapConfigs",
   "itemCatalog",
   "battleEnemyTemplates",
@@ -44,13 +47,14 @@ export const CONFIG_KEYS: ConfigEditorKey[] = [
 ];
 
 export const CONFIG_LABELS: Record<ConfigEditorKey, string> = {
+  activityConfigs: "活动配置",
   raceConfigs: "种族配置",
   classConfigs: "职业配置",
   mapConfigs: "地图配置",
   itemCatalog: "物品目录",
   battleEnemyTemplates: "怪物模板",
   skillTemplates: "技能模板",
-  eventRules: "统一事件池",
+  eventRules: "事件池（行为/地图）",
   systemBalance: "系统平衡参数",
 };
 
@@ -63,6 +67,7 @@ export const EVENT_RULE_FILTER_LABELS: Record<EventRuleFilter, string> = {
 const ARRAY_CONFIG_KEYS: ConfigEditorKey[] = [
   "raceConfigs",
   "classConfigs",
+  "activityConfigs",
   "mapConfigs",
   "itemCatalog",
   "battleEnemyTemplates",
@@ -147,6 +152,16 @@ const SKILL_SOURCE_LABELS: Record<string, string> = {
 const MAP_KEY_LABELS: Record<string, string> = {
   "palmia-wilds": "野外",
   "moonfall-ruins": "月陨遗迹",
+  "timber-camp": "伐木林场",
+  "iron-vein-mine": "浅层矿脉",
+  "misty-lake": "薄雾湖",
+  "crystal-stream": "晶溪",
+};
+
+const ACTIVITY_KEY_LABELS: Record<string, string> = {
+  combat: "战斗",
+  gathering: "采集",
+  fishing: "钓鱼",
 };
 
 function localizeEnumByPath(path: string, value: unknown): string | null {
@@ -156,6 +171,10 @@ function localizeEnumByPath(path: string, value: unknown): string | null {
 
   if (path.endsWith(".trigger.type")) {
     return EVENT_TRIGGER_LABELS[value] ?? null;
+  }
+
+  if (path.endsWith(".activityKey") || /activityKeys\[\d+\]$/.test(path)) {
+    return ACTIVITY_KEY_LABELS[value] ?? null;
   }
 
   if (/actions\[\d+\]\.type$/.test(path)) {
@@ -283,7 +302,14 @@ export function getArrayItemSubtitle(item: unknown) {
   const trigger = asRecord(row.trigger);
   if (trigger && typeof trigger.type === "string") {
     const triggerLabel = EVENT_TRIGGER_LABELS[trigger.type] ?? trigger.type;
-    return [row.key, triggerLabel, row.priority].filter(Boolean).join(" / ");
+    const activityText = Array.isArray(trigger.activityKeys)
+      ? trigger.activityKeys.map((entry) => enumLabel(entry, localizeEnumByPath("activityKeys[0]", entry))).join(", ")
+      : null;
+    const mapText = Array.isArray(trigger.mapKeys)
+      ? trigger.mapKeys.map((entry) => enumLabel(entry, localizeEnumByPath("mapKeys[0]", entry))).join(", ")
+      : null;
+
+    return [row.key, triggerLabel, activityText, mapText, row.priority].filter(Boolean).join(" / ");
   }
 
   const parts = [
@@ -292,6 +318,7 @@ export function getArrayItemSubtitle(item: unknown) {
     row.type ? enumLabel(row.type, localizeEnumByPath("type", row.type)) : null,
     row.rarity ? enumLabel(row.rarity, localizeEnumByPath("rarity", row.rarity)) : null,
     row.itemType ? enumLabel(row.itemType, localizeEnumByPath("itemType", row.itemType)) : null,
+    row.activityKey ? enumLabel(row.activityKey, localizeEnumByPath("activityKey", row.activityKey)) : null,
     row.slot ? enumLabel(row.slot, localizeEnumByPath("slot", row.slot)) : null,
     row.tier ? enumLabel(row.tier, localizeEnumByPath("tier", row.tier)) : null,
     row.category ? enumLabel(row.category, localizeEnumByPath("category", row.category)) : null,
@@ -325,6 +352,15 @@ export function getEventRuleTriggerType(item: unknown): EventRuleFilter | null {
 
 export function createConfigArrayItem(configKey: ConfigEditorKey) {
   switch (configKey) {
+    case "activityConfigs":
+      return {
+        baseEncounterChance: 0.05,
+        iconKey: null,
+        key: `new-activity-${Date.now()}`,
+        label: "新活动",
+        summary: "",
+        taskDurationSeconds: 10,
+      };
     case "raceConfigs":
       return {
         bodySlotAdjustments: {},
@@ -345,11 +381,13 @@ export function createConfigArrayItem(configKey: ConfigEditorKey) {
       };
     case "mapConfigs":
       return {
+        activityKey: "combat",
         aetherPerMinute: 0,
         expPerMinute: 0,
         goldPerMinute: 0,
         key: `new-map-${Date.now()}`,
         label: "新地图",
+        minLevel: 1,
         summary: "",
       };
     case "itemCatalog":
@@ -403,8 +441,9 @@ export function createConfigArrayItem(configKey: ConfigEditorKey) {
         priority: 100,
         chance: 0.5,
         trigger: {
-          type: "enemy_kill",
-          enemyKeys: [],
+          type: "afk_tick",
+          activityKeys: ["combat"],
+          mapKeys: ["palmia-wilds"],
         },
         actions: [
           {

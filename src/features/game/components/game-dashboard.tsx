@@ -1490,6 +1490,8 @@ function CenterPanel({
   const equipmentCount = backpack.filter((item) => item.itemType === "equipment").length;
   const skillBookCount = backpack.filter((item) => item.itemType === "skill_book").length;
   const materialCount = backpack.filter((item) => item.itemType === "material").length;
+  const selectedActivity = activities.find((activity) => activity.key === selectedActivityKey) ?? activities[0] ?? null;
+  const selectedMap = maps.find((map) => map.key === selectedMapKey) ?? null;
 
   if (!role) {
     return null;
@@ -1954,27 +1956,31 @@ function CenterPanel({
 
   return (
     <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-      <div className="border-b border-[#30363d] px-3 py-2 sm:px-4 sm:py-3">
-        <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
-        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold tracking-[-0.04em] text-white sm:text-[1.35rem]">{copy.dashboard.afkTitle}</h2>
-            <p className="mt-0.5 text-xs text-slate-300/72 sm:text-sm">
-              {copy.dashboard.executionProgress} {formatPercentValue(taskProgressPercent / 100, locale)}
-            </p>
+      <div className="border-b border-[#30363d] px-3 py-2.5 sm:px-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
+            <h2 className="mt-1 truncate text-base font-semibold text-white sm:text-lg">
+              {selectedActivity?.label ?? copy.dashboard.afkTitle}
+              {selectedMap ? ` · ${localizeMapLabel(selectedMap.key, selectedMap.label, locale)}` : ""}
+            </h2>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <DataPill label={copy.dashboard.cycle} value={formatClock(taskDuration)} />
-            <DataPill
-              label={copy.dashboard.currentRound}
-              value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`}
-            />
+          <div className="shrink-0 text-right">
+            <p className="text-xs text-slate-400">{snapshot.afk.status === "active" ? messages.common.active : messages.common.idle}</p>
+            <p className="mt-1 text-sm font-semibold text-sky-100">{formatPercentValue(taskProgressPercent / 100, locale)}</p>
           </div>
+        </div>
+        <div className="mt-2">
+          <TopStatusBar
+            className="border-none bg-transparent p-0"
+            label={copy.dashboard.executionProgress}
+            tone="from-sky-400 via-cyan-300 to-emerald-300"
+            value={taskProgressPercent}
+          />
         </div>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3">
-        {/* 活动类型 Tab */}
         <div className="flex gap-1 overflow-x-auto">
           {activities.map((activity) => (
             <button
@@ -1999,8 +2005,7 @@ function CenterPanel({
           ))}
         </div>
 
-        {/* 地图列表 */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
           {maps
             .filter((map) => map.activityKey === selectedActivityKey)
             .map((map) => {
@@ -2021,15 +2026,14 @@ function CenterPanel({
                   type="button"
                 >
                   <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">{map.summary}</p>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    {!isUnlocked ? (
-                      <>
-                        <span className="text-xs text-amber-400">🔒 Lv.{map.minLevel}</span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-emerald-400">✓ Lv.{map.minLevel}</span>
-                    )}
+                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{map.summary}</p>
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                    <span className={isUnlocked ? "text-emerald-400" : "text-amber-400"}>
+                      Lv.{map.minLevel}
+                    </span>
+                    <span className="text-slate-500">
+                      {formatDecimal(map.goldPerMinute, locale)}金/分
+                    </span>
                   </div>
                   {isSelected && (
                     <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400" />
@@ -2039,39 +2043,17 @@ function CenterPanel({
             })}
         </div>
 
-        {/* 选中地图详情 */}
         <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
           {maps
             .filter((map) => map.key === selectedMapKey)
             .map((map) => (
               <div key={map.key}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-base font-semibold text-white sm:text-lg">{localizeMapLabel(map.key, map.label, locale)}</p>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <TopStatusBar
-                    className="border-none bg-transparent p-0"
-                    label={copy.dashboard.executionProgress}
-                    tone="from-sky-400 via-cyan-300 to-emerald-300"
-                    value={taskProgressPercent}
-                  />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <InlineStat label={copy.dashboard.status} value={snapshot.afk.status === "active" ? messages.common.active : messages.common.idle} />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <InlineStat label={copy.dashboard.currentRound} value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
                   <InlineStat label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
-                  <InlineStat className="col-span-2 sm:col-span-1" label={copy.dashboard.executed} value={formatDuration(taskProgress)} />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <InlineStat label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
                   <InlineStat label={copy.dashboard.roundAether} value={formatNumber(currentTaskReward.aetherCrystal, locale)} />
                   <InlineStat className="col-span-2 sm:col-span-1" label={copy.dashboard.roundExp} value={formatNumber(currentTaskReward.exp, locale)} />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <DataPill label={copy.dashboard.goldPerMinute} value={formatDecimal(map.goldPerMinute, locale)} />
-                  <DataPill label={copy.dashboard.aetherPerMinute} value={formatDecimal(map.aetherPerMinute, locale)} />
-                  <DataPill className="col-span-2 sm:col-span-1" label={copy.dashboard.expPerMinute} value={formatDecimal(map.expPerMinute, locale)} />
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <CommandButton

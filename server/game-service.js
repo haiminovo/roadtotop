@@ -925,6 +925,15 @@ function getSortedEventRulesByTrigger(triggerType) {
 
 function ruleMatchesTrigger(rule, context = {}) {
   const trigger = rule?.trigger || {};
+  if (trigger.type === "afk_tick") {
+    if (!Array.isArray(trigger.activityKeys) || trigger.activityKeys.length !== 1) {
+      return false;
+    }
+    if (!Array.isArray(trigger.mapKeys) || trigger.mapKeys.length !== 1) {
+      return false;
+    }
+  }
+
   if (Array.isArray(trigger.mapKeys) && trigger.mapKeys.length > 0) {
     if (!context.mapKey || !trigger.mapKeys.includes(context.mapKey)) {
       return false;
@@ -1046,7 +1055,7 @@ function evaluateEventRules(triggerType, context = {}) {
   return matches;
 }
 
-function getEncounterRatesFromEventRules() {
+function getEncounterRatesFromEventRules(context = {}) {
   const rates = {
     common: 0,
     rare: 0,
@@ -1055,6 +1064,9 @@ function getEncounterRatesFromEventRules() {
 
   eventRules.forEach((rule) => {
     if (rule?.enabled === false || rule?.trigger?.type !== "afk_tick") {
+      return;
+    }
+    if (!ruleMatchesTrigger(rule, context)) {
       return;
     }
     const tier = rule?.encounter?.tier;
@@ -3543,7 +3555,10 @@ function buildSnapshot(data, options = {}) {
         logs: battleState.logs,
       } : null,
       estimatedHourlyReward: buildHourlyReward(data.afk.map_key),
-      encounterRates: getEncounterRatesFromEventRules(),
+      encounterRates: getEncounterRatesFromEventRules({
+        activityKey: data.afk.activity_key || null,
+        mapKey: data.afk.map_key || null,
+      }),
       recentEncounters: normalizeEncounterLog(data.afk.recent_encounters),
     },
     market: data.market,

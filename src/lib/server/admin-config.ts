@@ -134,6 +134,7 @@ export type GameEventActionType =
 
 export type GameEventTrigger = {
   type: GameEventTriggerType;
+  activityKeys?: string[];
   mapKeys?: string[];
   enemyKeys?: string[];
 };
@@ -166,14 +167,7 @@ export type GameEventRule = {
 };
 
 export type DynamicGameConfig = {
-  activityConfigs: Array<{
-    key: string;
-    label: string;
-    summary: string;
-    iconKey?: string;
-    taskDurationSeconds: number;
-    baseEncounterChance: number;
-  }>;
+  activityConfigs: ActivityConfig[];
   afkEncounterChances: Record<EncounterTier, number>;
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
@@ -835,6 +829,12 @@ const DEFAULT_ITEM_CATALOG: DynamicGameConfig["itemCatalog"] = [
   { itemId: "material-wolf-fang", name: "狼牙", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "常见野兽掉落材料，可用于后续制作与任务。", sellPrice: 6, stats: {} },
   { itemId: "material-crystal-shard", name: "碎晶片", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "奇遇与遗迹怪物常见材料，带有微弱能量。", sellPrice: 12, stats: {} },
   { itemId: "material-moon-dust", name: "月尘", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiPowder", slot: "accessory", slotUsage: 1, description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。", sellPrice: 24, stats: {} },
+  { itemId: "material-timber", name: "原木", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "伐木获得的基础木材，可用于制作与建设。", sellPrice: 5, stats: {} },
+  { itemId: "material-resin", name: "树脂", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiPowder", slot: "accessory", slotUsage: 1, description: "黏稠的天然树脂，适合做粘合剂与防水涂层。", sellPrice: 7, stats: {} },
+  { itemId: "material-iron-ore", name: "铁矿石", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "浅层矿脉中常见的矿石，可熔炼成基础金属。", sellPrice: 6, stats: {} },
+  { itemId: "material-aether-ore", name: "以太矿石", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "带有以太反应的矿石，是制作魔导器具的稳定材料。", sellPrice: 18, stats: {} },
+  { itemId: "material-fresh-fish", name: "鲜鱼", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "钓鱼获得的常见食材，可用于烹饪和交易。", sellPrice: 6, stats: {} },
+  { itemId: "material-glimmer-scale", name: "微光鳞", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "稀有鱼类留下的发光鳞片，带有稳定的水相以太。", sellPrice: 16, stats: {} },
 ];
 const DEFAULT_SYSTEM_BALANCE: SystemBalanceConfig = {
   marketFeeRatePercent: 10,
@@ -1086,6 +1086,7 @@ function normalizeSkillEffects(value: unknown): SkillEffectTemplate[] {
 
 function createConfigErrorBucket(): AdminConfigFieldErrors {
   return {
+    activityConfigs: [],
     afkEncounterChances: [],
     afkEncounterPool: [],
     battleEnemyTemplates: [],
@@ -1232,6 +1233,7 @@ function validateItemStatsObject(
 }
 
 export function validateAdminGameConfig(input: {
+  activityConfigs: ActivityConfig[];
   afkEncounterChances: Record<EncounterTier, number>;
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
@@ -1245,6 +1247,7 @@ export function validateAdminGameConfig(input: {
 }) {
   const errors = createConfigErrorBucket();
   const itemIds = new Set<string>();
+  const activityKeys = new Set<string>();
   const raceKeys = new Set<string>();
   const classKeys = new Set<string>();
   const mapKeys = new Set<string>();
@@ -1382,6 +1385,33 @@ export function validateAdminGameConfig(input: {
     });
   }
 
+  if (!Array.isArray(input.activityConfigs) || input.activityConfigs.length === 0) {
+    pushConfigError(errors, "activityConfigs", "活动配置必须是非空数组。");
+  } else {
+    input.activityConfigs.forEach((activity, index) => {
+      const push = (message: string) => pushConfigError(errors, "activityConfigs", `第 ${index + 1} 项：${message}`);
+      const key = validateRequiredString(activity?.key, "key", push);
+      validateRequiredString(activity?.label, "label", push);
+      validateRequiredString(activity?.summary, "summary", push);
+      validateFiniteNumber(activity?.taskDurationSeconds, "taskDurationSeconds", push, { integer: true, exclusiveMin: 0 });
+      validateFiniteNumber(activity?.baseEncounterChance, "baseEncounterChance", push, { min: 0, max: 1 });
+
+      if (activity?.iconKey !== undefined && activity?.iconKey !== null) {
+        if (typeof activity.iconKey !== "string" || !activity.iconKey.trim()) {
+          push("iconKey 若提供必须是非空字符串。");
+        }
+      }
+
+      if (key) {
+        if (activityKeys.has(key)) {
+          push(`key "${key}" 重复。`);
+        }
+
+        activityKeys.add(key);
+      }
+    });
+  }
+
   if (!Array.isArray(input.mapConfigs) || input.mapConfigs.length === 0) {
     pushConfigError(errors, "mapConfigs", "地图配置必须是非空数组。");
   } else {
@@ -1389,9 +1419,15 @@ export function validateAdminGameConfig(input: {
       const push = (message: string) => pushConfigError(errors, "mapConfigs", `第 ${index + 1} 项：${message}`);
       const key = validateRequiredString(mapConfig?.key, "key", push);
       validateRequiredString(mapConfig?.label, "label", push);
+      const activityKey = validateRequiredString(mapConfig?.activityKey, "activityKey", push);
+      validateFiniteNumber(mapConfig?.minLevel, "minLevel", push, { integer: true, min: 1 });
       validateFiniteNumber(mapConfig?.goldPerMinute, "goldPerMinute", push, { min: 0 });
       validateFiniteNumber(mapConfig?.aetherPerMinute, "aetherPerMinute", push, { min: 0 });
       validateFiniteNumber(mapConfig?.expPerMinute, "expPerMinute", push, { min: 0 });
+
+      if (activityKey && !activityKeys.has(activityKey)) {
+        push(`activityKey "${activityKey}" 不存在于活动配置。`);
+      }
 
       if (key) {
         if (mapKeys.has(key)) {
@@ -1646,7 +1682,7 @@ export function validateAdminGameConfig(input: {
   }
 
   if (!Array.isArray(input.eventRules) || input.eventRules.length === 0) {
-    pushConfigError(errors, "eventRules", "统一事件池必须是非空数组。");
+    pushConfigError(errors, "eventRules", "事件池必须是非空数组。");
   } else {
     const eventKeys = new Set<string>();
 
@@ -1673,6 +1709,23 @@ export function validateAdminGameConfig(input: {
       } else {
         if (rule.trigger.type !== "afk_tick" && rule.trigger.type !== "enemy_kill") {
           push("trigger.type 必须是 afk_tick / enemy_kill 之一。");
+        }
+
+        if (rule.trigger.type === "afk_tick") {
+          if (!Array.isArray(rule.trigger.activityKeys) || rule.trigger.activityKeys.length !== 1) {
+            push("挂机触发规则必须配置且只配置 1 个 trigger.activityKeys。");
+          } else {
+            rule.trigger.activityKeys.forEach((activityKey, activityIndex) => {
+              const validated = validateRequiredString(activityKey, `trigger.activityKeys[${activityIndex + 1}]`, push);
+              if (validated && !activityKeys.has(validated)) {
+                push(`trigger.activityKeys[${activityIndex + 1}] "${validated}" 不存在于活动配置。`);
+              }
+            });
+          }
+
+          if (!Array.isArray(rule.trigger.mapKeys) || rule.trigger.mapKeys.length !== 1) {
+            push("挂机触发规则必须配置且只配置 1 个 trigger.mapKeys。");
+          }
         }
 
         if (rule.trigger.mapKeys !== undefined) {
@@ -2083,6 +2136,7 @@ function normalizeEventActions(value: unknown): GameEventAction[] {
 
 function buildLegacyEventRules(): GameEventRule[] {
   const rules: GameEventRule[] = [];
+  const mapByKey = new Map(defaultMapConfigs.map((map) => [map.key, map]));
 
   DEFAULT_AFK_ENCOUNTER_POOL.forEach((encounter, index) => {
     const actions: GameEventAction[] = [];
@@ -2104,22 +2158,28 @@ function buildLegacyEventRules(): GameEventRule[] {
     });
 
     const tierChance = DEFAULT_AFK_ENCOUNTER_CHANCES[encounter.tier] ?? 0;
-    rules.push({
-      key: `legacy-encounter-${encounter.key}`,
-      name: encounter.title || encounter.key,
-      enabled: true,
-      priority: 1000 + index,
-      chance: tierChance,
-      trigger: {
-        type: "afk_tick",
-        ...(encounter.mapKeys?.length ? { mapKeys: encounter.mapKeys } : {}),
-      },
-      actions,
-      encounter: {
-        tier: encounter.tier,
-        title: encounter.title,
-        description: encounter.description,
-      },
+    const targetMapKeys = encounter.mapKeys?.length ? encounter.mapKeys : defaultMapConfigs.map((map) => map.key);
+
+    targetMapKeys.forEach((mapKey, mapIndex) => {
+      const activityKey = encounter.activityKey ?? mapByKey.get(mapKey)?.activityKey ?? "combat";
+      rules.push({
+        key: `encounter-${encounter.key}-${mapKey}`,
+        name: `${encounter.title || encounter.key} / ${mapByKey.get(mapKey)?.label ?? mapKey}`,
+        enabled: true,
+        priority: 1000 + index * 10 + mapIndex,
+        chance: tierChance,
+        trigger: {
+          type: "afk_tick",
+          activityKeys: [activityKey],
+          mapKeys: [mapKey],
+        },
+        actions,
+        encounter: {
+          tier: encounter.tier,
+          title: encounter.title,
+          description: encounter.description,
+        },
+      });
     });
   });
 
@@ -2154,6 +2214,56 @@ function buildLegacyEventRules(): GameEventRule[] {
   appendEnemyDropRules(LEGACY_MATERIAL_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-material", 5000);
   appendEnemyDropRules(LEGACY_SKILL_BOOK_DROP_POOL_BY_ENEMY_KEY, "legacy-drop-skillbook", 7000);
 
+  rules.push(
+    {
+      key: "gathering-timber-camp-common",
+      name: "伐木林场基础产出",
+      enabled: true,
+      priority: 8000,
+      chance: 0.8,
+      trigger: { type: "afk_tick", activityKeys: ["gathering"], mapKeys: ["timber-camp"] },
+      actions: [
+        { type: "grant_item", itemId: "material-timber", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-resin", chance: 0.35, quantity: 1 },
+      ],
+    },
+    {
+      key: "gathering-iron-vein-common",
+      name: "浅层矿脉基础产出",
+      enabled: true,
+      priority: 8010,
+      chance: 0.8,
+      trigger: { type: "afk_tick", activityKeys: ["gathering"], mapKeys: ["iron-vein-mine"] },
+      actions: [
+        { type: "grant_item", itemId: "material-iron-ore", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-aether-ore", chance: 0.2, quantity: 1 },
+      ],
+    },
+    {
+      key: "fishing-misty-lake-common",
+      name: "薄雾湖渔获",
+      enabled: true,
+      priority: 8020,
+      chance: 0.85,
+      trigger: { type: "afk_tick", activityKeys: ["fishing"], mapKeys: ["misty-lake"] },
+      actions: [
+        { type: "grant_item", itemId: "material-fresh-fish", min: 1, max: 2 },
+      ],
+    },
+    {
+      key: "fishing-crystal-stream-common",
+      name: "晶溪渔获",
+      enabled: true,
+      priority: 8030,
+      chance: 0.75,
+      trigger: { type: "afk_tick", activityKeys: ["fishing"], mapKeys: ["crystal-stream"] },
+      actions: [
+        { type: "grant_item", itemId: "material-fresh-fish", min: 1, max: 2 },
+        { type: "grant_item", itemId: "material-glimmer-scale", chance: 0.25, quantity: 1 },
+      ],
+    },
+  );
+
   return rules;
 }
 
@@ -2184,6 +2294,7 @@ function normalizeEventRules(value: unknown): GameEventRule[] {
         chance: asNumber(row.chance, 1),
         trigger: {
           type: asEventTriggerType(trigger?.type),
+          ...(normalizeMapKeys(trigger?.activityKeys) ? { activityKeys: normalizeMapKeys(trigger?.activityKeys) } : {}),
           ...(normalizeMapKeys(trigger?.mapKeys) ? { mapKeys: normalizeMapKeys(trigger?.mapKeys) } : {}),
           ...(normalizeMapKeys(trigger?.enemyKeys) ? { enemyKeys: normalizeMapKeys(trigger?.enemyKeys) } : {}),
         },
@@ -2919,6 +3030,7 @@ export async function deleteAdminRole(roleId: string) {
 }
 
 export async function saveAdminGameConfig(input: {
+  activityConfigs: ActivityConfig[];
   afkEncounterChances: Record<EncounterTier, number>;
   afkEncounterPool: AfkEncounterConfig[];
   battleEnemyTemplates: BattleEnemyTemplate[];
@@ -2948,6 +3060,7 @@ export async function saveAdminGameConfig(input: {
 
     await upsertConfig("races", "list", input.raceConfigs);
     await upsertConfig("classes", "list", input.classConfigs);
+    await upsertConfig("activities", "list", input.activityConfigs);
     await upsertConfig("maps", "list", input.mapConfigs);
     await upsertConfig("afk-encounter-rates", "object", input.afkEncounterChances);
     await upsertConfig("afk-encounters", "list", input.afkEncounterPool);

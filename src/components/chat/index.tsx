@@ -378,44 +378,61 @@ export default function Chat() {
   const messageItems = useMemo(() => messages.map((message) => {
     const canOpenRole = Boolean(message.senderRole);
     const isOwnMessage = message.senderUserId === currentUserId;
+    const guestSuffix = shouldShowGuestId(message.senderName) ? message.senderUserId.slice(-6) : null;
 
     return (
       <div
         key={message.id}
-        className="flex flex-col gap-1 border-b border-[#21262d] px-1 py-2 text-sm last:border-b-0 sm:px-2 sm:py-2.5"
+        className={[
+          "flex border-b border-[#21262d]/75 py-1.5 text-sm last:border-b-0 sm:py-2",
+          isOwnMessage ? "justify-end" : "justify-start",
+        ].join(" ")}
         title={`${message.senderName}${shouldShowGuestId(message.senderName) ? ` ${message.senderUserId}` : ""} ${message.content}`}
       >
-        <div className="flex items-baseline gap-2">
-          <button
-            className={[
-              "truncate text-xs font-medium leading-none transition sm:text-[13px]",
-              isOwnMessage ? "text-[#58a6ff]" : "text-slate-400",
-              canOpenRole ? "cursor-pointer hover:text-white hover:underline decoration-[#58a6ff]/50" : "cursor-default",
-            ].join(" ")}
-            disabled={!canOpenRole}
-            onClick={() => {
-              setSelectedRole(message.senderRole);
-              setIsRoleModalOpen(true);
-            }}
-            type="button"
-          >
-            {message.senderName}
-          </button>
-          {shouldShowGuestId(message.senderName) ? (
-            <span className="shrink-0 font-mono text-[10px] leading-none text-slate-500/60 sm:text-[11px]">
-              {message.senderUserId.slice(-6)}
-            </span>
-          ) : null}
-          <span className="shrink-0 text-xs text-slate-600">:</span>
+        <div
+          className={[
+            "max-w-[88%] rounded-md border px-2.5 py-2 shadow-sm sm:max-w-[82%] sm:px-3",
+            isOwnMessage
+              ? "border-[#1f6feb]/40 bg-[#1f6feb]/14 text-sky-50"
+              : "border-[#30363d] bg-[#11161d] text-slate-100",
+          ].join(" ")}
+        >
+          <div className={["mb-1 flex items-center gap-1.5", isOwnMessage ? "justify-end" : "justify-start"].join(" ")}>
+            {isOwnMessage ? (
+              <span className="rounded-full border border-[#58a6ff]/35 bg-[#58a6ff]/10 px-1.5 py-0.5 text-[10px] leading-none text-[#79c0ff]">
+                我
+              </span>
+            ) : null}
+            <button
+              className={[
+                "max-w-36 truncate text-left text-[11px] font-medium leading-none transition sm:max-w-44 sm:text-xs",
+                isOwnMessage ? "text-[#79c0ff]" : "text-slate-400",
+                canOpenRole ? "cursor-pointer hover:text-white hover:underline decoration-[#58a6ff]/50" : "cursor-default",
+              ].join(" ")}
+              disabled={!canOpenRole}
+              onClick={() => {
+                setSelectedRole(message.senderRole);
+                setIsRoleModalOpen(true);
+              }}
+              type="button"
+            >
+              {message.senderName}
+            </button>
+            {guestSuffix ? (
+              <span className="font-mono text-[10px] leading-none text-slate-500/70">
+                #{guestSuffix}
+              </span>
+            ) : null}
+          </div>
+          <p className="min-w-0 whitespace-pre-wrap break-words text-left text-[13px] leading-5 sm:text-sm sm:leading-6">{message.content}</p>
         </div>
-        <p className="min-w-0 whitespace-pre-wrap wrap-break-word py-0.5 text-[13px] leading-relaxed text-slate-200 sm:text-sm">{message.content}</p>
       </div>
     );
   }), [currentUserId, messages]);
 
   return (
     <>
-      <section className="flex h-[20rem] max-h-[65vh] min-h-[20rem] flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] p-2 text-slate-200 sm:h-[24rem] sm:min-h-[24rem] sm:p-3 xl:h-full xl:max-h-none xl:min-h-0">
+      <section className="flex h-80 max-h-[65vh] min-h-80 flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] p-2 text-slate-200 sm:h-96 sm:min-h-96 sm:p-3 xl:h-full xl:max-h-none xl:min-h-0">
         <div className="mb-1.5 flex items-center justify-between gap-2 sm:mb-2">
           <div className="min-w-0 flex flex-1 items-center gap-1.5 sm:gap-2">
               <button

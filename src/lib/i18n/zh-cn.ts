@@ -139,7 +139,7 @@ export const zhCN = {
       encounterLogTitle: "自己触发的奇遇",
       encounterLogSummary: "每次完整执行动作后都会在服务端做一次奇遇判定，部分奇遇会直接掉血或回血，血量归零会立刻掉 1 级。",
       encounterEmpty: "这里会显示你最近触发的奇遇。当前还没有记录，继续挂机跑完整轮次就有机会刷出来。",
-      encounterRatesHint: "完成每一次完整动作执行后，服务端会按“统一事件池”中的挂机触发规则判定奇遇与奖励。",
+      encounterRatesHint: "完成每一次完整动作执行后，服务端会按当前活动与地图对应的事件池判定奇遇与奖励。",
       backpackTitle: "背包",
       inventoryCount: "物品数",
       equipmentCount: "装备数",
@@ -507,6 +507,12 @@ export const zhCN = {
       "material-wolf-fang": { name: "狼牙", description: "常见野兽掉落材料，可用于后续制作与任务。" },
       "material-crystal-shard": { name: "碎晶片", description: "奇遇与遗迹怪物常见材料，带有微弱能量。" },
       "material-moon-dust": { name: "月尘", description: "稀有月辉残渣，多见于高阶奇遇与精英敌人。" },
+      "material-timber": { name: "原木", description: "伐木获得的基础木材，可用于制作与建设。" },
+      "material-resin": { name: "树脂", description: "黏稠的天然树脂，适合做粘合剂与防水涂层。" },
+      "material-iron-ore": { name: "铁矿石", description: "浅层矿脉中常见的矿石，可熔炼成基础金属。" },
+      "material-aether-ore": { name: "以太矿石", description: "带有以太反应的矿石，是制作魔导器具的稳定材料。" },
+      "material-fresh-fish": { name: "鲜鱼", description: "钓鱼获得的常见食材，可用于烹饪和交易。" },
+      "material-glimmer-scale": { name: "微光鳞", description: "稀有鱼类留下的发光鳞片，带有稳定的水相以太。" },
     },
     encounters: {
       "wanderer-cache": {

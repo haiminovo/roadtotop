@@ -244,7 +244,7 @@ export default function ConfigKeyPage() {
           <div className="space-y-3">
             {configKey === "eventRules" ? (
               <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
-                统一事件池已覆盖挂机遭遇。可用筛选分离“挂机触发 / 击杀触发”规则，避免维护重复配置。
+                事件池按活动和地图隔离。挂机触发规则必须指定一个 activityKeys 和一个 mapKeys；击杀触发规则按怪物配置。
               </div>
             ) : null}
 

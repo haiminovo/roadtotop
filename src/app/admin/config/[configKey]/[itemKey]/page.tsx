@@ -103,6 +103,14 @@ const EVENT_TRIGGER_OPTIONS: FieldOption[] = [
 ];
 
 const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
+  activityConfigs: {
+    baseEncounterChance: { hint: "该活动默认遭遇概率，范围 0~1。", label: "基础事件概率" },
+    iconKey: { hint: "活动图标资源 key，可为空。", label: "图标Key" },
+    key: { hint: "活动唯一标识，不能重复。", label: "活动Key" },
+    label: { hint: "展示给玩家的活动名称。", label: "活动名称" },
+    summary: { hint: "活动说明文案。", label: "活动说明" },
+    taskDurationSeconds: { hint: "该活动每轮执行秒数，需大于 0。", label: "执行周期秒" },
+  },
   battleEnemyTemplates: {
     fixedSkillKeys: { hint: "固定技能列表，优先于随机技能池。", label: "固定技能" },
     key: { hint: "怪物唯一标识，不能重复。", label: "怪物Key" },
@@ -128,7 +136,7 @@ const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
     key: { hint: "规则唯一标识，不能重复。", label: "规则Key" },
     name: { hint: "规则名称，方便检索和识别。", label: "规则名称" },
     priority: { hint: "优先级，越大越先判定。", label: "优先级" },
-    trigger: { hint: "触发条件（挂机/击杀、地图、怪物等）。", label: "触发条件" },
+    trigger: { hint: "触发条件。挂机触发必须指定 1 个活动 activityKeys 和 1 个地图 mapKeys。", label: "触发条件" },
   },
   itemCatalog: {
     description: { hint: "物品描述文本。", label: "描述" },
@@ -144,11 +152,13 @@ const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
     stats: { hint: "装备附加属性。", label: "属性加成" },
   },
   mapConfigs: {
+    activityKey: { hint: "地图所属活动 key，必须存在于活动配置。", label: "所属活动" },
     aetherPerMinute: { hint: "挂机每分钟产出的以太。", label: "每分钟以太" },
     expPerMinute: { hint: "挂机每分钟产出的经验。", label: "每分钟经验" },
     goldPerMinute: { hint: "挂机每分钟产出的金币。", label: "每分钟金币" },
     key: { hint: "地图唯一标识，不能重复。", label: "地图Key" },
     label: { hint: "地图展示名。", label: "地图名称" },
+    minLevel: { hint: "进入该地图需要的最低角色等级。", label: "最低等级" },
     summary: { hint: "地图描述文案。", label: "地图描述" },
   },
   raceConfigs: {
@@ -233,8 +243,8 @@ const JSON_FIELD_HINTS: Partial<Record<ConfigEditorKey, Record<string, JsonField
       fields: ["title: string", "description: string", "reward: object（可选）"],
     },
     trigger: {
-      example: "{\n  \"type\": \"enemy_kill\",\n  \"enemyKeys\": [\"slime\"]\n}",
-      fields: ["type: afk_tick | enemy_kill", "mapKeys: string[]（可选）", "enemyKeys: string[]（enemy_kill 时常用）"],
+      example: "{\n  \"type\": \"afk_tick\",\n  \"activityKeys\": [\"gathering\"],\n  \"mapKeys\": [\"timber-camp\"]\n}",
+      fields: ["type: afk_tick | enemy_kill", "activityKeys: string[]（afk_tick 必填且只填 1 个）", "mapKeys: string[]（afk_tick 必填且只填 1 个）", "enemyKeys: string[]（enemy_kill 时常用）"],
     },
   },
   itemCatalog: {

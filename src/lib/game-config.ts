@@ -1,7 +1,7 @@
 export type RaceKey = "human" | "elf" | "dwarf" | "orc" | "lizardfolk" | "moonkin";
 export type ClassKey = "warrior" | "mage" | "farmer" | "ranger" | "priest" | "rogue";
 export type MapKey = string;
-export type ActivityKey = "combat" | "gathering" | "fishing";
+export type ActivityKey = string;
 export type PanelKey = "role" | "backpack" | "afk" | "market";
 export type EncounterTier = "common" | "rare" | "legendary";
 export type ItemRarity = "white" | "green" | "blue" | "purple" | "orange";
