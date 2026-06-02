@@ -3358,6 +3358,7 @@ async function requireDashboardData(guestToken) {
           afk_id,
           role_id,
           status,
+          activity_key,
           map_key,
           started_at,
           last_settled_at,

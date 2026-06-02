@@ -20,6 +20,18 @@ import {
   getItemTypeFallbackIconKey,
   getRaceFallbackIconKey,
 } from "@/lib/ui/game-icons";
+import {
+  GiCardExchange,
+  GiCash,
+  GiCrossedSwords,
+  GiDoorway,
+  GiKeyring,
+  GiKnapsack,
+  GiPathDistance,
+  GiServerRack,
+  GiShop,
+  GiCharacter,
+} from "react-icons/gi";
 
 type I18nMessages = ReturnType<typeof getMessages>;
 const DEFAULT_LOCALE: SupportedLocale = "zh-CN";
@@ -268,12 +280,12 @@ function itemAccent(rarity: string) {
 
 function marketItemCardAccent(rarity: string) {
   return {
-    white: "border-slate-700 bg-[#0d1117]",
-    green: "border-emerald-900 bg-[#0d1117]",
-    blue: "border-sky-900 bg-[#0d1117]",
-    purple: "border-fuchsia-900 bg-[#0d1117]",
-    orange: "border-amber-900 bg-[#0d1117]",
-  }[rarity] ?? "border-slate-700 bg-[#0d1117]";
+    white: "border-slate-700/60 bg-[#0d1117]",
+    green: "border-emerald-800/50 bg-emerald-950/20",
+    blue: "border-sky-800/50 bg-sky-950/20",
+    purple: "border-fuchsia-800/50 bg-fuchsia-950/20",
+    orange: "border-amber-800/50 bg-amber-950/20",
+  }[rarity] ?? "border-slate-700/60 bg-[#0d1117]";
 }
 
 function getItemActionDefinition(actionKey: ItemActionKey, messages: I18nMessages = DEFAULT_MESSAGES) {
@@ -324,7 +336,7 @@ function SectionCard({
   return (
     <section
       className={[
-        "rounded-lg border border-[#30363d] bg-[#161b22]",
+        "rounded-lg border border-[#30363d] bg-[#161b22] shadow-[0_0_20px_rgba(0,0,0,0.2)]",
         className,
       ].join(" ")}
     >
@@ -343,8 +355,8 @@ function OverlayModal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/70 px-2 py-2 sm:px-4 sm:py-4">
-      <div className="mx-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] sm:max-h-[calc(100dvh-2rem)]">
+    <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/75 backdrop-blur-sm px-2 py-2 sm:px-4 sm:py-4">
+      <div className="mx-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22] shadow-[0_0_60px_rgba(0,0,0,0.5)] sm:max-h-[calc(100dvh-2rem)]">
         <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
           {children}
         </div>
@@ -378,7 +390,7 @@ function TopStatusBar({
         <span>{label}</span>
         <span>{valueLabel ?? `${Math.max(0, Math.floor(safeValue))}%`}</span>
       </div>
-      <div className={`${barClassName} overflow-hidden rounded-full bg-[#21262d]`}>
+      <div className={`${barClassName} progress-shine overflow-hidden rounded-full bg-[#21262d]`}>
         <div
           className={`h-full rounded-full bg-gradient-to-r transition-[width] duration-700 ease-out ${tone}`}
           style={{ width: `${safeValue}%` }}
@@ -914,32 +926,37 @@ function BattleStatusBar({
 function RailButton({
   active,
   count,
+  icon: Icon,
   label,
   onClick,
 }: {
   active: boolean;
   count?: string;
+  icon?: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
       className={[
-        "group flex min-h-12 w-full flex-col justify-center rounded-lg border px-2 py-1.5 text-left transition sm:min-h-14 sm:px-3 sm:py-2",
+        "group flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition sm:min-h-14 sm:px-3 sm:py-2",
         active
-          ? "border-[#58a6ff] bg-[#1f6feb]/10 text-white"
+          ? "border-sky-500/50 bg-sky-500/10 text-white glow-border-sky"
           : "border-[#30363d] bg-transparent text-slate-300 hover:border-[#484f58] hover:text-white",
       ].join(" ")}
       onClick={onClick}
       type="button"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 break-words text-sm font-medium leading-5 sm:truncate">{label}</span>
+      {Icon ? (
+        <Icon className={`h-4 w-4 shrink-0 transition sm:h-5 sm:w-5 ${active ? "text-sky-400" : "text-slate-500 group-hover:text-slate-300"}`} />
+      ) : null}
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-1.5">
+        <span className="min-w-0 truncate text-xs font-medium leading-5 sm:text-sm">{label}</span>
         {count ? (
           <span
             className={[
               "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2",
-              active ? "bg-[#1f6feb]/20 text-[#58a6ff]" : "bg-[#21262d] text-slate-500",
+              active ? "bg-sky-500/20 text-sky-400" : "bg-[#21262d] text-slate-500",
             ].join(" ")}
           >
             {count}
@@ -975,9 +992,9 @@ function ItemTile({
   return (
     <button
       className={[
-        "group relative flex aspect-square flex-col overflow-hidden rounded-lg border p-1 text-left transition sm:p-1.5",
+        "group relative flex aspect-square flex-col overflow-hidden rounded-lg border p-1 text-left transition-all sm:p-1.5",
         itemAccent(rarity),
-        active ? "ring-2 ring-[#58a6ff]/50" : "hover:-translate-y-px",
+        active ? "ring-2 ring-sky-400/50 glow-border-sky" : "hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)]",
       ].join(" ")}
       onClick={onClick}
       title={itemName}
@@ -1015,17 +1032,20 @@ function LandingView() {
     <main className="flex min-h-screen items-center justify-center px-4 py-10 text-slate-100 sm:px-6">
       <div className="w-full max-w-sm">
         {/* Brand */}
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-sky-500/30 bg-sky-500/10 glow-border-sky animate-pulse-glow sm:h-20 sm:w-20">
+            <GiCrossedSwords className="h-8 w-8 text-sky-400 sm:h-10 sm:w-10" />
+          </div>
+          <h1 className="bg-gradient-to-r from-sky-300 via-cyan-300 to-emerald-300 bg-clip-text text-3xl font-bold tracking-tight text-transparent sm:text-4xl">
             Road To Top
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-500">
             网页放置冒险
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="rounded-xl border border-[#30363d] bg-[#161b22]">
+        <div className="rounded-xl border border-[#30363d] bg-[#161b22] shadow-[0_0_40px_rgba(56,189,248,0.06)]">
           {/* Tabs */}
           <div className="flex border-b border-[#30363d]">
             <button
@@ -1064,13 +1084,14 @@ function LandingView() {
           <div className="p-4 sm:p-5">
             {loginMode === "guest" ? (
               <button
-                className="w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-gradient-to-r from-sky-600 to-cyan-600 px-4 py-3 text-sm font-medium text-white transition hover:from-sky-500 hover:to-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={status === "booting" || status === "saving"}
                 onClick={() => {
                   void guestLogin();
                 }}
                 type="button"
               >
+                <GiDoorway className="h-4 w-4" />
                 {status === "booting" ? copy.landing.guestLoading : copy.landing.guestEnter}
               </button>
             ) : (
@@ -1099,7 +1120,7 @@ function LandingView() {
                   />
                 </label>
                 <button
-                  className="mt-6 w-full rounded-lg bg-sky-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-lg bg-gradient-to-r from-sky-600 to-cyan-600 px-4 py-3 text-sm font-medium text-white transition hover:from-sky-500 hover:to-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={status === "booting" || status === "saving" || !username.trim() || !password}
                   onClick={() => {
                     void accountLogin({
@@ -1109,6 +1130,7 @@ function LandingView() {
                   }}
                   type="button"
                 >
+                  <GiKeyring className="h-4 w-4" />
                   {status === "booting" ? copy.landing.accountChecking : copy.landing.accountEnter}
                 </button>
               </div>
@@ -1117,14 +1139,17 @@ function LandingView() {
         </div>
 
         {/* Feature tags */}
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <span className="rounded-full border border-[#30363d] bg-[#161b22] px-2.5 py-1 text-[11px] text-slate-500">
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-[11px] text-slate-400">
+            <GiServerRack className="h-3 w-3 text-sky-500/70" />
             服务端驱动
           </span>
-          <span className="rounded-full border border-[#30363d] bg-[#161b22] px-2.5 py-1 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-[11px] text-slate-400">
+            <GiCash className="h-3 w-3 text-emerald-500/70" />
             离线收益
           </span>
-          <span className="rounded-full border border-[#30363d] bg-[#161b22] px-2.5 py-1 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-[11px] text-slate-400">
+            <GiCardExchange className="h-3 w-3 text-amber-500/70" />
             装备交易
           </span>
         </div>
@@ -1158,7 +1183,7 @@ function CreateRoleView() {
       <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <SectionCard className="px-5 py-6 md:px-8 md:py-7">
           <SectionEyebrow>{copy.createRole.setup}</SectionEyebrow>
-          <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">{copy.createRole.title}</h1>
+          <h1 className="mt-4 bg-gradient-to-r from-white via-sky-100 to-cyan-200 bg-clip-text text-4xl font-semibold tracking-[-0.04em] text-transparent md:text-5xl">{copy.createRole.title}</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300/76">
             先决定种族与职业倾向，再从右侧预览你的开局构筑和基础生存能力。
           </p>
@@ -1181,19 +1206,23 @@ function CreateRoleView() {
                 <button
                   key={race.key}
                   className={[
-                    "rounded-md border p-4 text-left transition",
+                    "rounded-lg border p-4 text-left transition-all",
                     race.key === raceKey
-                      ? "border-[#1f6feb] bg-[#1f6feb]/10"
-                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58]",
+                      ? "border-sky-500/50 bg-sky-500/10 glow-border-sky"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
                   ].join(" ")}
                   onClick={() => setRaceKey(race.key)}
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                       {(() => {
                         const RaceIcon = raceIconByConfig(race.key, race.iconKey);
-                        return <RaceIcon className="h-5 w-5 text-[#58a6ff]" />;
+                        return (
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border transition ${race.key === raceKey ? "border-sky-500/40 bg-sky-500/15" : "border-[#30363d] bg-[#0d1117]"}`}>
+                            <RaceIcon className={`h-5 w-5 transition ${race.key === raceKey ? "text-sky-400" : "text-[#58a6ff]/60"}`} />
+                          </div>
+                        );
                       })()}
                       <p className="text-lg font-semibold text-white">{localizeRaceLabel(race.key, race.label, locale)}</p>
                     </div>
@@ -1218,19 +1247,23 @@ function CreateRoleView() {
                 <button
                   key={roleClass.key}
                   className={[
-                    "rounded-md border p-4 text-left transition",
+                    "rounded-lg border p-4 text-left transition-all",
                     roleClass.key === classKey
-                      ? "border-emerald-700 bg-emerald-900/20"
-                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58]",
+                      ? "border-emerald-500/50 bg-emerald-500/10 glow-border-emerald"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
                   ].join(" ")}
                   onClick={() => setClassKey(roleClass.key)}
                   type="button"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-3">
                       {(() => {
                         const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
-                        return <ClassIcon className="h-5 w-5 text-emerald-300" />;
+                        return (
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-lg border transition ${roleClass.key === classKey ? "border-emerald-500/40 bg-emerald-500/15" : "border-[#30363d] bg-[#0d1117]"}`}>
+                            <ClassIcon className={`h-5 w-5 transition ${roleClass.key === classKey ? "text-emerald-400" : "text-emerald-300/60"}`} />
+                          </div>
+                        );
                       })()}
                       <p className="text-lg font-semibold text-white">{localizeClassLabel(roleClass.key, roleClass.label, locale)}</p>
                     </div>
@@ -1253,17 +1286,19 @@ function CreateRoleView() {
           <SectionEyebrow>{copy.createRole.preview}</SectionEyebrow>
           <PanelSubsection className="mt-4">
             <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{copy.createRole.currentBuild}</p>
-            <div className="mt-3 flex items-center gap-2.5">
-              {selectedRace ? (() => {
-                const RaceIcon = raceIconByConfig(selectedRace.key, selectedRace.iconKey);
-                return <RaceIcon className="h-5 w-5 text-[#58a6ff]" />;
-              })() : null}
-              {selectedClass ? (() => {
-                const ClassIcon = classIconByConfig(selectedClass.key, selectedClass.iconKey);
-                return <ClassIcon className="h-5 w-5 text-emerald-300" />;
-              })() : null}
+            <div className="mt-4 flex items-center justify-center">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/10 to-emerald-500/10 sm:h-24 sm:w-24">
+                {selectedRace ? (() => {
+                  const RaceIcon = raceIconByConfig(selectedRace.key, selectedRace.iconKey);
+                  return <RaceIcon className="h-10 w-10 text-sky-400 sm:h-12 sm:w-12" />;
+                })() : null}
+                {selectedClass ? (() => {
+                  const ClassIcon = classIconByConfig(selectedClass.key, selectedClass.iconKey);
+                  return <ClassIcon className="absolute -right-1.5 -bottom-1.5 h-7 w-7 rounded-lg border border-[#30363d] bg-[#161b22] p-1 text-emerald-400 sm:-right-2 sm:-bottom-2 sm:h-8 sm:w-8" />;
+                })() : null}
+              </div>
             </div>
-            <h2 className="mt-3 text-3xl font-semibold text-white">{name || copy.createRole.unnamed}</h2>
+            <h2 className="mt-4 text-center text-3xl font-semibold text-white">{name || copy.createRole.unnamed}</h2>
             <p className="mt-2 text-sm text-slate-300">
               {(selectedRace ? localizeRaceLabel(selectedRace.key, selectedRace.label, locale) : copy.createRole.noRace)} / {(selectedClass ? localizeClassLabel(selectedClass.key, selectedClass.label, locale) : copy.createRole.noClass)}
             </p>
@@ -1282,14 +1317,17 @@ function CreateRoleView() {
           </div>
 
           <button
-            className="mt-6 w-full rounded-md bg-[#1f6feb] px-5 py-4 text-base font-semibold text-white transition hover:bg-[#388bfd] disabled:cursor-not-allowed disabled:opacity-50"
+            className="relative mt-6 w-full overflow-hidden rounded-lg bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 px-5 py-4 text-base font-semibold text-white transition hover:from-sky-500 hover:via-blue-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={status === "saving" || name.trim().length < 2}
             onClick={() => {
               void createRole({ classKey, name, raceKey });
             }}
             type="button"
           >
-            {status === "saving" ? copy.createRole.createLoading : copy.createRole.createSubmit}
+            <span className="relative z-10">{status === "saving" ? copy.createRole.createLoading : copy.createRole.createSubmit}</span>
+            {status !== "saving" && name.trim().length >= 2 ? (
+              <span className="animate-shimmer absolute inset-0 z-0" />
+            ) : null}
           </button>
         </SectionCard>
       </div>
@@ -1580,29 +1618,29 @@ function CenterPanel({
           </PanelSubsection>
 
           <PanelSubsection className="grid grid-cols-2 gap-1.5 p-2.5 min-[420px]:grid-cols-3 sm:p-3">
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("intelligence", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatNumber(role.stats.intelligence, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-sky-300">{formatNumber(role.stats.intelligence, locale)}</p>
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("critChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatSecondaryStatPercent(role.secondaryStats.critChance, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-amber-300">{formatSecondaryStatPercent(role.secondaryStats.critChance, locale)}</p>
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("critDamage", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatSecondaryStatMultiplier(role.secondaryStats.critDamage, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-orange-300">{formatSecondaryStatMultiplier(role.secondaryStats.critDamage, locale)}</p>
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("dodgeChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatSecondaryStatPercent(role.secondaryStats.dodgeChance, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-cyan-300">{formatSecondaryStatPercent(role.secondaryStats.dodgeChance, locale)}</p>
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("blockChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatSecondaryStatPercent(role.secondaryStats.blockChance, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-emerald-300">{formatSecondaryStatPercent(role.secondaryStats.blockChance, locale)}</p>
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1.5 text-center">
+            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
               <p className="text-[10px] text-slate-500">{statLabel("healthRegenRate", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-slate-200">{formatSecondaryStatPercent(role.secondaryStats.healthRegenRate, locale)}</p>
+              <p className="mt-0.5 text-sm font-semibold text-rose-300">{formatSecondaryStatPercent(role.secondaryStats.healthRegenRate, locale)}</p>
             </div>
           </PanelSubsection>
 
@@ -1849,7 +1887,7 @@ function CenterPanel({
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
           <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
-            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-2 border-l-[#3fb950] ${isPlayerHit ? "scale-[0.985] border-l-[#f85149]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
+            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-[3px] border-l-emerald-500 ${isPlayerHit ? "scale-[0.985] border-l-red-500" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="break-words text-base font-semibold leading-5 text-white sm:truncate">{activeBattle.player.name}</p>
@@ -1899,7 +1937,7 @@ function CenterPanel({
               </div>
             </div>
 
-            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-2 border-l-[#f85149] ${isEnemyHit ? "scale-[0.985]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
+            <div className={`rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4 transition-all duration-300 border-l-[3px] border-l-red-500 ${isEnemyHit ? "scale-[0.985]" : ""} ${isBattleTurnFlashing ? "border-[#484f58]" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="break-words text-base font-semibold leading-5 text-white sm:truncate">{activeBattle.enemy.name}</p>
@@ -1973,6 +2011,7 @@ function CenterPanel({
         <div className="mt-2">
           <TopStatusBar
             className="border-none bg-transparent p-0"
+            barClassName="h-2.5"
             label={copy.dashboard.executionProgress}
             tone="from-sky-400 via-cyan-300 to-emerald-300"
             value={taskProgressPercent}
@@ -1981,15 +2020,15 @@ function CenterPanel({
       </div>
 
       <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3">
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           {activities.map((activity) => (
             <button
               key={activity.key}
               className={[
-                "shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
                 selectedActivityKey === activity.key
-                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
-                  : "border border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-200",
+                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 glow-border-sky"
+                  : "border border-[#30363d] text-slate-400 hover:border-white/20 hover:text-slate-200",
               ].join(" ")}
               onClick={() => {
                 selectActivity(activity.key);
@@ -2015,11 +2054,11 @@ function CenterPanel({
                 <button
                   key={map.key}
                   className={[
-                    "relative rounded-lg border p-2.5 text-left transition sm:p-3",
+                    "relative rounded-lg border p-2.5 text-left transition-all sm:p-3",
                     isSelected
-                      ? "border-sky-500/40 bg-sky-500/10"
-                      : "border-[#30363d] bg-[#0d1117] hover:border-white/20",
-                    !isUnlocked && "opacity-60",
+                      ? "border-sky-500/40 bg-sky-500/10 glow-border-sky"
+                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
+                    !isUnlocked && "opacity-50",
                   ].join(" ")}
                   disabled={!isUnlocked}
                   onClick={() => selectMap(map.key)}
@@ -2028,7 +2067,10 @@ function CenterPanel({
                   <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
                   <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{map.summary}</p>
                   <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-                    <span className={isUnlocked ? "text-emerald-400" : "text-amber-400"}>
+                    <span className={`inline-flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
+                      {isUnlocked ? null : (
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      )}
                       Lv.{map.minLevel}
                     </span>
                     <span className="text-slate-500">
@@ -2036,7 +2078,7 @@ function CenterPanel({
                     </span>
                   </div>
                   {isSelected && (
-                    <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400" />
+                    <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
                   )}
                 </button>
               );
@@ -2271,11 +2313,11 @@ function MainDashboard() {
     return null;
   }
 
-  const menuItems: Array<{ key: PanelKey; label: string; count?: string }> = [
-    { key: "afk", label: copy.dashboard.menu.afk.label, count: activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle },
-    { key: "backpack", label: copy.dashboard.menu.backpack.label, count: String(backpack.length) },
-    { key: "market", label: copy.dashboard.menu.market.label, count: String(snapshot.market.listings.length) },
-    { key: "role", label: copy.dashboard.menu.role.label, count: `${messages.common.levelShort}${role.level}` },
+  const menuItems: Array<{ key: PanelKey; label: string; count?: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { key: "afk", label: copy.dashboard.menu.afk.label, count: activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle, icon: GiPathDistance },
+    { key: "backpack", label: copy.dashboard.menu.backpack.label, count: String(backpack.length), icon: GiKnapsack },
+    { key: "market", label: copy.dashboard.menu.market.label, count: String(snapshot.market.listings.length), icon: GiShop },
+    { key: "role", label: copy.dashboard.menu.role.label, count: `${messages.common.levelShort}${role.level}`, icon: GiCharacter },
   ];
 
   const handleSelectBackpackItem = (backpackId: string) => {
@@ -2767,8 +2809,8 @@ function MainDashboard() {
         <SectionCard className="overflow-hidden">
           <div className="px-2 py-1.5 sm:px-2.5 sm:py-2">
             <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#30363d] bg-[#0d1117] text-[9px] font-medium text-slate-300 sm:h-7 sm:w-7 sm:text-[10px]">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-500/30 bg-gradient-to-br from-sky-500/20 to-emerald-500/10 text-[10px] font-bold text-sky-300 sm:h-8 sm:w-8 sm:text-[11px]">
                   {role.avatarSeed}
                 </div>
                 <div className="min-w-0">
@@ -2811,6 +2853,7 @@ function MainDashboard() {
                   key={item.key}
                   active={activePanel === item.key}
                   count={item.count}
+                  icon={item.icon}
                   label={item.label}
                   onClick={() => setActivePanel(item.key)}
                 />
@@ -2871,9 +2914,9 @@ function MainDashboard() {
             <span>{copy.dashboard.levelBar}</span>
             <span>{copy.dashboard.levelProgress} {progressCopy}</span>
           </div>
-          <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#21262d]">
+          <div className="progress-shine mt-1 h-1.5 overflow-hidden rounded-full bg-[#21262d]">
             <div
-              className="h-full rounded-full bg-[#1f6feb] transition-[width] duration-500 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 transition-[width] duration-500 ease-out"
               style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
             />
           </div>
