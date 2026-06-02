@@ -98,7 +98,7 @@ const SKILL_SOURCE_OPTIONS: FieldOption[] = [
 ];
 
 const EVENT_TRIGGER_OPTIONS: FieldOption[] = [
-  { label: "挂机触发", value: "afk_tick" },
+  { label: "行动触发", value: "afk_tick" },
   { label: "击杀触发", value: "enemy_kill" },
 ];
 
@@ -136,7 +136,7 @@ const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
     key: { hint: "规则唯一标识，不能重复。", label: "规则Key" },
     name: { hint: "规则名称，方便检索和识别。", label: "规则名称" },
     priority: { hint: "优先级，越大越先判定。", label: "优先级" },
-    trigger: { hint: "触发条件。挂机触发必须指定 1 个活动 activityKeys 和 1 个地图 mapKeys。", label: "触发条件" },
+    trigger: { hint: "触发条件。行动触发必须指定 1 个活动 activityKeys 和 1 个地图 mapKeys。", label: "触发条件" },
   },
   itemCatalog: {
     description: { hint: "物品描述文本。", label: "描述" },
@@ -153,9 +153,9 @@ const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
   },
   mapConfigs: {
     activityKey: { hint: "地图所属活动 key，必须存在于活动配置。", label: "所属活动" },
-    aetherPerMinute: { hint: "挂机每分钟产出的以太。", label: "每分钟以太" },
-    expPerMinute: { hint: "挂机每分钟产出的经验。", label: "每分钟经验" },
-    goldPerMinute: { hint: "挂机每分钟产出的金币。", label: "每分钟金币" },
+    aetherPerMinute: { hint: "行动每分钟产出的以太。", label: "每分钟以太" },
+    expPerMinute: { hint: "行动每分钟产出的经验。", label: "每分钟经验" },
+    goldPerMinute: { hint: "行动每分钟产出的金币。", label: "每分钟金币" },
     key: { hint: "地图唯一标识，不能重复。", label: "地图Key" },
     label: { hint: "地图展示名。", label: "地图名称" },
     minLevel: { hint: "进入该地图需要的最低角色等级。", label: "最低等级" },
@@ -192,12 +192,12 @@ const FIELD_DOCS: Partial<Record<ConfigEditorKey, Record<string, FieldDoc>>> = {
   },
   systemBalance: {
     actionBarTarget: { hint: "行动条达标阈值（大于 0）。", label: "行动条阈值" },
-    battleTriggerChance: { hint: "挂机触发战斗概率，范围 0~1。", label: "战斗触发概率" },
+    battleTriggerChance: { hint: "行动触发战斗概率，范围 0~1。", label: "战斗触发概率" },
     enemyGuardCooldownTurns: { hint: "怪物守御冷却回合。", label: "怪物守御冷却" },
     enemyGuardHealthThreshold: { hint: "怪物触发守御的血线阈值，0~1。", label: "怪物守御血线" },
     enemyGuardRatio: { hint: "怪物守御比例，0~1。", label: "怪物守御比例" },
     enemyHealRatio: { hint: "怪物治疗比例，0~1。", label: "怪物治疗比例" },
-    executionRewardTickSeconds: { hint: "挂机奖励发放间隔秒数（大于 0）。", label: "奖励间隔秒" },
+    executionRewardTickSeconds: { hint: "行动奖励发放间隔秒数（大于 0）。", label: "奖励间隔秒" },
     intelligenceSpellBonusThreshold: { hint: "智力触发额外法术收益的阈值。", label: "智力阈值" },
     marketFeeRatePercent: { hint: "交易手续费百分比，0~100。", label: "手续费%" },
     playerGuardCooldownTurns: { hint: "玩家守御冷却回合。", label: "玩家守御冷却" },

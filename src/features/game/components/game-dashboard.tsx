@@ -1870,19 +1870,11 @@ function CenterPanel({
 
     return (
       <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden sm:min-h-[24rem] xl:h-full xl:min-h-0">
-        <div className="border-b border-[#30363d] px-3 py-2 sm:px-3.5 sm:py-2.5">
-          <SectionEyebrow>{isPvpBattle ? copy.dashboard.pvpBattleTitle : copy.dashboard.battleTitle}</SectionEyebrow>
-          <div className="mt-1 flex flex-col gap-2 sm:gap-2.5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-[-0.04em] text-white sm:text-[1.35rem]">{isPvpBattle ? copy.dashboard.pvpBattleTitle : copy.dashboard.battleTitle}</h2>
-              <p className="mt-0.5 max-w-2xl text-[11px] leading-5 text-slate-300/72 sm:text-xs">{isPvpBattle ? copy.dashboard.pvpBattleSummary : copy.dashboard.battleSummary}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2">
-              <DataPill className="px-2 py-1.5 sm:px-2.5" label={copy.dashboard.battleStatus} value={battleStatusCopy} />
-              <DataPill className="px-2 py-1.5 sm:px-2.5" label={copy.dashboard.battleTurns} value={formatNumber(activeBattle.turnCount, locale)} />
-              <DataPill className="col-span-2 px-2 py-1.5 sm:col-span-1 sm:px-2.5" label={copy.dashboard.currentRound} value={copy.dashboard.battlePausedShort} />
-            </div>
-          </div>
+        <div className="flex items-center gap-2 border-b border-[#30363d] px-2.5 py-1.5 sm:px-3">
+          <span className="text-xs font-medium text-white">{isPvpBattle ? copy.dashboard.pvpBattleTitle : copy.dashboard.battleTitle}</span>
+          <span className="text-[10px] text-slate-500">{battleStatusCopy}</span>
+          <span className="text-[10px] text-slate-600">·</span>
+          <span className="text-[10px] text-slate-500">T{formatNumber(activeBattle.turnCount, locale)}</span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
@@ -1992,134 +1984,176 @@ function CenterPanel({
     );
   }
 
+  const isAfkActive = snapshot.afk.status === "active";
+
   return (
-    <SectionCard className="flex min-h-[24rem] flex-col overflow-hidden xl:h-full xl:min-h-0">
-      <div className="border-b border-[#30363d] px-3 py-2.5 sm:px-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <SectionEyebrow>{copy.dashboard.afkControl}</SectionEyebrow>
-            <h2 className="mt-1 truncate text-base font-semibold text-white sm:text-lg">
-              {selectedActivity?.label ?? copy.dashboard.afkTitle}
-              {selectedMap ? ` · ${localizeMapLabel(selectedMap.key, selectedMap.label, locale)}` : ""}
-            </h2>
-          </div>
-          <div className="shrink-0 text-right">
-            <p className="text-xs text-slate-400">{snapshot.afk.status === "active" ? messages.common.active : messages.common.idle}</p>
-            <p className="mt-1 text-sm font-semibold text-sky-100">{formatPercentValue(taskProgressPercent / 100, locale)}</p>
-          </div>
-        </div>
-        <div className="mt-2">
+    <SectionCard className={["flex flex-col overflow-hidden xl:h-full xl:min-h-0", isAfkActive ? "min-h-0" : "min-h-[24rem]"].join(" ")}>
+      {/* Header — single compact row */}
+      <div className="flex items-center gap-2 border-b border-[#30363d] px-2.5 py-1.5 sm:px-3">
+        <span className="shrink-0 text-xs font-medium text-white">
+          {selectedActivity?.label ?? copy.dashboard.afkTitle}
+          {selectedMap ? ` · ${localizeMapLabel(selectedMap.key, selectedMap.label, locale)}` : ""}
+        </span>
+        <div className="min-w-0 flex-1">
           <TopStatusBar
             className="border-none bg-transparent p-0"
-            barClassName="h-2.5"
-            label={copy.dashboard.executionProgress}
+            barClassName="h-1.5"
+            label=""
             tone="from-sky-400 via-cyan-300 to-emerald-300"
             value={taskProgressPercent}
           />
         </div>
+        {isAfkActive ? (
+          <button
+            className="shrink-0 rounded border border-rose-800/50 bg-rose-900/20 px-2 py-0.5 text-[10px] font-medium text-rose-300 transition hover:bg-rose-900/40 disabled:opacity-40"
+            disabled={status === "saving" || !isRealtimeReady || Boolean(activeBattle)}
+            onClick={() => void stopAfk().catch(() => { })}
+            type="button"
+          >
+            {status === "saving" ? messages.common.submit : copy.dashboard.stopAfk}
+          </button>
+        ) : null}
       </div>
 
       <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3">
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-          {activities.map((activity) => (
-            <button
-              key={activity.key}
-              className={[
-                "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
-                selectedActivityKey === activity.key
-                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 glow-border-sky"
-                  : "border border-[#30363d] text-slate-400 hover:border-white/20 hover:text-slate-200",
-              ].join(" ")}
-              onClick={() => {
-                selectActivity(activity.key);
-                const firstMap = maps.find((m) => m.activityKey === activity.key);
-                if (firstMap) {
-                  selectMap(firstMap.key);
-                }
-              }}
-              type="button"
-            >
-              {activity.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-          {maps
-            .filter((map) => map.activityKey === selectedActivityKey)
-            .map((map) => {
-              const isUnlocked = role.level >= map.minLevel;
-              const isSelected = map.key === selectedMapKey;
-              return (
+        {/* Activity & map selection — only visible when idle */}
+        {!isAfkActive ? (
+          <>
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {activities.map((activity) => (
                 <button
-                  key={map.key}
+                  key={activity.key}
                   className={[
-                    "relative rounded-lg border p-2.5 text-left transition-all sm:p-3",
-                    isSelected
-                      ? "border-sky-500/40 bg-sky-500/10 glow-border-sky"
-                      : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
-                    !isUnlocked && "opacity-50",
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                    selectedActivityKey === activity.key
+                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 glow-border-sky"
+                      : "border border-[#30363d] text-slate-400 hover:border-white/20 hover:text-slate-200",
                   ].join(" ")}
-                  disabled={!isUnlocked}
-                  onClick={() => selectMap(map.key)}
+                  onClick={() => {
+                    selectActivity(activity.key);
+                    const firstMap = maps.find((m) => m.activityKey === activity.key);
+                    if (firstMap) {
+                      selectMap(firstMap.key);
+                    }
+                  }}
                   type="button"
                 >
-                  <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
-                  <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{map.summary}</p>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-                    <span className={`inline-flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
-                      {isUnlocked ? null : (
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                      )}
-                      Lv.{map.minLevel}
-                    </span>
-                    <span className="text-slate-500">
-                      {formatDecimal(map.goldPerMinute, locale)}金/分
-                    </span>
-                  </div>
-                  {isSelected && (
-                    <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-                  )}
+                  {activity.label}
                 </button>
-              );
-            })}
-        </div>
+              ))}
+            </div>
 
-        <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
-          {maps
-            .filter((map) => map.key === selectedMapKey)
-            .map((map) => (
-              <div key={map.key}>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <InlineStat label={copy.dashboard.currentRound} value={`${formatClock(taskProgress)} / ${formatClock(taskDuration)}`} />
-                  <InlineStat label={copy.dashboard.remaining} value={formatDuration(Math.max(0, taskDuration - taskProgress))} />
-                  <InlineStat label={copy.dashboard.roundGold} value={formatNumber(currentTaskReward.gold, locale)} />
-                  <InlineStat label={copy.dashboard.roundAether} value={formatNumber(currentTaskReward.aetherCrystal, locale)} />
-                  <InlineStat className="col-span-2 sm:col-span-1" label={copy.dashboard.roundExp} value={formatNumber(currentTaskReward.exp, locale)} />
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <CommandButton
-                    disabled={snapshot.afk.status === "active" || status === "saving" || !isRealtimeReady || role.level < map.minLevel}
-                    onClick={() => {
-                      void startAfk().catch(() => { });
-                    }}
-                    tone="primary"
-                  >
-                    {status === "saving" && snapshot.afk.status === "idle" ? messages.common.submit : copy.dashboard.startAfk}
-                  </CommandButton>
-                  <CommandButton
-                    disabled={snapshot.afk.status === "idle" || status === "saving" || !isRealtimeReady || Boolean(activeBattle)}
-                    onClick={() => {
-                      void stopAfk().catch(() => { });
-                    }}
-                    tone="danger"
-                  >
-                    {status === "saving" && snapshot.afk.status === "active" ? messages.common.submit : copy.dashboard.stopAfk}
-                  </CommandButton>
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              {maps
+                .filter((map) => map.activityKey === selectedActivityKey)
+                .map((map) => {
+                  const isUnlocked = role.level >= map.minLevel;
+                  const isSelected = map.key === selectedMapKey;
+                  return (
+                    <button
+                      key={map.key}
+                      className={[
+                        "relative rounded-lg border p-2.5 text-left transition-all sm:p-3",
+                        isSelected
+                          ? "border-sky-500/40 bg-sky-500/10 glow-border-sky"
+                          : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
+                        !isUnlocked && "opacity-50",
+                      ].join(" ")}
+                      disabled={!isUnlocked}
+                      onClick={() => selectMap(map.key)}
+                      type="button"
+                    >
+                      <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
+                      <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{map.summary}</p>
+                      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
+                        <span className={`inline-flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
+                          {isUnlocked ? null : (
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                          )}
+                          Lv.{map.minLevel}
+                        </span>
+                        <span className="text-slate-500">
+                          {formatDecimal(map.goldPerMinute, locale)}金/分
+                        </span>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          </>
+        ) : null}
+
+        {/* Battle & encounter log — only when active */}
+        {isAfkActive ? (
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[#30363d] bg-[#0d1117] px-2.5 py-2 sm:px-3 sm:py-2.5">
+            {/* Battle logs */}
+            {(snapshot.afk.battle?.logs ?? []).length > 0 ? (
+              <div className="mb-2">
+                <p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">{copy.dashboard.battleLog}</p>
+                <div className="space-y-px font-mono text-[11px]">
+                  {(snapshot.afk.battle?.logs ?? []).map((log) => (
+                    <div key={log.id} className="py-px leading-5">
+                      <span className="mr-1 text-[10px] text-slate-600">{new Date(log.timestamp).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                      <span className={
+                        log.type === "result" ? "text-emerald-400"
+                          : log.type === "penalty" ? "text-rose-400"
+                            : log.type === "guard" ? "text-amber-400"
+                              : log.type === "spell" ? "text-fuchsia-400"
+                                : log.type === "dot" ? "text-rose-300"
+                                  : log.type === "reward" || log.type === "drop" ? "text-emerald-300"
+                                    : "text-sky-300"
+                      }>
+                        {log.text}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-        </div>
+            ) : null}
+
+            {/* Encounter logs */}
+            {(snapshot.afk.recentEncounters ?? []).length > 0 ? (
+              <div>
+                <p className="mb-1 text-[9px] uppercase tracking-wider text-slate-600">{copy.dashboard.encounterLogEyebrow}</p>
+                <div className="space-y-px font-mono text-[11px]">
+                  {(snapshot.afk.recentEncounters ?? []).map((enc) => (
+                    <div key={enc.id} className="py-px leading-5">
+                      <span className="mr-1 text-[10px] text-slate-600">{new Date(enc.triggeredAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                      <span className={enc.tier === "legendary" ? "text-amber-300" : enc.tier === "rare" ? "text-amber-400/80" : "text-slate-300"}>
+                        {enc.title} — {enc.description}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {(snapshot.afk.battle?.logs ?? []).length === 0 && (snapshot.afk.recentEncounters ?? []).length === 0 ? (
+              <p className="py-3 text-center text-[11px] text-slate-600">暂无记录</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Start button — only when idle */}
+        {!isAfkActive ? (
+          <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
+            {maps
+              .filter((map) => map.key === selectedMapKey)
+              .map((map) => (
+                <CommandButton
+                  key={map.key}
+                  disabled={status === "saving" || !isRealtimeReady || role.level < map.minLevel}
+                  onClick={() => void startAfk().catch(() => { })}
+                  tone="primary"
+                >
+                  {status === "saving" ? messages.common.submit : copy.dashboard.startAfk}
+                </CommandButton>
+              ))}
+          </div>
+        ) : null}
       </div>
     </SectionCard>
   );
@@ -2466,8 +2500,8 @@ function MainDashboard() {
               }}
               type="button"
             >
-                {status === "saving" ? copy.dashboard.deleteRoleLoading : copy.dashboard.deleteRoleSubmit}
-              </button>
+              {status === "saving" ? copy.dashboard.deleteRoleLoading : copy.dashboard.deleteRoleSubmit}
+            </button>
             <button
               className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-slate-200"
               disabled={status === "saving"}
@@ -2748,7 +2782,7 @@ function MainDashboard() {
                 }).catch(() => { });
               }}
               type="button"
-              >
+            >
               {copy.market.confirmSell}
             </button>
             <button
@@ -2791,7 +2825,7 @@ function MainDashboard() {
                 }).catch(() => { });
               }}
               type="button"
-              >
+            >
               {copy.market.confirmBuy}
             </button>
             <button
@@ -2810,7 +2844,7 @@ function MainDashboard() {
           <div className="px-2 py-1.5 sm:px-2.5 sm:py-2">
             <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-500/30 bg-gradient-to-br from-sky-500/20 to-emerald-500/10 text-[10px] font-bold text-sky-300 sm:h-8 sm:w-8 sm:text-[11px]">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-500/30 bg-linear-to-br from-sky-500/20 to-emerald-500/10 text-[10px] font-bold text-sky-300 sm:h-8 sm:w-8 sm:text-[11px]">
                   {role.avatarSeed}
                 </div>
                 <div className="min-w-0">

@@ -25,7 +25,7 @@ const DEFAULT_RACE_CONFIGS = [
   {
     key: "elf",
     label: "精灵",
-    summary: "速度和法感更高，挂机效率偏灵巧与法术。",
+    summary: "速度和法感更高，行动效率偏灵巧与法术。",
     iconKey: "GiElfEar",
     stats: { strength: 3, agility: 7, intelligence: 7, vitality: 3 },
     bodySlotAdjustments: { accessory: 1 },
@@ -84,7 +84,7 @@ const DEFAULT_CLASS_CONFIGS = [
   {
     key: "farmer",
     label: "农民",
-    summary: "务实稳定，适合当前版本的挂机与资源周转。",
+    summary: "务实稳定，适合当前版本的行动与资源周转。",
     iconKey: "GiPitchfork",
     starterItemId: "field-hoe",
     stats: { strength: 2, agility: 2, intelligence: 1, vitality: 4 },
@@ -349,6 +349,106 @@ const DEFAULT_AFK_ENCOUNTER_POOL = [
     title: "沉没军械所",
     description: "塌陷地窟深处藏着旧王朝军械，一件完好的传奇武装被你带走。",
     reward: { gold: 1488, aetherCrystal: 15, exp: 238, healthDelta: -20, items: [{ itemId: "knightwatch-mail", quantity: 1 }] },
+  },
+  // ── 采集奇遇：伐木林场 ──
+  {
+    key: "timber-hollow",
+    mapKeys: ["timber-camp"],
+    tier: "common",
+    title: "树洞藏物",
+    description: "你发现一棵老橡树的树洞里塞着前人留下的物资，树脂的香气扑面而来。",
+    reward: { gold: 12, aetherCrystal: 0, exp: 6, healthDelta: 0, items: [{ itemId: "material-timber", quantity: 2 }, { itemId: "material-resin", quantity: 1 }] },
+  },
+  {
+    key: "ancient-grove",
+    mapKeys: ["timber-camp"],
+    tier: "rare",
+    title: "古树林",
+    description: "林场深处藏着一片未被砍伐的古树林，你在倒伏的巨木旁捡到了完好的工具。",
+    reward: { gold: 88, aetherCrystal: 3, exp: 32, healthDelta: 10, items: [{ itemId: "material-ancient-bark", quantity: 2 }, { itemId: "lumberjack-axe", quantity: 1 }] },
+  },
+  {
+    key: "forest-spirit-blessing",
+    mapKeys: ["timber-camp"],
+    tier: "rare",
+    title: "森灵赐福",
+    description: "一团柔和的绿光从树冠间飘落，你感到体内的疲惫被缓缓驱散。",
+    reward: { gold: 66, aetherCrystal: 4, exp: 48, healthDelta: 28, items: [{ itemId: "ancient-wood-staff", quantity: 1 }] },
+  },
+  // ── 采集奇遇：浅层矿脉 ──
+  {
+    key: "mineral-vein",
+    mapKeys: ["iron-vein-mine"],
+    tier: "common",
+    title: "富矿脉",
+    description: "你敲开一块岩层后发现了一条含铁量极高的矿脉，收获颇丰。",
+    reward: { gold: 16, aetherCrystal: 0, exp: 8, healthDelta: 0, items: [{ itemId: "material-iron-ore", quantity: 2 }, { itemId: "material-iron-ingot", quantity: 1 }] },
+  },
+  {
+    key: "crystal-cavern",
+    mapKeys: ["iron-vein-mine"],
+    tier: "rare",
+    title: "水晶洞穴",
+    description: "矿道尽头藏着一处天然水晶洞穴，以太矿石在岩壁上闪闪发光。",
+    reward: { gold: 104, aetherCrystal: 4, exp: 36, healthDelta: -8, items: [{ itemId: "material-aether-ore", quantity: 2 }, { itemId: "miners-lantern", quantity: 1 }] },
+  },
+  {
+    key: "earth-spirit-shrine",
+    mapKeys: ["iron-vein-mine"],
+    tier: "rare",
+    title: "地灵祭坛",
+    description: "矿脉深处的天然石台上放着一块星矿石，取出时你感到大地的脉动灌入身体。",
+    reward: { gold: 128, aetherCrystal: 5, exp: 44, healthDelta: 20, items: [{ itemId: "material-star-ore", quantity: 1 }, { itemId: "earthward-plate", quantity: 1 }] },
+  },
+  // ── 钓鱼奇遇：薄雾湖 ──
+  {
+    key: "mist-catch",
+    mapKeys: ["misty-lake"],
+    tier: "common",
+    title: "雾中鱼群",
+    description: "浓雾中忽然涌出一群银鱼，你趁机满载而归，还在蚌壳里找到了一颗珍珠。",
+    reward: { gold: 14, aetherCrystal: 0, exp: 5, healthDelta: 0, items: [{ itemId: "material-fresh-fish", quantity: 2 }, { itemId: "material-pearl", quantity: 1 }] },
+  },
+  {
+    key: "sunken-chest",
+    mapKeys: ["misty-lake"],
+    tier: "rare",
+    title: "湖底宝箱",
+    description: "你在湖底淤泥中摸到一只沉箱，打开后发现了一批钓具和珠宝。",
+    reward: { gold: 96, aetherCrystal: 3, exp: 28, healthDelta: -6, items: [{ itemId: "material-pearl", quantity: 2 }, { itemId: "angler-rod", quantity: 1 }] },
+  },
+  {
+    key: "water-spirit-dance",
+    mapKeys: ["misty-lake"],
+    tier: "rare",
+    title: "水灵舞动",
+    description: "湖面泛起奇异的涟漪，一只水灵在雾中翩翩起舞，为你送上了祝福。",
+    reward: { gold: 72, aetherCrystal: 4, exp: 42, healthDelta: 24, items: [{ itemId: "pearl-circlet", quantity: 1 }] },
+  },
+  // ── 钓鱼奇遇：晶溪 ──
+  {
+    key: "crystal-shoal",
+    mapKeys: ["crystal-stream"],
+    tier: "common",
+    title: "晶鱼群",
+    description: "溪水清澈见底，一群通体透明的晶鱼从你脚边游过，你眼疾手快抓了几条。",
+    reward: { gold: 18, aetherCrystal: 1, exp: 8, healthDelta: 0, items: [{ itemId: "material-fresh-fish", quantity: 2 }, { itemId: "coral-charm", quantity: 1 }] },
+  },
+  {
+    key: "underground-pool",
+    mapKeys: ["crystal-stream"],
+    tier: "rare",
+    title: "地下水潭",
+    description: "溪流旁的岩缝通向一处地下暗潭，你在潭中捕获了一条罕见的晶溪鳗。",
+    reward: { gold: 118, aetherCrystal: 5, exp: 40, healthDelta: -10, items: [{ itemId: "material-crystal-eel", quantity: 1 }, { itemId: "tidal-blade", quantity: 1 }] },
+  },
+  {
+    key: "abyssal-shrine",
+    mapKeys: ["crystal-stream"],
+    tier: "rare",
+    title: "深渊神龛",
+    description: "晶溪尽头的水下岩洞中有一座古老神龛，你从中悟出了一式潮汐斩法。",
+    reward: { gold: 136, aetherCrystal: 6, exp: 52, healthDelta: 16, items: [{ itemId: "material-abyssal-pearl", quantity: 1 }, { itemId: "skillbook-tidal-slash", quantity: 1 }] },
   },
 ];
 
@@ -752,13 +852,85 @@ const DEFAULT_SKILL_TEMPLATES = [
       },
     ],
   },
+  // ── 采集/钓鱼专属技能 ──
+  {
+    key: "woodcraft",
+    name: "木工技艺",
+    iconText: "劈",
+    description: "林场匠人世代相传的劈砍技法，以稳取胜。",
+    quality: "green",
+    category: "attack",
+    trigger: "random",
+    acquisitionHint: "伐木林场奇遇中有几率获得。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.0,
+    levelDamageGrowth: 0.08,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 1,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "woodcraft-bleed",
+        name: "木刺",
+        description: "命中后残留木刺，造成持续伤害。",
+        effectType: "damage_over_time",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.1,
+      },
+    ],
+  },
+  {
+    key: "tidal-slash",
+    name: "潮汐斩",
+    iconText: "潮",
+    description: "模仿潮汐节律的斩击术，出手如浪涌连绵不绝。",
+    quality: "blue",
+    category: "attack",
+    trigger: "random",
+    acquisitionHint: "晶溪深处的奇遇中有几率获得。",
+    source: "learned",
+    maxLevel: 10,
+    damageMultiplier: 2.5,
+    levelDamageGrowth: 0.1,
+    healRatio: 0,
+    levelHealGrowth: 0,
+    guardRatio: 0,
+    levelGuardGrowth: 0,
+    maxUses: 1,
+    cooldownTurns: 0,
+    effects: [
+      {
+        key: "tidal-slash-slow",
+        name: "潮蚀",
+        description: "水相侵蚀降低敌方敏捷。",
+        effectType: "agility_down",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.15,
+      },
+      {
+        key: "tidal-slash-dot",
+        name: "余浪",
+        description: "潮汐余波造成持续伤害。",
+        effectType: "damage_over_time",
+        target: "enemy",
+        durationTurns: 2,
+        magnitude: 0.12,
+      },
+    ],
+  },
 ];
 
 const DEFAULT_ITEM_CATALOG = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiSwordman", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiWizardStaff", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
   { itemId: "field-hoe", name: "旧铁锄", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBattleAxe", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCloak", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCloak", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外行动。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
   { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiRing", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
   { itemId: "training-bow", name: "练习短弓", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiPocketBow", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
   { itemId: "leather-cap", name: "皮质便帽", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBilledCap", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
@@ -786,6 +958,27 @@ const DEFAULT_ITEM_CATALOG = [
   { itemId: "material-aether-ore", name: "以太矿石", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "带有以太反应的矿石，是制作魔导器具的稳定材料。", sellPrice: 18, stats: {} },
   { itemId: "material-fresh-fish", name: "鲜鱼", rarity: "white", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "钓鱼获得的常见食材，可用于烹饪和交易。", sellPrice: 6, stats: {} },
   { itemId: "material-glimmer-scale", name: "微光鳞", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "稀有鱼类留下的发光鳞片，带有稳定的水相以太。", sellPrice: 16, stats: {} },
+  // ── 采集新材料 ──
+  { itemId: "material-ancient-bark", name: "古树皮", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "古老树木的外皮，纹路间隐约流动着微弱生命以太。", sellPrice: 14, stats: {} },
+  { itemId: "material-iron-ingot", name: "铁锭", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiMinerals", slot: "accessory", slotUsage: 1, description: "经过初步精炼的铁锭，比原矿更易加工成型。", sellPrice: 16, stats: {} },
+  { itemId: "material-star-ore", name: "星矿石", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "含有星辉残渣的稀有矿石，在暗处会发出微弱荧光。", sellPrice: 32, stats: {} },
+  // ── 钓鱼新材料 ──
+  { itemId: "material-pearl", name: "湖珠", rarity: "green", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "湖底蚌壳孕育的珍珠，光泽温润，可用于饰品制作。", sellPrice: 18, stats: {} },
+  { itemId: "material-crystal-eel", name: "晶溪鳗", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiStonePile", slot: "accessory", slotUsage: 1, description: "晶溪特有的透明鳗鱼，体内含有浓缩以太，极难捕获。", sellPrice: 36, stats: {} },
+  { itemId: "material-abyssal-pearl", name: "深渊珍珠", rarity: "blue", itemType: "material", skillKey: null, iconKey: "GiCrystalCluster", slot: "accessory", slotUsage: 1, description: "晶溪深处的暗色珍珠，蕴含的以太浓度远超普通湖珠。", sellPrice: 42, stats: {} },
+  // ── 采集专属装备 ──
+  { itemId: "lumberjack-axe", name: "伐木斧", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiBattleAxe", slot: "hand", slotUsage: 1, description: "林场工人常用的伐木斧，刃口锋利，重心稳定。", sellPrice: 44, stats: { strength: 2, vitality: 2 } },
+  { itemId: "miners-lantern", name: "矿工灯", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiBilledCap", slot: "head", slotUsage: 1, description: "矿洞专用头灯，照亮前路的同时也让感官更敏锐。", sellPrice: 38, stats: { agility: 2, vitality: 1 } },
+  { itemId: "ancient-wood-staff", name: "古木法杖", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiWizardStaff", slot: "hand", slotUsage: 2, description: "用千年古木芯材雕成的法杖，木质本身便能稳定法术输出。", sellPrice: 112, stats: { intelligence: 4, vitality: 2 } },
+  { itemId: "earthward-plate", name: "大地守护甲", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiArmorVest", slot: "torso", slotUsage: 1, description: "以矿脉深层铁矿锻造的重甲，穿戴后有种扎根大地的踏实感。", sellPrice: 118, stats: { vitality: 4, strength: 2 } },
+  // ── 钓鱼专属装备 ──
+  { itemId: "angler-rod", name: "钓者鱼竿", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiPocketBow", slot: "hand", slotUsage: 1, description: "老钓手留下的鱼竿，竿身柔韧，长时间持竿也不觉疲累。", sellPrice: 42, stats: { agility: 2, intelligence: 1 } },
+  { itemId: "coral-charm", name: "珊瑚护符", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCharm", slot: "neck", slotUsage: 1, description: "用湖底珊瑚打磨的护符，佩戴后心神更加平静。", sellPrice: 46, stats: { intelligence: 2, vitality: 1 } },
+  { itemId: "tidal-blade", name: "潮汐短刃", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiCurvyKnife", slot: "hand", slotUsage: 1, description: "刃身如水面波纹般起伏，出刀时有潮涌般的连贯节奏。", sellPrice: 108, stats: { agility: 3, strength: 2 } },
+  { itemId: "pearl-circlet", name: "珍珠冠", rarity: "blue", itemType: "equipment", skillKey: null, iconKey: "GiBilledCap", slot: "head", slotUsage: 1, description: "镶嵌着多颗湖珠的精致头冠，能放大佩戴者的以太感知。", sellPrice: 102, stats: { intelligence: 3, vitality: 2 } },
+  // ── 采集/钓鱼专属技能书 ──
+  { itemId: "skillbook-woodcraft", name: "技能书·木工技艺", rarity: "green", itemType: "skill_book", skillKey: "woodcraft", iconKey: "GiSpellBook", slot: "accessory", slotUsage: 1, description: "林场匠人世代相传的劈砍技法。学习后可掌握木工技艺。", sellPrice: 55, stats: {} },
+  { itemId: "skillbook-tidal-slash", name: "技能书·潮汐斩", rarity: "blue", itemType: "skill_book", skillKey: "tidal-slash", iconKey: "GiSpellBook", slot: "accessory", slotUsage: 1, description: "模仿潮汐节律的斩击术，出手如浪涌连绵不绝。学习后可掌握潮汐斩。", sellPrice: 105, stats: {} },
 ];
 const DEFAULT_SYSTEM_BALANCE = {
   marketFeeRatePercent: 10,
@@ -983,23 +1176,23 @@ function normalizeStats(value) {
 function normalizeRaces(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        label: asString(source.label),
-        summary: asString(source.summary),
-        iconKey: asString(source.iconKey).trim() || undefined,
-        stats: normalizeStats(source.stats),
-        bodySlotAdjustments: normalizeBodySlotAdjustments(source.bodySlotAdjustments),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          label: asString(source.label),
+          summary: asString(source.summary),
+          iconKey: asString(source.iconKey).trim() || undefined,
+          stats: normalizeStats(source.stats),
+          bodySlotAdjustments: normalizeBodySlotAdjustments(source.bodySlotAdjustments),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_RACE_CONFIGS];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1022,23 +1215,23 @@ function normalizeRaces(value) {
 function normalizeClasses(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        label: asString(source.label),
-        summary: asString(source.summary),
-        iconKey: asString(source.iconKey).trim() || undefined,
-        starterItemId: asString(source.starterItemId),
-        stats: normalizeStats(source.stats),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          label: asString(source.label),
+          summary: asString(source.summary),
+          iconKey: asString(source.iconKey).trim() || undefined,
+          starterItemId: asString(source.starterItemId),
+          stats: normalizeStats(source.stats),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_CLASS_CONFIGS];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1061,23 +1254,23 @@ function normalizeClasses(value) {
 function normalizeActivities(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        label: asString(source.label),
-        summary: asString(source.summary),
-        iconKey: asString(source.iconKey).trim() || undefined,
-        taskDurationSeconds: Math.max(1, asInt(source.taskDurationSeconds, 10)),
-        baseEncounterChance: asNumber(source.baseEncounterChance, 0.06),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          label: asString(source.label),
+          summary: asString(source.summary),
+          iconKey: asString(source.iconKey).trim() || undefined,
+          taskDurationSeconds: Math.max(1, asInt(source.taskDurationSeconds, 10)),
+          baseEncounterChance: asNumber(source.baseEncounterChance, 0.06),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_ACTIVITY_CONFIGS];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1100,25 +1293,25 @@ function normalizeActivities(value) {
 function normalizeMaps(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        label: asString(source.label),
-        summary: asString(source.summary),
-        activityKey: asString(source.activityKey, "combat").trim() || "combat",
-        minLevel: Math.max(1, asInt(source.minLevel, 1)),
-        goldPerMinute: asNumber(source.goldPerMinute, 0),
-        aetherPerMinute: asNumber(source.aetherPerMinute, 0),
-        expPerMinute: asNumber(source.expPerMinute, 0),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          label: asString(source.label),
+          summary: asString(source.summary),
+          activityKey: asString(source.activityKey, "combat").trim() || "combat",
+          minLevel: Math.max(1, asInt(source.minLevel, 1)),
+          goldPerMinute: asNumber(source.goldPerMinute, 0),
+          aetherPerMinute: asNumber(source.aetherPerMinute, 0),
+          expPerMinute: asNumber(source.expPerMinute, 0),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_MAP_CONFIGS];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1443,24 +1636,24 @@ function normalizeEventRules(value) {
 function normalizeEncounters(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        tier: asEncounterTier(source.tier),
-        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
-        ...(asString(source.activityKey).trim() ? { activityKey: asString(source.activityKey).trim() } : {}),
-        title: asString(source.title),
-        description: asString(source.description),
-        reward: normalizeEncounterReward(source.reward),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          tier: asEncounterTier(source.tier),
+          ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
+          ...(asString(source.activityKey).trim() ? { activityKey: asString(source.activityKey).trim() } : {}),
+          title: asString(source.title),
+          description: asString(source.description),
+          reward: normalizeEncounterReward(source.reward),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_AFK_ENCOUNTER_POOL];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1483,38 +1676,38 @@ function normalizeEncounters(value) {
 function normalizeBattleEnemies(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
-      const skillCaps = asObject(source?.skillCaps);
-      const statWeights = asObject(source?.statWeights);
+      .map((entry) => {
+        const source = asObject(entry);
+        const skillCaps = asObject(source?.skillCaps);
+        const statWeights = asObject(source?.statWeights);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
-        name: asString(source.name),
-        summary: asString(source.summary),
-        fixedSkillKeys: Array.isArray(source.fixedSkillKeys)
-          ? source.fixedSkillKeys
-            .map((entry) => asString(entry).trim())
-            .filter(Boolean)
-          : undefined,
-        skillCaps: {
-          guard: asInt(skillCaps?.guard, 0),
-          spell: asInt(skillCaps?.spell, 0),
-        },
-        statWeights: {
-          strength: asNumber(statWeights?.strength, 1),
-          agility: asNumber(statWeights?.agility, 1),
-          intelligence: asNumber(statWeights?.intelligence, 1),
-          vitality: asNumber(statWeights?.vitality, 1),
-        },
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          ...(normalizeMapKeys(source.mapKeys) ? { mapKeys: normalizeMapKeys(source.mapKeys) } : {}),
+          name: asString(source.name),
+          summary: asString(source.summary),
+          fixedSkillKeys: Array.isArray(source.fixedSkillKeys)
+            ? source.fixedSkillKeys
+              .map((entry) => asString(entry).trim())
+              .filter(Boolean)
+            : undefined,
+          skillCaps: {
+            guard: asInt(skillCaps?.guard, 0),
+            spell: asInt(skillCaps?.spell, 0),
+          },
+          statWeights: {
+            strength: asNumber(statWeights?.strength, 1),
+            agility: asNumber(statWeights?.agility, 1),
+            intelligence: asNumber(statWeights?.intelligence, 1),
+            vitality: asNumber(statWeights?.vitality, 1),
+          },
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_BATTLE_ENEMIES];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));
@@ -1563,36 +1756,36 @@ function normalizeSkillEffects(value) {
 function normalizeSkillTemplates(value) {
   const normalized = Array.isArray(value)
     ? value
-    .map((entry) => {
-      const source = asObject(entry);
+      .map((entry) => {
+        const source = asObject(entry);
 
-      if (!source || !asString(source.key).trim()) {
-        return null;
-      }
+        if (!source || !asString(source.key).trim()) {
+          return null;
+        }
 
-      return {
-        key: asString(source.key).trim(),
-        name: asString(source.name),
-        iconText: asString(source.iconText),
-        description: asString(source.description),
-        quality: asRarity(source.quality),
-        category: asSkillCategory(source.category),
-        trigger: asString(source.trigger, "random"),
-        acquisitionHint: asString(source.acquisitionHint),
-        source: source.source === "enemy" ? "enemy" : "learned",
-        maxLevel: Math.max(1, asInt(source.maxLevel, 10)),
-        damageMultiplier: asNumber(source.damageMultiplier, 0),
-        levelDamageGrowth: asNumber(source.levelDamageGrowth, 0),
-        healRatio: asNumber(source.healRatio, 0),
-        levelHealGrowth: asNumber(source.levelHealGrowth, 0),
-        guardRatio: asNumber(source.guardRatio, 0),
-        levelGuardGrowth: asNumber(source.levelGuardGrowth, 0),
-        maxUses: Math.max(0, asInt(source.maxUses, 0)),
-        cooldownTurns: Math.max(0, asInt(source.cooldownTurns, 0)),
-        effects: normalizeSkillEffects(source.effects),
-      };
-    })
-    .filter(Boolean)
+        return {
+          key: asString(source.key).trim(),
+          name: asString(source.name),
+          iconText: asString(source.iconText),
+          description: asString(source.description),
+          quality: asRarity(source.quality),
+          category: asSkillCategory(source.category),
+          trigger: asString(source.trigger, "random"),
+          acquisitionHint: asString(source.acquisitionHint),
+          source: source.source === "enemy" ? "enemy" : "learned",
+          maxLevel: Math.max(1, asInt(source.maxLevel, 10)),
+          damageMultiplier: asNumber(source.damageMultiplier, 0),
+          levelDamageGrowth: asNumber(source.levelDamageGrowth, 0),
+          healRatio: asNumber(source.healRatio, 0),
+          levelHealGrowth: asNumber(source.levelHealGrowth, 0),
+          guardRatio: asNumber(source.guardRatio, 0),
+          levelGuardGrowth: asNumber(source.levelGuardGrowth, 0),
+          maxUses: Math.max(0, asInt(source.maxUses, 0)),
+          cooldownTurns: Math.max(0, asInt(source.cooldownTurns, 0)),
+          effects: normalizeSkillEffects(source.effects),
+        };
+      })
+      .filter(Boolean)
     : [];
   const merged = [...DEFAULT_SKILL_TEMPLATES];
   const indexByKey = new Map(merged.map((entry, index) => [entry.key, index]));

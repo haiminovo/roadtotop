@@ -108,6 +108,7 @@ function normalizeChatRoleProfile(role, backpack) {
         name: item.name,
         rarity: item.rarity,
         slot: item.slot,
+        iconKey: typeof item.icon_key === "string" && item.icon_key.trim().length > 0 ? item.icon_key.trim() : null,
         equippedCount: getBackpackEquippedCount(item),
         equippedSlotGroups: item.equipped_slot_groups || [],
       })),
@@ -153,6 +154,7 @@ async function getChatRoleProfiles(roleIds) {
           item.name,
           item.rarity,
           item.slot,
+          item.icon_key,
           item.stat_json
         FROM backpack
         JOIN item ON item.item_id = backpack.item_id

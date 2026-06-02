@@ -507,7 +507,7 @@ async function main() {
   const tickTimer = setInterval(() => {
     for (const [connection, session] of sessions.entries()) {
       void pushProgressUpdate(connection, session).catch((error) => {
-        sendError(connection, error instanceof Error ? error.message : "同步挂机进度失败。");
+        sendError(connection, error instanceof Error ? error.message : "同步行动进度失败。");
       });
     }
   }, PROGRESS_PUSH_MS);

@@ -733,11 +733,11 @@ function buildRoleBodySlots(role, backpack) {
       slotType,
       item: equippedItem
         ? {
-            backpackId: equippedItem.backpack_id,
-            itemId: equippedItem.item_id,
-            name: equippedItem.name,
-            rarity: equippedItem.rarity,
-          }
+          backpackId: equippedItem.backpack_id,
+          itemId: equippedItem.item_id,
+          name: equippedItem.name,
+          rarity: equippedItem.rarity,
+        }
         : null,
     };
   });
@@ -1781,7 +1781,7 @@ function createBattleState(role, backpack = [], mapKey = null, startedAt = Date.
     logs: normalizeBattleLog([
       {
         id: makeBattleLogId(),
-        text: `${enemy.name} 闯入挂机路线，自动战斗开始。`,
+        text: `${enemy.name} 闯入行动路线，自动战斗开始。`,
         timestamp: startedAt,
         type: "system",
       },
@@ -2760,7 +2760,7 @@ function maybeStartBattle(data, timestamp, summary) {
     key: `battle-start-${data.afk.battle_state?.battleId || timestamp}`,
     tier: "rare",
     title: "遭遇怪物",
-    description: `${data.afk.battle_state?.enemy?.name || "未知敌人"} 闯入挂机路线，自动战斗开始。`,
+    description: `${data.afk.battle_state?.enemy?.name || "未知敌人"} 闯入行动路线，自动战斗开始。`,
     reward: {
       gold: 0,
       aetherCrystal: 0,
@@ -3379,7 +3379,7 @@ async function requireDashboardData(guestToken) {
   const afk = afkResult.rows[0];
 
   if (!afk) {
-    throw createServiceError("挂机状态不存在，请重新创建角色。", 404);
+    throw createServiceError("行动状态不存在，请重新创建角色。", 404);
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);
@@ -3706,7 +3706,7 @@ async function startAfkForGuest(guestToken, activityKey, mapKey) {
   settleAfkState(data, { now, autoApplyReward: true });
 
   if (data.afk.status === "active") {
-    throw createServiceError("当前已经处于挂机中，请先停止。", 409);
+    throw createServiceError("当前已经处于行动中，请先停止。", 409);
   }
 
   if (data.role.level < map.minLevel) {
@@ -3739,7 +3739,7 @@ async function stopAfkForGuest(guestToken) {
   }
 
   if (isBattleActive(data.afk.battle_state)) {
-    throw createServiceError("战斗进行中，暂时不能停止挂机。", 409);
+    throw createServiceError("战斗进行中，暂时不能停止行动。", 409);
   }
 
   data.afk.status = "idle";

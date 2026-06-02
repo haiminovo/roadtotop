@@ -308,7 +308,7 @@ VALUES
     'GiCloak',
     'neck',
     1,
-    '轻便耐磨，适合野外挂机。',
+    '轻便耐磨，适合野外行动。',
     30,
     '{"agility": 2, "vitality": 1}'::jsonb,
     NOW()
@@ -721,7 +721,7 @@ VALUES
       {
         "key": "elf",
         "label": "精灵",
-        "summary": "速度和法感更高，挂机效率偏灵巧与法术。",
+        "summary": "速度和法感更高，行动效率偏灵巧与法术。",
         "iconKey": "GiElfEar",
         "stats": { "strength": 3, "agility": 7, "intelligence": 7, "vitality": 3 },
         "bodySlotAdjustments": { "accessory": 1 }
@@ -760,7 +760,7 @@ VALUES
       {
         "key": "farmer",
         "label": "农民",
-        "summary": "务实稳定，适合当前版本的挂机与资源周转。",
+        "summary": "务实稳定，适合当前版本的行动与资源周转。",
         "iconKey": "GiPitchfork",
         "starterItemId": "field-hoe",
         "stats": { "strength": 2, "agility": 2, "intelligence": 1, "vitality": 4 }

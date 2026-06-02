@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     if (!body.mapKey || !(await isValidMapKeyRuntime(body.mapKey))) {
-      throw new ApiError("请选择有效挂机地图。");
+      throw new ApiError("请选择有效行动地图。");
     }
 
     const activityKey = (body.activityKey || "combat") as ActivityKey;

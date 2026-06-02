@@ -1077,7 +1077,7 @@ async function requireDashboardData(guestToken: string) {
   const afk = afkResult.rows[0];
 
   if (!afk) {
-    throw new ApiError("挂机状态不存在，请重新创建角色。", 404);
+    throw new ApiError("行动状态不存在，请重新创建角色。", 404);
   }
 
   afk.recent_encounters = normalizeEncounterLog(afk.recent_encounters);

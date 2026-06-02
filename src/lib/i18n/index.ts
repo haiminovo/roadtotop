@@ -52,11 +52,6 @@ export function getItemCopy(locale: SupportedLocale, itemId: string) {
   return copy[itemId as keyof typeof copy] ?? null;
 }
 
-export function getEncounterCopy(locale: SupportedLocale, encounterKey: string) {
-  const copy = getMessages(locale).data.encounters;
-  return copy[encounterKey as keyof typeof copy] ?? null;
-}
-
 export function localizeErrorMessage(locale: SupportedLocale, message: string) {
   return getMessages(locale).errors[message as keyof AppCopy["errors"]] ?? message;
 }

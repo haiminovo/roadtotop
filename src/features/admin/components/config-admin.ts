@@ -60,7 +60,7 @@ export const CONFIG_LABELS: Record<ConfigEditorKey, string> = {
 
 export const EVENT_RULE_FILTER_LABELS: Record<EventRuleFilter, string> = {
   all: "全部",
-  afk_tick: "挂机触发",
+  afk_tick: "行动触发",
   enemy_kill: "击杀触发",
 };
 
@@ -126,7 +126,7 @@ const ENCOUNTER_TIER_LABELS: Record<string, string> = {
 };
 
 const EVENT_TRIGGER_LABELS: Record<string, string> = {
-  afk_tick: "挂机触发",
+  afk_tick: "行动触发",
   enemy_kill: "击杀触发",
 };
 

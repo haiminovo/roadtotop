@@ -18,7 +18,7 @@
 - **Offline reward settlement** (up to 8-hour cap)
 - **Admin dashboard** for managing accounts, roles, and game configuration
 
-The game is designed as a "挂机" (idle/AFK) game where the server handles all progression logic authoritatively.
+The game is designed as a "行动" (idle/AFK) game where the server handles all progression logic authoritatively.
 
 ---
 

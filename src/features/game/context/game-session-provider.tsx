@@ -204,14 +204,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     const socket = socketRef.current;
 
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      throw new Error(localizeErrorMessage(locale, "与挂机服务器的连接尚未建立。"));
+      throw new Error(localizeErrorMessage(locale, "与行动服务器的连接尚未建立。"));
     }
 
     socket.send(JSON.stringify(createClientMessage(type, payload)));
   }, [locale]);
 
   const handleRealtimeError = useCallback((statusCode: number, message?: string) => {
-    const localizedMessage = localizeErrorMessage(locale, message ?? "连接挂机服务器失败。");
+    const localizedMessage = localizeErrorMessage(locale, message ?? "连接行动服务器失败。");
 
     if (statusCode === 401) {
       shouldReconnectRef.current = false;
@@ -355,7 +355,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     socket.addEventListener("error", () => {
       setIsRealtimeReady(false);
       setStatus("error");
-      setError(localizeErrorMessage(locale, "挂机长连接建立失败。"));
+      setError(localizeErrorMessage(locale, "行动长连接建立失败。"));
     });
   }, [handleIncomingSnapshot, handleRealtimeError, locale]);
 
@@ -601,7 +601,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       setActivePanel("afk");
     } catch (sendError) {
       setStatus("error");
-      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "开始挂机失败。"));
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "开始行动失败。"));
       throw sendError;
     }
   }, [locale, selectedActivityKey, selectedMapKey, sendSocketMessage]);
@@ -613,7 +613,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       sendSocketMessage(CLIENT_MESSAGE_TYPES.AFK_STOP, {});
     } catch (sendError) {
       setStatus("error");
-      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "停止挂机失败。"));
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "停止行动失败。"));
       throw sendError;
     }
   }, [locale, sendSocketMessage]);

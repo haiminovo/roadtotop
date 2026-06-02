@@ -23,6 +23,7 @@ export type ChatRoleProfile = {
     name: string;
     rarity: string;
     slot: string;
+    iconKey: string | null;
     equippedCount: number;
     equippedSlotGroups: string[][];
   }>;

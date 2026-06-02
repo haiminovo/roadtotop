@@ -807,7 +807,7 @@ const DEFAULT_ITEM_CATALOG: DynamicGameConfig["itemCatalog"] = [
   { itemId: "rusty-blade", name: "生锈短剑", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiSwordman", slot: "hand", slotUsage: 1, description: "开荒时勉强能用的短剑。", sellPrice: 12, stats: { strength: 2 } },
   { itemId: "oak-staff", name: "橡木法杖", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiWizardStaff", slot: "hand", slotUsage: 2, description: "粗糙的入门法杖，适合法师起步。", sellPrice: 12, stats: { intelligence: 2 } },
   { itemId: "field-hoe", name: "旧铁锄", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBattleAxe", slot: "hand", slotUsage: 2, description: "农活与近身防卫两不误的旧工具。", sellPrice: 10, stats: { vitality: 1, agility: 1 } },
-  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCloak", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外挂机。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
+  { itemId: "forest-cloak", name: "林地披风", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiCloak", slot: "neck", slotUsage: 1, description: "轻便耐磨，适合野外行动。", sellPrice: 30, stats: { agility: 2, vitality: 1 } },
   { itemId: "traveler-ring", name: "旅者戒指", rarity: "green", itemType: "equipment", skillKey: null, iconKey: "GiRing", slot: "accessory", slotUsage: 1, description: "会在冒险者启程时发放的基础指环。", sellPrice: 36, stats: { strength: 1, intelligence: 1, vitality: 1 } },
   { itemId: "training-bow", name: "练习短弓", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiPocketBow", slot: "hand", slotUsage: 2, description: "拉力一般，但足够让新手学会瞄准与走位。", sellPrice: 18, stats: { agility: 2 } },
   { itemId: "leather-cap", name: "皮质便帽", rarity: "white", itemType: "equipment", skillKey: null, iconKey: "GiBilledCap", slot: "head", slotUsage: 1, description: "不起眼的小帽子，能挡一点风沙与碎石。", sellPrice: 14, stats: { vitality: 1, agility: 1 } },
@@ -1596,7 +1596,7 @@ export function validateAdminGameConfig(input: {
   });
 
   if (!Array.isArray(input.afkEncounterPool) || input.afkEncounterPool.length === 0) {
-    pushConfigError(errors, "afkEncounterPool", "挂机遭遇池必须是非空数组。");
+    pushConfigError(errors, "afkEncounterPool", "行动遭遇池必须是非空数组。");
   } else {
     input.afkEncounterPool.forEach((encounter, index) => {
       const push = (message: string) => pushConfigError(errors, "afkEncounterPool", `第 ${index + 1} 项：${message}`);
@@ -1713,7 +1713,7 @@ export function validateAdminGameConfig(input: {
 
         if (rule.trigger.type === "afk_tick") {
           if (!Array.isArray(rule.trigger.activityKeys) || rule.trigger.activityKeys.length !== 1) {
-            push("挂机触发规则必须配置且只配置 1 个 trigger.activityKeys。");
+            push("行动触发规则必须配置且只配置 1 个 trigger.activityKeys。");
           } else {
             rule.trigger.activityKeys.forEach((activityKey, activityIndex) => {
               const validated = validateRequiredString(activityKey, `trigger.activityKeys[${activityIndex + 1}]`, push);
@@ -1724,7 +1724,7 @@ export function validateAdminGameConfig(input: {
           }
 
           if (!Array.isArray(rule.trigger.mapKeys) || rule.trigger.mapKeys.length !== 1) {
-            push("挂机触发规则必须配置且只配置 1 个 trigger.mapKeys。");
+            push("行动触发规则必须配置且只配置 1 个 trigger.mapKeys。");
           }
         }
 
