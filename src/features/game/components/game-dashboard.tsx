@@ -62,30 +62,6 @@ function formatDecimal(value: number, locale: SupportedLocale = DEFAULT_LOCALE) 
   }).format(value);
 }
 
-function formatDuration(seconds: number) {
-  const totalSeconds = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}小时 ${minutes}分`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}分 ${remainingSeconds}秒`;
-  }
-
-  return `${remainingSeconds}秒`;
-}
-
-function formatClock(seconds: number) {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainingSeconds = safeSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
-}
-
 function formatPercent(current: number, total: number, messages: I18nMessages = DEFAULT_MESSAGES) {
   if (total <= 0) {
     return messages.common.max;
@@ -336,7 +312,7 @@ function SectionCard({
   return (
     <section
       className={[
-        "rounded-lg border border-[#30363d] bg-[#161b22] shadow-[0_0_20px_rgba(0,0,0,0.2)]",
+        "game-panel rounded-lg",
         className,
       ].join(" ")}
     >
@@ -355,6 +331,7 @@ function OverlayModal({
   children: React.ReactNode;
 }) {
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/75 backdrop-blur-sm px-2 py-2 sm:px-4 sm:py-4">
       <div className="mx-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[#30363d] bg-[#161b22] shadow-[0_0_60px_rgba(0,0,0,0.5)] sm:max-h-[calc(100dvh-2rem)]">
         <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
@@ -385,7 +362,7 @@ function TopStatusBar({
   const safeValue = Math.max(0, Math.min(100, value));
 
   return (
-    <div className={["rounded-md border border-[#30363d] bg-[#0d1117] p-3", className].join(" ")}>
+    <div className={["game-subpanel rounded-md p-3", className].join(" ")}>
       <div className={`mb-2 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.16em] ${labelClassName}`}>
         <span>{label}</span>
         <span>{valueLabel ?? `${Math.max(0, Math.floor(safeValue))}%`}</span>
@@ -416,7 +393,7 @@ function DataPill({
   return (
     <div
       className={[
-        "min-w-0 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-1.5",
+        "game-subpanel min-w-0 rounded-md px-2.5 py-1.5",
         className,
       ].join(" ")}
     >
@@ -436,7 +413,7 @@ function InlineStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className={["flex items-center justify-between gap-2 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-1.5", className].join(" ")}>
+    <div className={["game-subpanel flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5", className].join(" ")}>
       <span className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{label}</span>
       <span className="text-sm font-medium text-slate-200">{value}</span>
     </div>
@@ -451,7 +428,7 @@ function CompactStat({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1">
+    <div className="game-subpanel flex items-center gap-1.5 rounded-md px-2 py-1">
       <span className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</span>
       <span className="text-xs font-semibold text-slate-200 sm:text-sm">{value}</span>
     </div>
@@ -649,7 +626,7 @@ function PanelSubsection({
   className?: string;
 }) {
   return (
-    <div className={["rounded-lg border border-[#30363d] bg-[#0d1117] p-3 sm:p-4", className].join(" ")}>
+    <div className={["game-subpanel rounded-lg p-3 sm:p-4", className].join(" ")}>
       {children}
     </div>
   );
@@ -939,24 +916,24 @@ function RailButton({
   return (
     <button
       className={[
-        "group flex min-h-12 w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition sm:min-h-14 sm:px-3 sm:py-2",
+        "group flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-center transition sm:min-h-14 sm:flex-row sm:justify-start sm:gap-2 sm:px-3 sm:text-left",
         active
-          ? "border-sky-500/50 bg-sky-500/10 text-white glow-border-sky"
-          : "border-[#30363d] bg-transparent text-slate-300 hover:border-[#484f58] hover:text-white",
+          ? "border-cyan-300/[0.45] bg-cyan-300/10 text-white shadow-[0_0_18px_rgba(34,211,238,0.12)]"
+          : "border-white/[0.08] bg-white/[0.025] text-slate-300 hover:border-white/[0.18] hover:bg-white/[0.045] hover:text-white",
       ].join(" ")}
       onClick={onClick}
       type="button"
     >
       {Icon ? (
-        <Icon className={`h-4 w-4 shrink-0 transition sm:h-5 sm:w-5 ${active ? "text-sky-400" : "text-slate-500 group-hover:text-slate-300"}`} />
+        <Icon className={`h-4 w-4 shrink-0 transition sm:h-5 sm:w-5 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`} />
       ) : null}
-      <div className="flex min-w-0 flex-1 items-center justify-between gap-1.5">
-        <span className="min-w-0 truncate text-xs font-medium leading-5 sm:text-sm">{label}</span>
+      <div className="flex min-w-0 flex-col items-center gap-1 sm:flex-1 sm:flex-row sm:justify-between sm:gap-1.5">
+        <span className="min-w-0 max-w-full truncate text-xs font-medium leading-4 sm:text-sm sm:leading-5">{label}</span>
         {count ? (
           <span
             className={[
-              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] sm:px-2",
-              active ? "bg-sky-500/20 text-sky-400" : "bg-[#21262d] text-slate-500",
+              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] leading-none sm:px-2",
+              active ? "bg-cyan-300/[0.18] text-cyan-200" : "bg-white/[0.055] text-slate-500",
             ].join(" ")}
           >
             {count}
@@ -1367,7 +1344,7 @@ function BackpackSectionList({
         }
 
         return (
-          <div key={itemType} className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
+          <div key={itemType} className="game-subpanel rounded-lg p-2.5 sm:p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 min-h-6 items-center gap-2">
                 <p className="truncate text-[11px] uppercase leading-none tracking-[0.18em] text-slate-300/78">{itemTypeLabel(itemType, messages)}</p>
@@ -1375,7 +1352,7 @@ function BackpackSectionList({
               </div>
               <MetaBadge tone={itemCategoryTone(itemType)}>{itemTypeLabel(itemType, messages)}</MetaBadge>
             </div>
-            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 sm:gap-2 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9">
+            <div className="grid grid-cols-4 gap-1.5 min-[420px]:grid-cols-5 sm:grid-cols-6 sm:gap-2 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9">
               {items.map((item) => (
                 <ItemTile
                   key={item.backpackId}
@@ -1401,7 +1378,6 @@ function CenterPanel({
   activePanel,
   backpack,
   isRealtimeReady,
-  currentTaskReward,
   activities,
   maps,
   onRequestBuyMarketListing,
@@ -1419,18 +1395,11 @@ function CenterPanel({
   startAfk,
   status,
   stopAfk,
-  taskDuration,
-  taskProgress,
   taskProgressPercent,
 }: {
   activePanel: PanelKey;
   backpack: BackpackItem[];
   isRealtimeReady: boolean;
-  currentTaskReward: {
-    aetherCrystal: number;
-    exp: number;
-    gold: number;
-  };
   activities: ActivityConfig[];
   maps: MapConfig[];
   onRequestBuyMarketListing: (listingId: string) => void;
@@ -1448,8 +1417,6 @@ function CenterPanel({
   startAfk: ReturnType<typeof useGameSession>["startAfk"];
   status: ReturnType<typeof useGameSession>["status"];
   stopAfk: ReturnType<typeof useGameSession>["stopAfk"];
-  taskDuration: number;
-  taskProgress: number;
   taskProgressPercent: number;
 }) {
   const { locale, messages } = useI18n();
@@ -1573,146 +1540,187 @@ function CenterPanel({
     const equippedSkills = Array.isArray(role.equippedSkills) ? role.equippedSkills : [];
     const learnedSkills = Array.isArray(role.learnedSkills) ? role.learnedSkills : [];
     const availableSkills = learnedSkills.filter((skill) => !skill.equipped);
+    const healthPct = Math.max(0, Math.min(100, (role.currentHealth / Math.max(1, role.maxHealth)) * 100));
 
     return (
       <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden sm:min-h-[24rem] xl:h-full xl:min-h-0">
-        <div className="border-b border-[#30363d] px-3 py-2 sm:px-4 sm:py-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold tracking-[-0.04em] text-white sm:text-xl">{role.name}</h2>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {race ? localizeRaceLabel(race.key, race.label, locale) : copy.createRole.noRace} · {roleClass ? localizeClassLabel(roleClass.key, roleClass.label, locale) : copy.createRole.noClass} · Lv.{role.level}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              {race ? (() => {
-                const RaceIcon = raceIconByConfig(race.key, race.iconKey);
-                return <RaceIcon className="h-4 w-4 text-[#58a6ff]" />;
-              })() : null}
-              {roleClass ? (() => {
-                const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
-                return <ClassIcon className="h-4 w-4 text-emerald-300" />;
-              })() : null}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* ── Hero Character Card ── */}
+          <div className="relative overflow-hidden border-b border-[#30363d] bg-linear-to-br from-[#0d1117] via-[#111827] to-[#0d1117] px-3 py-3 sm:px-4 sm:py-4">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(56,189,248,0.06),transparent_50%)]" />
+            <div className="relative flex items-start gap-3">
+              {/* Avatar */}
+              <div className="relative shrink-0">
+                <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-300/25 bg-linear-to-br from-cyan-300/16 via-emerald-300/10 to-amber-300/10 text-lg font-bold text-cyan-200 shadow-lg shadow-cyan-500/10 sm:h-16 sm:w-16 sm:text-xl">
+                  {role.avatarSeed}
+                </div>
+                <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-[#30363d] bg-[#161b22] text-[9px] font-bold text-amber-300">
+                  {role.level}
+                </div>
+              </div>
+              {/* Identity */}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">{role.name}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {race ? (() => {
+                    const RaceIcon = raceIconByConfig(race.key, race.iconKey);
+                    return (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-sky-800/40 bg-sky-900/20 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                        <RaceIcon className="h-3 w-3" />
+                        {localizeRaceLabel(race.key, race.label, locale)}
+                      </span>
+                    );
+                  })() : null}
+                  {roleClass ? (() => {
+                    const ClassIcon = classIconByConfig(roleClass.key, roleClass.iconKey);
+                    return (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-800/40 bg-emerald-900/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                        <ClassIcon className="h-3 w-3" />
+                        {localizeClassLabel(roleClass.key, roleClass.label, locale)}
+                      </span>
+                    );
+                  })() : null}
+                </div>
+                {/* Health bar */}
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-[9px] text-slate-500">
+                    <span>{copy.dashboard.currentHealth}</span>
+                    <span className="tabular-nums">{formatNumber(role.currentHealth, locale)} / {formatNumber(role.maxHealth, locale)}</span>
+                  </div>
+                  <div className="progress-shine mt-0.5 h-2 overflow-hidden rounded-full bg-[#21262d]">
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-700 ease-out ${healthPct > 60 ? "bg-linear-to-r from-emerald-500 to-emerald-400" : healthPct > 30 ? "bg-linear-to-r from-amber-500 to-amber-400" : "bg-linear-to-r from-rose-500 to-rose-400"}`}
+                      style={{ width: `${healthPct}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2.5 sm:gap-3 sm:p-3 md:grid-cols-2 xl:grid-cols-[1.1fr_0.9fr]">
-          <PanelSubsection className="bg-[#0d1117]">
-            <div className="flex items-center gap-3">
-              <TopStatusBar
-                className="flex-1 border-none bg-transparent p-0"
-                label={copy.dashboard.currentHealth}
-                labelClassName="text-slate-500"
-                tone="from-rose-500 via-orange-400 to-emerald-300"
-                valueLabel={`${formatNumber(role.currentHealth, locale)} / ${formatNumber(role.maxHealth, locale)}`}
-                value={(role.currentHealth / Math.max(1, role.maxHealth)) * 100}
-              />
+          {/* ── Primary Stats ── */}
+          <div className="border-b border-[#30363d] px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="mb-2 text-[9px] uppercase tracking-[0.16em] text-slate-600">{copy.dashboard.levelBar}</p>
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+              {[
+                { key: "strength", color: "border-rose-800/40 bg-rose-950/30 text-rose-300", icon: "⚔" },
+                { key: "agility", color: "border-emerald-800/40 bg-emerald-950/30 text-emerald-300", icon: "💨" },
+                { key: "intelligence", color: "border-sky-800/40 bg-sky-950/30 text-sky-300", icon: "✦" },
+                { key: "vitality", color: "border-amber-800/40 bg-amber-950/30 text-amber-300", icon: "♥" },
+              ].map((s) => (
+                <div key={s.key} className={`rounded-lg border px-2 py-2 text-center ${s.color}`}>
+                  <span className="text-[10px]">{s.icon}</span>
+                  <p className="mt-0.5 text-base font-bold tabular-nums leading-none sm:text-lg">{formatNumber(role.stats[s.key as keyof typeof role.stats], locale)}</p>
+                  <p className="mt-0.5 text-[8px] uppercase tracking-wider opacity-70">{statLabel(s.key, messages)}</p>
+                </div>
+              ))}
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-4">
-              <InlineStat label={copy.dashboard.level} value={formatNumber(role.level, locale)} />
-              <InlineStat label={statLabel("strength", messages)} value={formatNumber(role.stats.strength, locale)} />
-              <InlineStat label={statLabel("agility", messages)} value={formatNumber(role.stats.agility, locale)} />
-              <InlineStat label={statLabel("vitality", messages)} value={formatNumber(role.stats.vitality, locale)} />
-            </div>
-          </PanelSubsection>
+          </div>
 
-          <PanelSubsection className="grid grid-cols-2 gap-1.5 p-2.5 min-[420px]:grid-cols-3 sm:p-3">
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("intelligence", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-sky-300">{formatNumber(role.stats.intelligence, locale)}</p>
+          {/* ── Secondary Stats ── */}
+          <div className="border-b border-[#30363d] px-3 py-2.5 sm:px-4 sm:py-3">
+            <p className="mb-2 text-[9px] uppercase tracking-[0.16em] text-slate-600">战斗属性</p>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              {[
+                { key: "critChance", value: formatSecondaryStatPercent(role.secondaryStats.critChance, locale), color: "text-amber-300" },
+                { key: "critDamage", value: formatSecondaryStatMultiplier(role.secondaryStats.critDamage, locale), color: "text-orange-300" },
+                { key: "dodgeChance", value: formatSecondaryStatPercent(role.secondaryStats.dodgeChance, locale), color: "text-cyan-300" },
+                { key: "blockChance", value: formatSecondaryStatPercent(role.secondaryStats.blockChance, locale), color: "text-emerald-300" },
+                { key: "healthRegenRate", value: formatSecondaryStatPercent(role.secondaryStats.healthRegenRate, locale), color: "text-rose-300" },
+              ].map((s) => (
+                <div key={s.key} className="game-subpanel flex items-center justify-between rounded-md px-2 py-1.5">
+                  <span className="text-[9px] uppercase tracking-wider text-slate-500">{statLabel(s.key, messages)}</span>
+                  <span className={`text-xs font-semibold tabular-nums ${s.color}`}>{s.value}</span>
+                </div>
+              ))}
             </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("critChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-amber-300">{formatSecondaryStatPercent(role.secondaryStats.critChance, locale)}</p>
-            </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("critDamage", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-orange-300">{formatSecondaryStatMultiplier(role.secondaryStats.critDamage, locale)}</p>
-            </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("dodgeChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-cyan-300">{formatSecondaryStatPercent(role.secondaryStats.dodgeChance, locale)}</p>
-            </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("blockChance", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-emerald-300">{formatSecondaryStatPercent(role.secondaryStats.blockChance, locale)}</p>
-            </div>
-            <div className="rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-2 text-center transition hover:border-[#484f58]">
-              <p className="text-[10px] text-slate-500">{statLabel("healthRegenRate", messages)}</p>
-              <p className="mt-0.5 text-sm font-semibold text-rose-300">{formatSecondaryStatPercent(role.secondaryStats.healthRegenRate, locale)}</p>
-            </div>
-          </PanelSubsection>
+          </div>
 
-          <PanelSubsection className="md:col-span-2 xl:col-span-2">
-            <div className="flex items-center justify-between">
-              <SectionEyebrow>{copy.dashboard.bodySlots}</SectionEyebrow>
-              <span className="text-[10px] text-slate-500">{bodySlots.filter((s) => s.item).length} / {bodySlots.length}</span>
+          {/* ── Equipment Slots ── */}
+          <div className="border-b border-[#30363d] px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[9px] uppercase tracking-[0.16em] text-slate-600">{copy.dashboard.bodySlots}</p>
+              <span className="text-[9px] text-slate-600">{bodySlots.filter((s) => s.item).length}/{bodySlots.length}</span>
             </div>
-            <div className="mt-2 grid grid-cols-1 gap-1 min-[420px]:grid-cols-2 sm:gap-1.5 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-1 min-[420px]:grid-cols-2 sm:gap-1.5">
               {bodySlots.map((slot) => (
                 <div
                   key={slot.key}
                   className={[
-                    "flex items-center justify-between gap-2 rounded-md border px-2 py-1.5",
+                    "flex items-center gap-2 rounded-md border px-2 py-1.5 transition",
                     slot.item
                       ? marketItemCardAccent(slot.item.rarity)
-                      : "border-[#30363d] bg-[#0d1117]/50",
+                      : "border-[#30363d]/60 bg-[#0d1117]/40",
                   ].join(" ")}
                 >
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wider text-slate-500">{bodySlotKeyLabel(slot.key, messages)}</p>
-                    <p className="text-xs font-medium text-slate-200">{slot.item ? localizeItemName(slot.item.itemId, slot.item.name, locale) : copy.dashboard.emptySlot}</p>
+                  {(() => {
+                    const SlotIcon = getGameIconByKey(null, getItemTypeFallbackIconKey("equipment"));
+                    return (
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${slot.item ? "border-[#30363d] bg-[#0d1117] text-slate-200" : "border-white/[0.06] bg-white/[0.03] text-slate-700"}`}>
+                        <SlotIcon className={slot.item ? "h-3.5 w-3.5" : "h-3 w-3 opacity-40"} />
+                      </div>
+                    );
+                  })()}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] uppercase tracking-wider text-slate-500">{bodySlotKeyLabel(slot.key, messages)}</p>
+                    <p className={`truncate text-xs font-medium ${slot.item ? "text-slate-200" : "text-slate-600"}`}>
+                      {slot.item ? localizeItemName(slot.item.itemId, slot.item.name, locale) : copy.dashboard.emptySlot}
+                    </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {slot.item ? (
-                      <>
-                        <span className="text-[10px] text-slate-400">{rarityLabel(slot.item.rarity, messages)}</span>
-                        <button
-                          className="rounded border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-slate-300 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={!isRealtimeReady || status === "saving"}
-                          onClick={() => onUnequipItem(slot.item!.backpackId)}
-                          type="button"
-                        >
-                          {copy.dashboard.unequip}
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-[10px] text-slate-600">{slotLabel(slot.slotType, messages)}</span>
-                    )}
-                  </div>
+                  {slot.item ? (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className={`text-[9px] font-medium ${{
+                        white: "text-slate-400",
+                        green: "text-emerald-400",
+                        blue: "text-sky-400",
+                        purple: "text-fuchsia-400",
+                        orange: "text-amber-400",
+                      }[slot.item.rarity] ?? "text-slate-400"}`}>{rarityLabel(slot.item.rarity, messages)}</span>
+                      <button
+                        className="rounded border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] text-slate-300 transition hover:border-sky-200/25 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!isRealtimeReady || status === "saving"}
+                        onClick={() => onUnequipItem(slot.item!.backpackId)}
+                        type="button"
+                      >
+                        {copy.dashboard.unequip}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[9px] text-slate-700">{slotLabel(slot.slotType, messages)}</span>
+                  )}
                 </div>
               ))}
             </div>
-          </PanelSubsection>
+          </div>
 
-          <PanelSubsection className="md:col-span-2 xl:col-span-2">
-            <div className="flex items-center justify-between">
-              <SectionEyebrow>{copy.dashboard.skillPanelTitle}</SectionEyebrow>
-              <MetaBadge tone="sky">
+          {/* ── Skills ── */}
+          <div className="px-3 py-2.5 sm:px-4 sm:py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[9px] uppercase tracking-[0.16em] text-slate-600">{copy.dashboard.skillPanelTitle}</p>
+              <span className="rounded-md bg-sky-900/30 px-1.5 py-0.5 text-[9px] font-medium text-sky-400">
                 {formatMessage(copy.dashboard.skillSlotsSummary, {
                   remaining: formatNumber(role.skillSlots.remaining, locale),
                   total: formatNumber(role.skillSlots.total, locale),
                   used: formatNumber(role.skillSlots.used, locale),
                 })}
-              </MetaBadge>
+              </span>
             </div>
 
             {equippedSkills.length > 0 && (
-              <div className="mt-2">
-                <p className="mb-1.5 text-[10px] uppercase tracking-wider text-slate-500">{copy.dashboard.equippedSkillsTitle}</p>
-                <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:grid-cols-3">
+              <div className="mb-2">
+                <p className="mb-1.5 text-[9px] uppercase tracking-wider text-slate-600">{copy.dashboard.equippedSkillsTitle}</p>
+                <div className="grid gap-1 min-[420px]:grid-cols-2 sm:gap-1.5">
                   {equippedSkills.map((skill) => (
                     <div
                       key={`equipped-${skill.key}`}
                       className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="min-w-0">
-                        <p className="break-words text-xs font-semibold leading-4 text-white sm:truncate">{skill.name}</p>
-                        <p className="text-[10px] text-slate-300/70">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
+                        <p className="truncate text-xs font-semibold text-white">{skill.name}</p>
+                        <p className="text-[9px] text-slate-400">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
                       </div>
                       <button
-                        className="shrink-0 rounded border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="shrink-0 rounded border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[9px] text-white transition hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!isRealtimeReady || status === "saving"}
                         onClick={() => onConfigureSkillLoadout(skill.key, "unequip")}
                         type="button"
@@ -1726,20 +1734,20 @@ function CenterPanel({
             )}
 
             {availableSkills.length > 0 && (
-              <div className="mt-2">
-                <p className="mb-1.5 text-[10px] uppercase tracking-wider text-slate-500">{copy.dashboard.learnedSkillsTitle}</p>
-                <div className="grid gap-1.5 min-[420px]:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <p className="mb-1.5 text-[9px] uppercase tracking-wider text-slate-600">{copy.dashboard.learnedSkillsTitle}</p>
+                <div className="grid gap-1 min-[420px]:grid-cols-2 sm:gap-1.5">
                   {availableSkills.map((skill) => (
                     <div
                       key={`learned-${skill.key}`}
                       className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 ${skillQualityTone(skill.quality)}`}
                     >
                       <div className="min-w-0">
-                        <p className="break-words text-xs font-semibold leading-4 text-white sm:truncate">{skill.name}</p>
-                        <p className="text-[10px] text-slate-300/70">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
+                        <p className="truncate text-xs font-semibold text-white">{skill.name}</p>
+                        <p className="text-[9px] text-slate-400">{skillCategoryLabel(skill.category, messages)} · Lv.{formatNumber(skill.level, locale)}</p>
                       </div>
                       <button
-                        className="shrink-0 rounded border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-1.5 py-0.5 text-[10px] text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="shrink-0 rounded border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-1.5 py-0.5 text-[9px] text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!isRealtimeReady || status === "saving" || role.skillSlots.remaining <= 0}
                         onClick={() => onConfigureSkillLoadout(skill.key, "equip")}
                         type="button"
@@ -1753,24 +1761,24 @@ function CenterPanel({
             )}
 
             {availableSkills.length === 0 && learnedSkills.length > 0 && (
-              <p className="mt-2 text-sm text-slate-400">{copy.dashboard.learnedSkillsAllEquipped}</p>
+              <p className="mt-1 text-xs text-slate-500">{copy.dashboard.learnedSkillsAllEquipped}</p>
             )}
-
             {equippedSkills.length === 0 && learnedSkills.length === 0 && (
-              <p className="mt-2 text-sm text-slate-400">{copy.dashboard.equippedSkillsEmpty}</p>
+              <p className="mt-1 text-xs text-slate-500">{copy.dashboard.equippedSkillsEmpty}</p>
             )}
-          </PanelSubsection>
-        </div>
+          </div>
 
-        <div className="border-t border-[#30363d] px-3 py-2 sm:px-4 sm:py-2.5">
-          <button
-            className="w-full rounded-md border border-rose-800/60 bg-rose-900/20 px-3 py-1.5 text-xs text-rose-300/80 transition hover:bg-rose-900/40 hover:text-rose-200"
-            disabled={status === "saving"}
-            onClick={onDeleteRole}
-            type="button"
-          >
-            {copy.dashboard.deleteRole}
-          </button>
+          {/* ── Danger Zone ── */}
+          <div className="flex justify-end border-t border-[#30363d] px-3 py-1.5 sm:px-4 sm:py-2">
+            <button
+              className="rounded px-2 py-0.5 text-[10px] text-rose-500/50 transition hover:bg-rose-950/40 hover:text-rose-400"
+              disabled={status === "saving"}
+              onClick={onDeleteRole}
+              type="button"
+            >
+              {copy.dashboard.deleteRole}
+            </button>
+          </div>
         </div>
       </SectionCard>
     );
@@ -1793,25 +1801,24 @@ function CenterPanel({
 
     return (
       <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden sm:min-h-[24rem] xl:h-full xl:min-h-0">
-        <div className="border-b border-[#30363d] px-3 py-2 sm:px-4 sm:py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold tracking-[-0.04em] text-white sm:text-xl">{copy.market.title}</h2>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                {formatNumber(marketListings.length, locale)} {messages.common.speciesUnit}
-              </p>
+        {/* Header with inline filters */}
+        <div className="border-b border-[#30363d] px-3 py-2 sm:px-4 sm:py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold tracking-tight text-white">{copy.market.title}</h2>
+              <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-slate-400">{formatNumber(marketListings.length, locale)}</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto sm:justify-end">
+            <div className="flex items-center gap-1.5">
               <CompactDropdown
                 ariaLabel={copy.market.filters.category}
-                className="min-w-0 sm:w-32"
+                className="min-w-0 w-24"
                 onChange={setMarketCategoryFilter}
                 options={marketCategoryOptions}
                 value={marketCategoryFilter}
               />
               <CompactDropdown
                 ariaLabel={copy.market.filters.rarity}
-                className="min-w-0 sm:w-28"
+                className="min-w-0 w-20"
                 onChange={setMarketRarityFilter}
                 options={marketRarityOptions}
                 value={marketRarityFilter}
@@ -1820,44 +1827,59 @@ function CenterPanel({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
+        {/* Listings */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-2">
           {marketListings.length > 0 ? (
-            <div className="grid gap-1.5 min-[420px]:grid-cols-2 sm:gap-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {marketListings.map((listing) => (
-                <div key={listing.listingId} className={`rounded-lg border p-2 ${marketItemCardAccent(listing.rarity)}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="break-words text-sm font-semibold leading-5 text-white sm:truncate">{localizeItemName(listing.itemId, listing.name, locale)}</p>
-                      <p className="mt-0.5 break-all text-[10px] leading-4 text-slate-500 sm:truncate">{listing.sellerName}</p>
+            <div className="space-y-1">
+              {marketListings.map((listing) => {
+                const MarketIcon = getGameIconByKey(null, getItemTypeFallbackIconKey(listing.categoryKey as BackpackItem["itemType"]));
+                return (
+                  <div key={listing.listingId} className={`group flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition hover:border-white/15 ${marketItemCardAccent(listing.rarity)}`}>
+                    {/* Item icon — same style as backpack */}
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-slate-200">
+                      <MarketIcon className="h-4 w-4" />
                     </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] ${itemAccent(listing.rarity)}`}>
-                      {formatNumber(listing.price, locale)}
-                    </span>
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-xs font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
+                        <span className={`shrink-0 text-[9px] font-medium ${{
+                          white: "text-slate-400",
+                          green: "text-emerald-400",
+                          blue: "text-sky-400",
+                          purple: "text-fuchsia-400",
+                          orange: "text-amber-400",
+                        }[listing.rarity] ?? "text-slate-400"}`}>{rarityLabel(listing.rarity, messages)}</span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
+                        <span>{slotLabel(listing.slot, messages)}</span>
+                        <span className="text-slate-700">·</span>
+                        <span>{formatStatsSummary(listing.stats, locale, messages)}</span>
+                      </div>
+                    </div>
+                    {/* Price & buy */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="text-right">
+                        <p className="text-xs font-bold tabular-nums text-amber-300">{formatNumber(listing.price, locale)}</p>
+                        <p className="text-[9px] text-slate-600">x{formatNumber(listing.availableCount, locale)}</p>
+                      </div>
+                      <button
+                        className="min-h-7 shrink-0 rounded-md border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2 py-1 text-[10px] font-medium text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!isRealtimeReady || status === "saving" || listing.isOwnListing}
+                        onClick={() => onRequestBuyMarketListing(listing.listingId)}
+                        type="button"
+                      >
+                        {listing.isOwnListing ? copy.market.ownListing : copy.market.buyNow}
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                    <span className="text-[10px] text-slate-500">{slotLabel(listing.slot, messages)}</span>
-                    <span className="text-[10px] text-slate-600">·</span>
-                    <span className="text-[10px] text-slate-400">{rarityLabel(listing.rarity, messages)}</span>
-                    <span className="text-[10px] text-slate-600">·</span>
-                    <span className="text-[10px] text-slate-500">x{formatNumber(listing.availableCount, locale)}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-sky-100/60 sm:line-clamp-1">{formatStatsSummary(listing.stats, locale, messages)}</p>
-                  <div className="mt-1.5 flex items-center justify-end gap-2">
-                    <button
-                      className="min-h-8 shrink-0 rounded-md border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2.5 py-1 text-[11px] font-medium text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!isRealtimeReady || status === "saving" || listing.isOwnListing}
-                      onClick={() => onRequestBuyMarketListing(listing.listingId)}
-                      type="button"
-                    >
-                      {listing.isOwnListing ? copy.market.ownListing : copy.market.buyNow}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.025] p-4 text-sm text-slate-400">
-              {copy.market.empty}
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-6">
+              <GiShop className="mb-2 h-6 w-6 text-slate-700" />
+              <p className="text-xs text-slate-500">{copy.market.empty}</p>
             </div>
           )}
         </div>
@@ -2310,14 +2332,6 @@ function MainDashboard() {
     return Math.min(taskDuration, baseProgress + elapsedSeconds);
   })();
   const taskProgressPercent = taskDuration > 0 ? (taskProgress / taskDuration) * 100 : 0;
-  const currentTaskReward = snapshot?.afk.currentMap
-    ? {
-      aetherCrystal: Math.floor((snapshot.afk.currentMap.aetherPerMinute * taskDuration) / 60),
-      exp: Math.floor((snapshot.afk.currentMap.expPerMinute * taskDuration) / 60),
-      gold: Math.floor((snapshot.afk.currentMap.goldPerMinute * taskDuration) / 60),
-    }
-    : { aetherCrystal: 0, exp: 0, gold: 0 };
-
   const pushNotice = useCallback((message: string, tone: "danger" | "success") => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setUiNotice({ id, message, tone });
@@ -2369,7 +2383,7 @@ function MainDashboard() {
   };
 
   return (
-    <main className="min-h-screen min-w-0 bg-[#0d1117] px-2 py-2 text-slate-100 sm:px-3 sm:py-3 md:px-4 md:py-4 xl:h-screen xl:overflow-hidden">
+    <main className="relative min-h-screen min-w-0 px-2 py-2 text-slate-100 sm:px-3 sm:py-3 md:px-4 md:py-4 xl:h-[100svh] xl:overflow-hidden">
       {uiNotice ? (
         <div
           className={[
@@ -2839,120 +2853,108 @@ function MainDashboard() {
         </OverlayModal>
       ) : null}
 
-      <div className="mx-auto flex max-w-[1760px] flex-col gap-2 sm:gap-3 xl:h-full xl:overflow-hidden">
-        <SectionCard className="overflow-hidden">
-          <div className="px-2 py-1.5 sm:px-2.5 sm:py-2">
-            <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-sky-500/30 bg-linear-to-br from-sky-500/20 to-emerald-500/10 text-[10px] font-bold text-sky-300 sm:h-8 sm:w-8 sm:text-[11px]">
-                  {role.avatarSeed}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 sm:gap-x-2">
-                    <span className="break-words text-[13px] font-medium leading-4 text-white sm:truncate sm:text-sm">{role.name}</span>
-                    <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
-                      {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
-                    </StatusChip>
-                    <span className="text-[10px] leading-none text-slate-500">Lv.{role.level}</span>
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] leading-none sm:text-[11px]">
-                    <span className="text-slate-500">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
-                    <span className="text-amber-300">金：{formatNumber(role.gold, locale)}</span>
-                    <span className="text-sky-300">以太：{formatNumber(role.aetherCrystal, locale)}</span>
-                    <span className="text-emerald-300">经验：{formatNumber(role.exp, locale)}</span>
-                  </div>
-                </div>
+      <div className="mx-auto flex max-w-[1680px] flex-col gap-2 sm:gap-2.5 xl:h-full xl:overflow-hidden">
+        {/* ── Compact Header Bar ── */}
+        <SectionCard className="game-panel-accent overflow-hidden">
+          <div className="flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/[0.25] bg-linear-to-br from-cyan-300/[0.16] via-emerald-300/10 to-amber-300/10 text-[10px] font-bold text-cyan-200 sm:h-9 sm:w-9 sm:text-[11px]">
+              {role.avatarSeed}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="min-w-0 break-words text-sm font-semibold leading-tight text-white sm:truncate">{role.name}</span>
+                <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
+                  {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
+                </StatusChip>
+                <span className="text-[10px] text-slate-500">Lv.{role.level}</span>
+                <span className="hidden text-[10px] text-slate-600 sm:inline">·</span>
+                <span className="hidden text-[10px] text-slate-500 sm:inline">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
               </div>
-              <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-                {isGuestUser ? (
-                  <button
-                    className="rounded-md border border-[#30363d] bg-[#21262d] px-2 py-1 text-[11px] text-slate-200 transition hover:bg-[#30363d] sm:px-3 sm:py-1.5 sm:text-xs"
-                    disabled={status === "saving"}
-                    onClick={() => setShowRegisterAccountModal(true)}
-                    type="button"
-                  >
-                    {copy.dashboard.registerAccount}
-                  </button>
-                ) : null}
-              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 text-[10px]">
+              <span className="rounded-md bg-amber-300/10 px-1.5 py-0.5 font-medium tabular-nums text-amber-200">💰{formatNumber(role.gold, locale)}</span>
+              <span className="rounded-md bg-cyan-300/10 px-1.5 py-0.5 font-medium tabular-nums text-cyan-200">💎{formatNumber(role.aetherCrystal, locale)}</span>
+              <span className="hidden rounded-md bg-emerald-300/10 px-1.5 py-0.5 font-medium tabular-nums text-emerald-200 sm:inline">✦{formatNumber(role.exp, locale)}</span>
+            </div>
+            {isGuestUser ? (
+              <button
+                className="hidden min-h-7 shrink-0 rounded-md border border-white/10 bg-white/[0.055] px-2.5 py-1 text-[10px] font-medium text-slate-300 transition hover:border-cyan-200/[0.30] hover:bg-cyan-200/10 hover:text-white lg:inline"
+                disabled={status === "saving"}
+                onClick={() => setShowRegisterAccountModal(true)}
+                type="button"
+              >
+                {copy.dashboard.registerAccount}
+              </button>
+            ) : null}
+          </div>
+          {/* Level progress — embedded in header */}
+          <div className="px-3 pb-1.5 sm:px-4 sm:pb-2">
+            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.14em] text-slate-600">
+              <span>{copy.dashboard.levelBar}</span>
+              <span>{progressCopy}</span>
+            </div>
+            <div className="progress-shine mt-0.5 h-1 overflow-hidden rounded-full bg-[#21262d]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-300 transition-[width] duration-500 ease-out"
+                style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
+              />
             </div>
           </div>
         </SectionCard>
 
-        <div className="flex flex-col gap-2 sm:gap-3 xl:min-h-0 xl:flex-1">
-          <SectionCard className="overflow-hidden p-1.5 sm:p-2">
-            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
-              {menuItems.map((item) => (
-                <RailButton
-                  key={item.key}
-                  active={activePanel === item.key}
-                  count={item.count}
-                  icon={item.icon}
-                  label={item.label}
-                  onClick={() => setActivePanel(item.key)}
-                />
-              ))}
-            </div>
-          </SectionCard>
-
-          {/* Mobile/Tablet: stacked; Desktop: side-by-side with chat on right */}
-          <div className="grid gap-2 sm:gap-3 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_22rem]">
-            <CenterPanel
-              activePanel={activePanel}
-              backpack={backpack}
-              isRealtimeReady={isRealtimeReady}
-              currentTaskReward={currentTaskReward}
-              activities={snapshot.config.activities}
-              maps={maps}
-              onRequestBuyMarketListing={(listingId) => {
-                setPendingMarketPurchaseListingId(listingId);
-              }}
-              onConfigureSkillLoadout={(skillKey, action) => {
-                void configureSkillLoadout(skillKey, action).then(() => {
-                  pushNotice(action === "equip" ? "技能已加入携带栏。" : "技能已移出携带栏。", "success");
-                }).catch(() => { });
-              }}
-              onDeleteRole={() => setShowDeleteRoleConfirm(true)}
-              onUnequipItem={(backpackId) => {
-                void unequipBackpackItem(backpackId).catch(() => { });
-              }}
-              onSelectItem={handleSelectBackpackItem}
-              role={role}
-              selectedBackpackId={selectedBackpackId}
-              selectedActivityKey={selectedActivityKey}
-              selectActivity={selectActivity}
-              selectedMapKey={selectedMapKey}
-              selectMap={selectMap}
-              snapshot={snapshot}
-              startAfk={startAfk}
-              status={status}
-              stopAfk={stopAfk}
-              taskDuration={taskDuration}
-              taskProgress={taskProgress}
-              taskProgressPercent={taskProgressPercent}
-            />
-            {/* Desktop: chat as fixed-height side panel; Mobile: full width below */}
-            <div className="hidden xl:block xl:min-h-0">
-              <Chat />
-            </div>
+        {/* ── Navigation ── */}
+        <SectionCard className="overflow-hidden p-1 sm:p-1.5">
+          <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+            {menuItems.map((item) => (
+              <RailButton
+                key={item.key}
+                active={activePanel === item.key}
+                count={item.count}
+                icon={item.icon}
+                label={item.label}
+                onClick={() => setActivePanel(item.key)}
+              />
+            ))}
           </div>
+        </SectionCard>
 
-          {/* Mobile/Tablet: chat below main content */}
-          <div className="xl:hidden">
+        {/* ── Main Content Area ── */}
+        {/* Mobile/Tablet: stacked; Desktop: 3-column with chat sidebar */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-2.5 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <CenterPanel
+            activePanel={activePanel}
+            backpack={backpack}
+            isRealtimeReady={isRealtimeReady}
+            activities={snapshot.config.activities}
+            maps={maps}
+            onRequestBuyMarketListing={(listingId) => {
+              setPendingMarketPurchaseListingId(listingId);
+            }}
+            onConfigureSkillLoadout={(skillKey, action) => {
+              void configureSkillLoadout(skillKey, action).then(() => {
+                pushNotice(action === "equip" ? "技能已加入携带栏。" : "技能已移出携带栏。", "success");
+              }).catch(() => { });
+            }}
+            onDeleteRole={() => setShowDeleteRoleConfirm(true)}
+            onUnequipItem={(backpackId) => {
+              void unequipBackpackItem(backpackId).catch(() => { });
+            }}
+            onSelectItem={handleSelectBackpackItem}
+            role={role}
+            selectedBackpackId={selectedBackpackId}
+            selectedActivityKey={selectedActivityKey}
+            selectActivity={selectActivity}
+            selectedMapKey={selectedMapKey}
+            selectMap={selectMap}
+            snapshot={snapshot}
+            startAfk={startAfk}
+            status={status}
+            stopAfk={stopAfk}
+            taskProgressPercent={taskProgressPercent}
+          />
+          {/* Desktop: chat sidebar; Mobile: below main content */}
+          <div className="xl:min-h-0">
             <Chat />
-          </div>
-        </div>
-
-        <div className="rounded-md border border-[#30363d] bg-[#161b22] px-2.5 py-1.5 sm:px-3 sm:py-2">
-          <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-500">
-            <span>{copy.dashboard.levelBar}</span>
-            <span>{copy.dashboard.levelProgress} {progressCopy}</span>
-          </div>
-          <div className="progress-shine mt-1 h-1.5 overflow-hidden rounded-full bg-[#21262d]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 transition-[width] duration-500 ease-out"
-              style={{ width: `${role.nextLevelExp > 0 ? Math.max(0, Math.min(100, (role.currentLevelExp / role.nextLevelExp) * 100)) : 100}%` }}
-            />
           </div>
         </div>
       </div>

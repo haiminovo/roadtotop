@@ -126,13 +126,13 @@ export default function Chat() {
     return (
       <div
         key={message.id}
-        className="py-px leading-5 sm:leading-6"
+        className="break-words py-px leading-[1.35rem]"
         title={`${message.senderName}${shouldShowGuestId(message.senderName) ? ` ${message.senderUserId}` : ""} ${message.content}`}
       >
-        <span className="mr-1 text-[10px] text-slate-600">{timeStr}</span>
+        <span className="mr-1 text-[9px] text-slate-600">{timeStr}</span>
         <button
           className={[
-            "mr-1 text-xs font-medium transition",
+            "mr-1 text-[11px] font-medium transition",
             isOwnMessage ? "text-[#79c0ff]" : "text-slate-400",
             canOpenRole ? "cursor-pointer hover:text-white" : "cursor-default",
           ].join(" ")}
@@ -145,37 +145,37 @@ export default function Chat() {
         >
           {message.senderName}{guestSuffix ? `#${guestSuffix}` : ""}
         </button>
-        <span className="text-xs text-slate-200">: {message.content}</span>
+        <span className="text-[11px] text-slate-200">: {message.content}</span>
       </div>
     );
   }), [currentUserId, locale, messages]);
 
   return (
     <>
-      <section className="flex h-80 max-h-[65vh] min-h-80 flex-col overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22]/95 text-slate-200 sm:h-96 sm:min-h-96 xl:h-full xl:max-h-none xl:min-h-0">
+      <section className="game-panel flex h-[22rem] max-h-[70svh] min-h-[18rem] flex-col overflow-hidden rounded-lg text-slate-200 sm:h-96 sm:min-h-80 xl:h-full xl:max-h-none xl:min-h-0">
         {/* Tabs */}
-        <div className="flex items-center border-b border-[#30363d] px-1.5 py-1 sm:px-2">
+        <div className="flex min-h-9 items-center border-b border-white/[0.06] px-1.5 py-0.5 sm:px-2">
           <div className="flex min-w-0 flex-1 items-center gap-0.5">
             {(["chat", "battle", "encounter"] as const).map((tab) => (
               <button
                 key={tab}
                 className={[
-                  "relative px-2.5 py-1 text-[11px] font-medium leading-none transition sm:text-xs",
+                  "relative min-h-7 rounded px-2 py-0.5 text-[10px] font-medium leading-none transition sm:text-[11px]",
                   activeTab === tab
-                    ? "text-white"
-                    : "text-slate-500 hover:text-slate-300",
+                    ? "bg-white/[0.07] text-white"
+                    : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300",
                 ].join(" ")}
                 onClick={() => setActiveTab(tab)}
                 type="button"
               >
                 {tab === "chat" ? copy.channel : tab === "battle" ? copy.battle : copy.encounter}
                 {tab === "chat" && totalUnreadCount > 0 ? (
-                  <span className="ml-1 inline-flex min-h-3.5 min-w-3.5 items-center justify-center rounded-full bg-amber-500 px-1 text-[8px] font-bold leading-none text-slate-950">
+                  <span className="ml-1 inline-flex min-h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-1 text-[7px] font-bold leading-none text-slate-950">
                     {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
                   </span>
                 ) : null}
                 {activeTab === tab ? (
-                  <span className="absolute -bottom-1 left-1/2 h-0.5 w-4/5 -translate-x-1/2 rounded-full bg-sky-400" />
+                  <span className="absolute -bottom-0.5 left-1/2 h-0.5 w-4/5 -translate-x-1/2 rounded-full bg-cyan-400/80" />
                 ) : null}
               </button>
             ))}
@@ -185,22 +185,22 @@ export default function Chat() {
               <button
                 aria-expanded={isChannelMenuOpen}
                 aria-haspopup="menu"
-                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-slate-500 transition hover:text-slate-300 sm:text-[11px]"
+                className="flex min-h-7 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300 sm:text-[10px]"
                 onClick={() => setIsChannelMenuOpen((current) => !current)}
                 type="button"
               >
                 <span>{activeChannelMeta?.label ?? copy.channel}</span>
-                <span className={["text-[8px] transition-transform", isChannelMenuOpen ? "rotate-180" : ""].join(" ")}>v</span>
+                <span className={["text-[7px] transition-transform", isChannelMenuOpen ? "rotate-180" : ""].join(" ")}>v</span>
               </button>
               {isChannelMenuOpen ? (
-                <div className="absolute right-0 top-[calc(100%+0.35rem)] z-20 min-w-28 overflow-hidden rounded border border-[#30363d] bg-[#161b22] py-0.5 shadow-lg">
+                <div className="game-panel absolute right-0 top-[calc(100%+0.35rem)] z-20 min-w-28 overflow-hidden rounded py-0.5 shadow-lg">
                   {channels.map((channel) => (
                     <button
                       key={channel.key}
                       className={[
                         "flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] transition",
                         activeChannel === channel.key
-                          ? "bg-sky-500/10 text-sky-400"
+                          ? "bg-cyan-300/10 text-cyan-200"
                           : "text-slate-400 hover:bg-white/5 hover:text-white",
                       ].join(" ")}
                       onClick={() => {
@@ -225,18 +225,18 @@ export default function Chat() {
         <div ref={feedScrollRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-1 sm:px-2.5 sm:py-1.5">
           {activeTab === "chat" ? (
             messages.length === 0 ? (
-              <p className="py-3 text-center text-[11px] text-slate-600">{copy.quiet}</p>
+              <p className="py-4 text-center text-[10px] text-slate-600">{copy.quiet}</p>
             ) : (
-              <div className="space-y-0.5 font-mono text-[11px] sm:text-xs">{messageItems}</div>
+              <div className="space-y-px font-mono text-[10px] sm:text-[11px]">{messageItems}</div>
             )
           ) : activeTab === "battle" ? (
             battleItems.length === 0 ? (
-              <p className="py-3 text-center text-[11px] text-slate-600">{copy.battleQuiet}</p>
+              <p className="py-4 text-center text-[10px] text-slate-600">{copy.battleQuiet}</p>
             ) : (
-              <div className="space-y-px font-mono text-[11px] sm:text-xs">
+              <div className="space-y-px font-mono text-[10px] sm:text-[11px]">
                 {battleItems.map((item) => (
                   <div key={item.id} className="py-px leading-5">
-                    <span className="mr-1 text-[10px] text-slate-600">{item.time}</span>
+                    <span className="mr-1 text-[9px] text-slate-600">{item.time}</span>
                     <span className={item.color}>{item.text}</span>
                   </div>
                 ))}
@@ -244,12 +244,12 @@ export default function Chat() {
             )
           ) : (
             encounterItems.length === 0 ? (
-              <p className="py-3 text-center text-[11px] text-slate-600">{copy.eventQuiet}</p>
+              <p className="py-4 text-center text-[10px] text-slate-600">{copy.eventQuiet}</p>
             ) : (
-              <div className="space-y-px font-mono text-[11px] sm:text-xs">
+              <div className="space-y-px font-mono text-[10px] sm:text-[11px]">
                 {encounterItems.map((item) => (
                   <div key={item.id} className="py-px leading-5">
-                    <span className="mr-1 text-[10px] text-slate-600">{item.time}</span>
+                    <span className="mr-1 text-[9px] text-slate-600">{item.time}</span>
                     <span className={item.color}>{item.text}</span>
                   </div>
                 ))}
@@ -260,7 +260,7 @@ export default function Chat() {
 
         {/* Input */}
         {activeTab === "chat" ? (
-          <div className="flex shrink-0 border-t border-[#30363d]">
+          <div className="flex min-h-9 shrink-0 border-t border-white/[0.06]">
             <input
               type="text"
               value={input}
@@ -270,7 +270,7 @@ export default function Chat() {
                   void sendMessage().catch(() => {});
                 }
               }}
-              className="h-9 flex-1 bg-transparent px-2.5 text-xs text-slate-200 outline-none placeholder:text-slate-600 sm:h-10 sm:px-3 sm:text-[13px]"
+              className="h-9 min-w-0 flex-1 bg-transparent px-2.5 text-[11px] text-slate-200 outline-none placeholder:text-slate-600 sm:px-3 sm:text-xs"
               maxLength={CHAT_MESSAGE_MAX_LENGTH}
               placeholder={`${copy.sendTo}${channels.find((channel) => channel.key === activeChannel)?.label ?? copy.currentChannel}...`}
             />
@@ -278,15 +278,16 @@ export default function Chat() {
               onClick={() => {
                 void sendMessage().catch(() => {});
               }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center text-slate-500 transition hover:text-sky-400 disabled:opacity-30 sm:h-10 sm:w-10"
+              className="flex h-9 w-9 shrink-0 items-center justify-center text-slate-500 transition hover:text-cyan-300 disabled:opacity-30"
               disabled={!isRealtimeReady || input.trim().length === 0 || remainingCooldownMs > 0}
+              aria-label={copy.send}
               type="button"
               title={copy.send}
             >
               {remainingCooldownMs > 0 ? (
-                <span className="text-[10px] text-slate-600">{sendCooldownSeconds}s</span>
+                <span className="text-[9px] text-slate-600">{sendCooldownSeconds}s</span>
               ) : (
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
               )}
             </button>
           </div>
