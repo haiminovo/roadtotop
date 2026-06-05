@@ -227,6 +227,18 @@ export type MarketOwnListing = {
   sellerNoticeSeen: boolean;
 };
 
+export type MarketBuyOrder = {
+  orderId: string;
+  itemId: string;
+  categoryKey: MarketCategoryKey;
+  price: number;
+  quantity: number;
+  filledQuantity: number;
+  buyerName: string;
+  createdAt: number;
+  isOwnOrder: boolean;
+};
+
 export type SessionSnapshot = {
   serverTime: number;
   account: {
@@ -322,6 +334,7 @@ export type SessionSnapshot = {
     slotOptions: BodySlotType[];
     listings: MarketListingSummary[];
     myListings: MarketOwnListing[];
+    buyOrders: MarketBuyOrder[];
   };
 };
 
@@ -349,6 +362,7 @@ export type GameSessionContextValue = {
   challengePlayer: (targetRoleId: string) => Promise<void>;
   createRole: (draft: CreateRoleDraft) => Promise<void>;
   createMarketListing: (backpackId: string, price: number, quantity: number) => Promise<void>;
+  createBuyOrder: (itemId: string, price: number, quantity: number) => Promise<void>;
   cancelMarketListing: (listingId: string) => Promise<void>;
   dismissMarketSoldNotification: (listingId: string) => Promise<void>;
   deleteAccountRole: () => Promise<void>;

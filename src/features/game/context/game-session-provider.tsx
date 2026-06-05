@@ -659,6 +659,18 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, sendSocketMessage]);
 
+  const createBuyOrder = useCallback(async (itemId: string, price: number, quantity: number) => {
+    try {
+      setStatus("saving");
+      setError(null);
+      sendSocketMessage(CLIENT_MESSAGE_TYPES.MARKET_CREATE_BUY_ORDER, { itemId, price, quantity });
+    } catch (sendError) {
+      setStatus("error");
+      setError(localizeErrorMessage(locale, sendError instanceof Error ? sendError.message : "下单失败。"));
+      throw sendError;
+    }
+  }, [locale, sendSocketMessage]);
+
   const cancelMarketListing = useCallback(async (listingId: string) => {
     try {
       setStatus("saving");
@@ -793,6 +805,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       chatMessages,
       challengePlayer,
       claimOfflineReward,
+      createBuyOrder,
       createMarketListing,
       createRole,
       deleteAccountRole,
@@ -826,6 +839,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
       chatMessages,
       challengePlayer,
       claimOfflineReward,
+      createBuyOrder,
       createMarketListing,
       createRole,
       deleteAccountRole,

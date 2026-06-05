@@ -18,6 +18,7 @@ const {
   buyMarketListingForGuest,
   cancelMarketListingForGuest,
   claimAfkRewardForGuest,
+  createBuyOrderForGuest,
   createMarketListingForGuest,
   dismissMarketSoldNotificationForGuest,
   dropBackpackItemForGuest,
@@ -315,6 +316,17 @@ async function handleMarketSoldDismiss(connection, session, packet) {
   sendSnapshot(connection, snapshot, "market-sold-dismiss");
 }
 
+async function handleMarketCreateBuyOrder(connection, session, packet) {
+  const itemId = typeof packet.payload?.itemId === "string"
+    ? packet.payload.itemId
+    : "";
+  const price = Number(packet.payload?.price ?? 0);
+  const quantity = Number(packet.payload?.quantity ?? 0);
+  const snapshot = await createBuyOrderForGuest(session.guestToken, itemId, price, quantity);
+  setSession(connection, session.guestToken, snapshot);
+  sendSnapshot(connection, snapshot, "market-create-buy-order");
+}
+
 async function handleChatSend(session, packet) {
   const channelKey = typeof packet.payload?.channelKey === "string"
     ? packet.payload.channelKey
@@ -404,6 +416,11 @@ async function handlePacket(connection, packet) {
 
   if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_SOLD_DISMISS) {
     await handleMarketSoldDismiss(connection, session, packet);
+    return;
+  }
+
+  if (packet.type === CLIENT_MESSAGE_TYPES.MARKET_CREATE_BUY_ORDER) {
+    await handleMarketCreateBuyOrder(connection, session, packet);
     return;
   }
 

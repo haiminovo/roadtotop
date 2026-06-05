@@ -9,6 +9,7 @@ export type ClientMessageType =
   | "game:backpack:learn-skill-book"
   | "game:skill:configure-loadout"
   | "game:market:create"
+  | "game:market:create-buy-order"
   | "game:market:cancel"
   | "game:market:buy"
   | "game:market:sold:dismiss"
@@ -33,6 +34,7 @@ export type ClientMessagePayloads = {
   "game:backpack:learn-skill-book": { backpackId: string };
   "game:skill:configure-loadout": { action: "equip" | "unequip"; skillKey: string };
   "game:market:create": { backpackId: string; price: number; quantity: number };
+  "game:market:create-buy-order": { itemId: string; price: number; quantity: number };
   "game:market:cancel": { listingId: string };
   "game:market:buy": { listingId: string };
   "game:market:sold:dismiss": { listingId: string };
@@ -62,6 +64,7 @@ export const CLIENT_MESSAGE_TYPES: Readonly<{
   MARKET_BUY: "game:market:buy";
   MARKET_CANCEL: "game:market:cancel";
   MARKET_CREATE: "game:market:create";
+  MARKET_CREATE_BUY_ORDER: "game:market:create-buy-order";
   MARKET_SOLD_DISMISS: "game:market:sold:dismiss";
   PVP_CHALLENGE: "game:pvp:challenge";
   SESSION_START: "game:session:start";

@@ -154,13 +154,13 @@ export default function Chat() {
     <>
       <section className="game-panel flex h-[22rem] max-h-[70svh] min-h-[18rem] flex-col overflow-hidden rounded-lg text-slate-200 sm:h-96 sm:min-h-80 xl:h-full xl:max-h-none xl:min-h-0">
         {/* Tabs */}
-        <div className="flex min-h-9 items-center border-b border-white/[0.06] px-1.5 py-0.5 sm:px-2">
+        <div className="flex min-h-8 items-center border-b border-white/[0.06] px-1.5 py-0.5 sm:px-2">
           <div className="flex min-w-0 flex-1 items-center gap-0.5">
             {(["chat", "battle", "encounter"] as const).map((tab) => (
               <button
                 key={tab}
                 className={[
-                  "relative min-h-7 rounded px-2 py-0.5 text-[10px] font-medium leading-none transition sm:text-[11px]",
+                  "relative min-h-6 rounded px-1.5 py-0.5 text-[10px] font-medium leading-none transition",
                   activeTab === tab
                     ? "bg-white/[0.07] text-white"
                     : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300",
@@ -170,7 +170,7 @@ export default function Chat() {
               >
                 {tab === "chat" ? copy.channel : tab === "battle" ? copy.battle : copy.encounter}
                 {tab === "chat" && totalUnreadCount > 0 ? (
-                  <span className="ml-1 inline-flex min-h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-1 text-[7px] font-bold leading-none text-slate-950">
+                  <span className="ml-0.5 inline-flex min-h-3 min-w-3 items-center justify-center rounded-full bg-amber-500 px-1 text-[7px] font-bold leading-none text-slate-950">
                     {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
                   </span>
                 ) : null}
@@ -185,20 +185,20 @@ export default function Chat() {
               <button
                 aria-expanded={isChannelMenuOpen}
                 aria-haspopup="menu"
-                className="flex min-h-7 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300 sm:text-[10px]"
+                className="flex min-h-6 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300"
                 onClick={() => setIsChannelMenuOpen((current) => !current)}
                 type="button"
               >
                 <span>{activeChannelMeta?.label ?? copy.channel}</span>
-                <span className={["text-[7px] transition-transform", isChannelMenuOpen ? "rotate-180" : ""].join(" ")}>v</span>
+                <svg className={["h-3 w-3 shrink-0 transition-transform", isChannelMenuOpen ? "rotate-180" : ""].join(" ")} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
               </button>
               {isChannelMenuOpen ? (
-                <div className="game-panel absolute right-0 top-[calc(100%+0.35rem)] z-20 min-w-28 overflow-hidden rounded py-0.5 shadow-lg">
+                <div className="game-panel absolute right-0 top-[calc(100%+0.25rem)] z-20 min-w-24 overflow-hidden rounded py-0.5 shadow-lg">
                   {channels.map((channel) => (
                     <button
                       key={channel.key}
                       className={[
-                        "flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[11px] transition",
+                        "flex w-full items-center justify-between px-2 py-1 text-left text-[10px] transition",
                         activeChannel === channel.key
                           ? "bg-cyan-300/10 text-cyan-200"
                           : "text-slate-400 hover:bg-white/5 hover:text-white",

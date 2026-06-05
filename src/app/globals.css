@@ -207,19 +207,31 @@ h6 {
   box-shadow: 0 0 12px rgba(251, 191, 36, 0.15), 0 0 4px rgba(251, 191, 36, 0.1);
 }
 
-/* Progress bar shine */
+/* Progress bar — soft leading-edge glow */
 .progress-shine {
   position: relative;
   overflow: hidden;
 }
 
-.progress-shine::after {
+.progress-shine > div {
+  position: relative;
+}
+
+.progress-shine > div::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-  background-size: 200% 100%;
-  animation: shimmer 2s ease-in-out infinite;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18));
+  border-radius: 0 999px 999px 0;
+  animation: edge-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes edge-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* Admin-only Ant Design token overrides (minimal, high-contrast selection only) */

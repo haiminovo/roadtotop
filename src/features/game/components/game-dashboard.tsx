@@ -569,20 +569,22 @@ function CompactDropdown<T extends string>({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className="flex min-h-9 w-full items-center justify-between gap-2 rounded-md border border-[#30363d] bg-[#0d1117] px-2.5 py-1.5 text-left text-xs text-slate-200 transition hover:border-[#3d444d] hover:bg-[#11161d] focus-visible:border-[#58a6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]/20"
+        className="flex min-h-8 w-full items-center justify-between gap-2 rounded-md border border-[#30363d] bg-[#0d1117] px-2 py-1 text-left text-[11px] text-slate-200 transition hover:border-[#3d444d] hover:bg-[#11161d] focus-visible:border-[#58a6ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]/20"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
         <span className="truncate">{selectedOption?.label ?? value}</span>
-        <span
+        <svg
           aria-hidden="true"
           className={[
-            "shrink-0 text-[10px] text-slate-500 transition-transform duration-150",
+            "h-3 w-3 shrink-0 text-slate-500 transition-transform duration-150",
             open ? "rotate-180" : "",
           ].join(" ")}
+          viewBox="0 0 20 20"
+          fill="currentColor"
         >
-          v
-        </span>
+          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+        </svg>
       </button>
 
       {open ? (
@@ -594,7 +596,7 @@ function CompactDropdown<T extends string>({
                 <button
                   aria-selected={selected}
                   className={[
-                    "flex min-h-9 w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs transition",
+                    "flex min-h-7 w-full items-center rounded-md px-2 py-1 text-left text-[11px] transition",
                     selected
                       ? "bg-[#1f6feb]/14 text-[#8cc8ff]"
                       : "text-slate-300 hover:bg-white/6 hover:text-white",
@@ -916,7 +918,7 @@ function RailButton({
   return (
     <button
       className={[
-        "group flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-center transition sm:min-h-14 sm:flex-row sm:justify-start sm:gap-2 sm:px-3 sm:text-left",
+        "group flex min-h-11 w-full flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-center transition sm:min-h-10 sm:flex-row sm:justify-start sm:gap-2 sm:px-2.5 sm:text-left",
         active
           ? "border-cyan-300/[0.45] bg-cyan-300/10 text-white shadow-[0_0_18px_rgba(34,211,238,0.12)]"
           : "border-white/[0.08] bg-white/[0.025] text-slate-300 hover:border-white/[0.18] hover:bg-white/[0.045] hover:text-white",
@@ -925,14 +927,14 @@ function RailButton({
       type="button"
     >
       {Icon ? (
-        <Icon className={`h-4 w-4 shrink-0 transition sm:h-5 sm:w-5 ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`} />
+        <Icon className={`h-3.5 w-3.5 shrink-0 transition ${active ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300"}`} />
       ) : null}
-      <div className="flex min-w-0 flex-col items-center gap-1 sm:flex-1 sm:flex-row sm:justify-between sm:gap-1.5">
-        <span className="min-w-0 max-w-full truncate text-xs font-medium leading-4 sm:text-sm sm:leading-5">{label}</span>
+      <div className="flex min-w-0 flex-col items-center gap-0.5 sm:flex-1 sm:flex-row sm:justify-between sm:gap-1.5">
+        <span className="min-w-0 max-w-full truncate text-[11px] font-medium leading-4">{label}</span>
         {count ? (
           <span
             className={[
-              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] leading-none sm:px-2",
+              "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] leading-none",
               active ? "bg-cyan-300/[0.18] text-cyan-200" : "bg-white/[0.055] text-slate-500",
             ].join(" ")}
           >
@@ -1380,6 +1382,8 @@ function CenterPanel({
   isRealtimeReady,
   activities,
   maps,
+  onCreateBuyOrder,
+  onCreateMarketListing,
   onRequestBuyMarketListing,
   onConfigureSkillLoadout,
   onDeleteRole,
@@ -1402,6 +1406,8 @@ function CenterPanel({
   isRealtimeReady: boolean;
   activities: ActivityConfig[];
   maps: MapConfig[];
+  onCreateBuyOrder: (itemId: string, price: number, quantity: number) => Promise<void>;
+  onCreateMarketListing: (backpackId: string, price: number, quantity: number) => Promise<void>;
   onRequestBuyMarketListing: (listingId: string) => void;
   onConfigureSkillLoadout: (skillKey: string, action: "equip" | "unequip") => void;
   onDeleteRole: () => void;
@@ -1424,6 +1430,11 @@ function CenterPanel({
   const [marketCategoryFilter, setMarketCategoryFilter] = useState<"all" | "equipment" | "skill_book" | "material">("all");
   const [marketRarityFilter, setMarketRarityFilter] = useState<"all" | "white" | "green" | "blue" | "purple" | "orange">("all");
   const [marketSlotFilter] = useState<"all" | BodySlotType>("all");
+  const [marketSelectedItemId, setMarketSelectedItemId] = useState<string | null>(null);
+  const [sellOrderPrice, setSellOrderPrice] = useState("");
+  const [sellOrderQuantity, setSellOrderQuantity] = useState("1");
+  const [buyOrderPrice, setBuyOrderPrice] = useState("");
+  const [buyOrderQuantity, setBuyOrderQuantity] = useState("1");
   const [battleFxState, setBattleFxState] = useState({
     enemyHitAt: 0,
     enemyPulseAt: 0,
@@ -1793,86 +1804,362 @@ function CenterPanel({
       { label: messages.common.all, value: "all" },
       ...snapshot.market.rarityOptions.map((rarity) => ({ label: rarityLabel(rarity, messages), value: rarity })),
     ] as CompactDropdownOption<"all" | "white" | "green" | "blue" | "purple" | "orange">[];
-    const marketListings = snapshot.market.listings.filter((listing) => (
+    const filteredListings = snapshot.market.listings.filter((listing) => (
       (marketCategoryFilter === "all" || listing.categoryKey === marketCategoryFilter)
       && (marketRarityFilter === "all" || listing.rarity === marketRarityFilter)
       && (marketSlotFilter === "all" || listing.slot === marketSlotFilter)
     ));
 
+    // Group by itemId for the item grid view
+    const itemGroups = new Map<string, {
+      itemId: string;
+      name: string;
+      rarity: string;
+      slot: string;
+      categoryKey: string;
+      stats: Record<string, number>;
+      lowestPrice: number;
+      totalCount: number;
+      listings: typeof filteredListings;
+    }>();
+    for (const listing of filteredListings) {
+      const existing = itemGroups.get(listing.itemId);
+      if (existing) {
+        existing.lowestPrice = Math.min(existing.lowestPrice, listing.price);
+        existing.totalCount += listing.availableCount;
+        existing.listings.push(listing);
+      } else {
+        itemGroups.set(listing.itemId, {
+          itemId: listing.itemId,
+          name: listing.name,
+          rarity: listing.rarity,
+          slot: listing.slot,
+          categoryKey: listing.categoryKey,
+          stats: listing.stats,
+          lowestPrice: listing.price,
+          totalCount: listing.availableCount,
+          listings: [listing],
+        });
+      }
+    }
+    const uniqueItems = Array.from(itemGroups.values()).sort((a, b) => a.lowestPrice - b.lowestPrice);
+    const selectedItem = marketSelectedItemId ? itemGroups.get(marketSelectedItemId) : null;
+    const selectedItemListings = selectedItem
+      ? selectedItem.listings.sort((a, b) => a.price - b.price)
+      : [];
+
+    const rarityTextMap: Record<string, string> = {
+      white: "text-slate-400",
+      green: "text-emerald-400",
+      blue: "text-sky-400",
+      purple: "text-fuchsia-400",
+      orange: "text-amber-400",
+    };
+
     return (
       <SectionCard className="flex min-h-[20rem] flex-col overflow-hidden sm:min-h-[24rem] xl:h-full xl:min-h-0">
-        {/* Header with inline filters */}
-        <div className="border-b border-[#30363d] px-3 py-2 sm:px-4 sm:py-2.5">
+        {/* Header */}
+        <div className="border-b border-[#30363d] px-3 py-1.5 sm:px-4 sm:py-2">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold tracking-tight text-white">{copy.market.title}</h2>
-              <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-slate-400">{formatNumber(marketListings.length, locale)}</span>
-            </div>
             <div className="flex items-center gap-1.5">
-              <CompactDropdown
-                ariaLabel={copy.market.filters.category}
-                className="min-w-0 w-24"
-                onChange={setMarketCategoryFilter}
-                options={marketCategoryOptions}
-                value={marketCategoryFilter}
-              />
-              <CompactDropdown
-                ariaLabel={copy.market.filters.rarity}
-                className="min-w-0 w-20"
-                onChange={setMarketRarityFilter}
-                options={marketRarityOptions}
-                value={marketRarityFilter}
-              />
+              {selectedItem ? (
+                <button
+                  className="flex items-center gap-1 text-[10px] text-slate-500 transition hover:text-slate-300"
+                  onClick={() => { setMarketSelectedItemId(null); setSellOrderPrice(""); setSellOrderQuantity("1"); setBuyOrderPrice(""); setBuyOrderQuantity("1"); }}
+                  type="button"
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.25-4.5a.75.75 0 010-1.08l4.25-4.5a.75.75 0 011.06.02z" clipRule="evenodd" /></svg>
+                  {copy.market.title}
+                </button>
+              ) : (
+                <>
+                  <h2 className="text-xs font-semibold tracking-tight text-white">{copy.market.title}</h2>
+                  <span className="rounded bg-white/[0.06] px-1 py-0.5 text-[9px] text-slate-500">{uniqueItems.length}</span>
+                </>
+              )}
             </div>
+            {!selectedItem && (
+              <div className="flex items-center gap-1">
+                <CompactDropdown
+                  ariaLabel={copy.market.filters.category}
+                  className="min-w-0 w-20"
+                  onChange={setMarketCategoryFilter}
+                  options={marketCategoryOptions}
+                  value={marketCategoryFilter}
+                />
+                <CompactDropdown
+                  ariaLabel={copy.market.filters.rarity}
+                  className="min-w-0 w-16"
+                  onChange={setMarketRarityFilter}
+                  options={marketRarityOptions}
+                  value={marketRarityFilter}
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Listings */}
+        {/* Content */}
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5 sm:p-2">
-          {marketListings.length > 0 ? (
-            <div className="space-y-1">
-              {marketListings.map((listing) => {
-                const MarketIcon = getGameIconByKey(null, getItemTypeFallbackIconKey(listing.categoryKey as BackpackItem["itemType"]));
-                return (
-                  <div key={listing.listingId} className={`group flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition hover:border-white/15 ${marketItemCardAccent(listing.rarity)}`}>
-                    {/* Item icon — same style as backpack */}
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-slate-200">
-                      <MarketIcon className="h-4 w-4" />
+          {/* Level 2: Order book for selected item */}
+          {selectedItem ? (() => {
+            const sellOrders = [...selectedItemListings].sort((a, b) => a.price - b.price);
+            const itemBuyOrders = (snapshot.market.buyOrders ?? [])
+              .filter((o) => o.itemId === selectedItem.itemId)
+              .sort((a, b) => b.price - a.price);
+
+            const bestSell = sellOrders.length > 0 ? sellOrders[0].price : null;
+            const bestBuy = itemBuyOrders.length > 0 ? itemBuyOrders[0].price : null;
+            const spread = bestSell !== null && bestBuy !== null ? bestSell - bestBuy : null;
+
+            const matchingBackpackItems = backpack.filter((item) => item.itemId === selectedItem.itemId);
+            const sellableItem = matchingBackpackItems.find((item) => {
+              const equipped = item.equippedCount ?? 0;
+              return item.quantity - equipped > 0;
+            }) ?? matchingBackpackItems[0] ?? null;
+            const sellableQty = sellableItem
+              ? Math.max(0, sellableItem.quantity - (sellableItem.equippedCount ?? 0))
+              : 0;
+            const sellPriceVal = Number(sellOrderPrice || 0);
+            const sellFeeAmount = Math.floor((sellPriceVal * snapshot.market.feeRatePercent) / 100);
+            const buyPriceVal = Number(buyOrderPrice || 0);
+            const buyTotalCost = buyPriceVal * Number(buyOrderQuantity || 0);
+
+            const OrderRow = ({
+              name,
+              qty,
+              price,
+              action,
+              actionLabel,
+              accentColor,
+              disabled,
+            }: {
+              name: string;
+              qty: number;
+              price: number;
+              action: () => void;
+              actionLabel: string;
+              accentColor: string;
+              disabled: boolean;
+            }) => (
+              <div className="flex items-center gap-2 border-b border-white/[0.02] px-2 py-1 transition hover:bg-white/[0.02]">
+                <p className="min-w-0 flex-1 truncate text-[10px] text-slate-300">{name}</p>
+                <span className="w-12 shrink-0 text-right text-[10px] text-slate-400 tabular-nums">{formatNumber(qty, locale)}</span>
+                <span className="w-16 shrink-0 text-right text-[10px] font-semibold tabular-nums text-amber-300">{formatNumber(price, locale)}</span>
+                <button
+                  className={`w-8 shrink-0 rounded border px-1 py-0.5 text-[8px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${accentColor}`}
+                  disabled={disabled}
+                  onClick={action}
+                  type="button"
+                >
+                  {actionLabel}
+                </button>
+              </div>
+            );
+
+            return (
+              <div className="flex min-h-0 flex-col gap-1.5">
+                {/* Spread bar */}
+                <div className="flex items-center justify-between rounded-lg border border-[#30363d] bg-[#0d1117] px-2 py-1">
+                  <div className="flex items-center gap-3 text-[9px]">
+                    <span className="text-slate-500">最低卖</span>
+                    <span className="font-semibold tabular-nums text-rose-300">{bestSell !== null ? formatNumber(bestSell, locale) : "—"}</span>
+                    <span className="text-slate-700">|</span>
+                    <span className="text-slate-500">最高买</span>
+                    <span className="font-semibold tabular-nums text-emerald-300">{bestBuy !== null ? formatNumber(bestBuy, locale) : "—"}</span>
+                    {spread !== null && (
+                      <>
+                        <span className="text-slate-700">|</span>
+                        <span className="text-slate-500">价差</span>
+                        <span className="tabular-nums text-slate-400">{formatNumber(spread, locale)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Two order lists */}
+                <div className="flex min-h-0 flex-1 flex-col gap-1.5 md:flex-row">
+                  {/* Sell orders (asks) */}
+                  <div className="flex min-h-[6rem] flex-1 flex-col rounded-lg border border-[#30363d] bg-[#0d1117] md:min-h-0">
+                    <div className="flex items-center justify-between border-b border-white/[0.04] px-2 py-1">
+                      <span className="text-[10px] font-medium text-rose-400">卖出单 · {sellOrders.length}</span>
+                      <span className="text-[8px] uppercase tracking-wider text-slate-600">价格 ↑</span>
                     </div>
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="truncate text-xs font-semibold text-white">{localizeItemName(listing.itemId, listing.name, locale)}</p>
-                        <span className={`shrink-0 text-[9px] font-medium ${{
-                          white: "text-slate-400",
-                          green: "text-emerald-400",
-                          blue: "text-sky-400",
-                          purple: "text-fuchsia-400",
-                          orange: "text-amber-400",
-                        }[listing.rarity] ?? "text-slate-400"}`}>{rarityLabel(listing.rarity, messages)}</span>
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
-                        <span>{slotLabel(listing.slot, messages)}</span>
-                        <span className="text-slate-700">·</span>
-                        <span>{formatStatsSummary(listing.stats, locale, messages)}</span>
-                      </div>
-                    </div>
-                    {/* Price & buy */}
-                    <div className="flex shrink-0 items-center gap-2">
-                      <div className="text-right">
-                        <p className="text-xs font-bold tabular-nums text-amber-300">{formatNumber(listing.price, locale)}</p>
-                        <p className="text-[9px] text-slate-600">x{formatNumber(listing.availableCount, locale)}</p>
-                      </div>
-                      <button
-                        className="min-h-7 shrink-0 rounded-md border border-[#1f6feb]/30 bg-[#1f6feb]/10 px-2 py-1 text-[10px] font-medium text-[#58a6ff] transition hover:bg-[#1f6feb]/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!isRealtimeReady || status === "saving" || listing.isOwnListing}
-                        onClick={() => onRequestBuyMarketListing(listing.listingId)}
-                        type="button"
-                      >
-                        {listing.isOwnListing ? copy.market.ownListing : copy.market.buyNow}
-                      </button>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      {sellOrders.length > 0 ? (
+                        <div>
+                          <div className="sticky top-0 flex items-center gap-2 border-b border-white/[0.03] bg-[#0d1117] px-2 py-0.5 text-[8px] uppercase tracking-wider text-slate-600">
+                            <span className="min-w-0 flex-1">卖家</span>
+                            <span className="w-12 text-right">数量</span>
+                            <span className="w-16 text-right">单价</span>
+                            <span className="w-8" />
+                          </div>
+                          {sellOrders.map((order) => (
+                            <OrderRow
+                              key={order.listingId}
+                              name={order.sellerName}
+                              qty={order.availableCount}
+                              price={order.price}
+                              action={() => onRequestBuyMarketListing(order.listingId)}
+                              actionLabel={order.isOwnListing ? "—" : "买"}
+                              accentColor="border-sky-800/40 bg-sky-900/20 text-sky-300 hover:bg-sky-900/40"
+                              disabled={!isRealtimeReady || status === "saving" || order.isOwnListing}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="py-6 text-center text-[10px] text-slate-600">暂无卖出单</p>
+                      )}
                     </div>
                   </div>
+
+                  {/* Buy orders (bids) */}
+                  <div className="flex min-h-[6rem] flex-1 flex-col rounded-lg border border-[#30363d] bg-[#0d1117] md:min-h-0">
+                    <div className="flex items-center justify-between border-b border-white/[0.04] px-2 py-1">
+                      <span className="text-[10px] font-medium text-emerald-400">买入单 · {itemBuyOrders.length}</span>
+                      <span className="text-[8px] uppercase tracking-wider text-slate-600">价格 ↓</span>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      {itemBuyOrders.length > 0 ? (
+                        <div>
+                          <div className="sticky top-0 flex items-center gap-2 border-b border-white/[0.03] bg-[#0d1117] px-2 py-0.5 text-[8px] uppercase tracking-wider text-slate-600">
+                            <span className="min-w-0 flex-1">买家</span>
+                            <span className="w-12 text-right">数量</span>
+                            <span className="w-16 text-right">单价</span>
+                            <span className="w-8" />
+                          </div>
+                          {itemBuyOrders.map((order) => (
+                            <OrderRow
+                              key={order.orderId}
+                              name={order.buyerName}
+                              qty={order.quantity - order.filledQuantity}
+                              price={order.price}
+                              action={() => {
+                                // Sell to this buyer: create a matching sell listing
+                                if (!sellableItem) return;
+                                void onCreateMarketListing(sellableItem.backpackId, order.price, 1);
+                              }}
+                              actionLabel={order.isOwnOrder ? "—" : "卖"}
+                              accentColor="border-emerald-800/40 bg-emerald-900/20 text-emerald-300 hover:bg-emerald-900/40"
+                              disabled={!isRealtimeReady || status === "saving" || order.isOwnOrder || !sellableItem}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="py-6 text-center text-[10px] text-slate-600">暂无买入单</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Place order forms */}
+                <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+                  {/* Sell order form */}
+                  <div className="flex flex-1 items-end gap-1.5 rounded-lg border border-[#30363d] bg-[#0d1117] p-1.5">
+                    <span className="text-[9px] font-medium text-rose-400">卖</span>
+                    <label className="block">
+                      <input
+                        className="w-16 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-rose-500/40"
+                        inputMode="numeric"
+                        onChange={(e) => setSellOrderPrice(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder={bestSell !== null ? `${bestSell}` : "价格"}
+                        value={sellOrderPrice}
+                      />
+                    </label>
+                    <label className="block">
+                      <input
+                        className="w-12 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-rose-500/40"
+                        inputMode="numeric"
+                        onChange={(e) => setSellOrderQuantity(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder={`×${sellableQty}`}
+                        value={sellOrderQuantity}
+                      />
+                    </label>
+                    {sellPriceVal > 0 && (
+                      <span className="text-[8px] text-slate-600">费{formatNumber(sellFeeAmount, locale)}</span>
+                    )}
+                    <button
+                      className="shrink-0 rounded bg-rose-600 px-2 py-1 text-[9px] font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!isRealtimeReady || status === "saving" || !sellableItem || sellPriceVal <= 0 || Number(sellOrderQuantity) <= 0 || Number(sellOrderQuantity) > sellableQty}
+                      onClick={() => {
+                        if (!sellableItem) return;
+                        void onCreateMarketListing(sellableItem.backpackId, sellPriceVal, Number(sellOrderQuantity)).then(() => { setSellOrderPrice(""); setSellOrderQuantity("1"); }).catch(() => {});
+                      }}
+                      type="button"
+                    >
+                      {status === "saving" ? "…" : "挂卖"}
+                    </button>
+                  </div>
+
+                  {/* Buy order form */}
+                  <div className="flex flex-1 items-end gap-1.5 rounded-lg border border-[#30363d] bg-[#0d1117] p-1.5">
+                    <span className="text-[9px] font-medium text-emerald-400">买</span>
+                    <label className="block">
+                      <input
+                        className="w-16 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-emerald-500/40"
+                        inputMode="numeric"
+                        onChange={(e) => setBuyOrderPrice(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder={bestBuy !== null ? `${bestBuy}` : "价格"}
+                        value={buyOrderPrice}
+                      />
+                    </label>
+                    <label className="block">
+                      <input
+                        className="w-12 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[10px] text-white outline-none focus:border-emerald-500/40"
+                        inputMode="numeric"
+                        onChange={(e) => setBuyOrderQuantity(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="数量"
+                        value={buyOrderQuantity}
+                      />
+                    </label>
+                    {buyPriceVal > 0 && (
+                      <span className="text-[8px] text-slate-600">需{formatNumber(buyTotalCost, locale)}</span>
+                    )}
+                    <button
+                      className="shrink-0 rounded bg-emerald-600 px-2 py-1 text-[9px] font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!isRealtimeReady || status === "saving" || buyPriceVal <= 0 || Number(buyOrderQuantity) <= 0 || (role && role.gold < buyTotalCost)}
+                      onClick={() => {
+                        void onCreateBuyOrder(selectedItem.itemId, buyPriceVal, Number(buyOrderQuantity)).then(() => { setBuyOrderPrice(""); setBuyOrderQuantity("1"); }).catch(() => {});
+                      }}
+                      type="button"
+                    >
+                      {status === "saving" ? "…" : "挂买"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : uniqueItems.length > 0 ? (
+            /* Level 1: Item grid */
+            <div className="grid grid-cols-2 gap-1.5 min-[480px]:grid-cols-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {uniqueItems.map((item) => {
+                const MarketIcon = getGameIconByKey(null, getItemTypeFallbackIconKey(item.categoryKey as BackpackItem["itemType"]));
+                return (
+                  <button
+                    key={item.itemId}
+                    className={`group flex flex-col overflow-hidden rounded-lg border text-left transition-all hover:border-white/15 ${marketItemCardAccent(item.rarity)}`}
+                    onClick={() => setMarketSelectedItemId(item.itemId)}
+                    type="button"
+                  >
+                    {/* Icon area */}
+                    <div className="flex items-center justify-center py-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#30363d] bg-[#0d1117] text-slate-200">
+                        <MarketIcon className="h-5 w-5" />
+                      </div>
+                    </div>
+                    {/* Info area */}
+                    <div className="border-t border-white/[0.04] bg-white/[0.02] px-2 py-1.5">
+                      <div className="flex items-center gap-1">
+                        <p className="truncate text-[11px] font-semibold text-white">{localizeItemName(item.itemId, item.name, locale)}</p>
+                        <span className={`shrink-0 text-[8px] font-medium ${rarityTextMap[item.rarity] ?? "text-slate-400"}`}>{rarityLabel(item.rarity, messages)}</span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[9px] text-slate-500">{formatStatsSummary(item.stats, locale, messages)}</p>
+                      <div className="mt-1 flex items-center justify-between">
+                        <span className="text-[10px] font-bold tabular-nums text-amber-300">{formatNumber(item.lowestPrice, locale)}</span>
+                        <span className="text-[9px] text-slate-500">×{formatNumber(item.totalCount, locale)}</span>
+                      </div>
+                    </div>
+                  </button>
                 );
               })}
             </div>
@@ -2037,19 +2324,20 @@ function CenterPanel({
         ) : null}
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-2 sm:gap-3 sm:p-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {/* Activity & map selection — only visible when idle */}
         {!isAfkActive ? (
-          <>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
+            {/* Activity tabs — segmented style */}
+            <div className="mb-2.5 flex gap-0.5 rounded-md border border-[#30363d] bg-[#0d1117] p-0.5">
               {activities.map((activity) => (
                 <button
                   key={activity.key}
                   className={[
-                    "shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition-all",
+                    "relative flex-1 shrink-0 rounded px-2 py-1 text-[10px] font-medium transition-all",
                     selectedActivityKey === activity.key
-                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 glow-border-sky"
-                      : "border border-[#30363d] text-slate-400 hover:border-white/20 hover:text-slate-200",
+                      ? "bg-sky-500/15 text-sky-300 shadow-[inset_0_1px_0_rgba(56,189,248,0.1)]"
+                      : "text-slate-500 hover:text-slate-300",
                   ].join(" ")}
                   onClick={() => {
                     selectActivity(activity.key);
@@ -2065,7 +2353,8 @@ function CenterPanel({
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+            {/* Map cards */}
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
               {maps
                 .filter((map) => map.activityKey === selectedActivityKey)
                 .map((map) => {
@@ -2075,37 +2364,60 @@ function CenterPanel({
                     <button
                       key={map.key}
                       className={[
-                        "relative rounded-lg border p-2.5 text-left transition-all sm:p-3",
+                        "group relative flex flex-col justify-between overflow-hidden rounded-lg border text-left transition-all",
                         isSelected
-                          ? "border-sky-500/40 bg-sky-500/10 glow-border-sky"
+                          ? "border-sky-500/40 bg-linear-to-br from-sky-950/40 via-[#0d1117] to-cyan-950/30 shadow-[0_0_20px_rgba(56,189,248,0.06)]"
                           : "border-[#30363d] bg-[#0d1117] hover:border-[#484f58] hover:bg-[#11161d]",
-                        !isUnlocked && "opacity-50",
+                        !isUnlocked && "opacity-40",
                       ].join(" ")}
                       disabled={!isUnlocked}
                       onClick={() => selectMap(map.key)}
                       type="button"
                     >
-                      <p className="text-sm font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
-                      <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{map.summary}</p>
-                      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-                        <span className={`inline-flex items-center gap-1 ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
+                      {/* Selected glow accent */}
+                      {isSelected && <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-sky-400/60 to-transparent" />}
+
+                      <div className="p-2 sm:p-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-semibold text-white">{localizeMapLabel(map.key, map.label, locale)}</p>
+                          {isSelected && <div className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.6)]" />}
+                        </div>
+                        <p className="mt-0.5 line-clamp-1 text-[10px] text-slate-500">{map.summary}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-white/[0.04] bg-white/[0.02] px-2 py-1 sm:px-2.5">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${isUnlocked ? "text-emerald-400" : "text-amber-400"}`}>
                           {isUnlocked ? null : (
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                           )}
                           Lv.{map.minLevel}
                         </span>
-                        <span className="text-slate-500">
-                          {formatDecimal(map.goldPerMinute, locale)}金/分
+                        <span className="flex items-center gap-0.5 text-[10px] text-amber-300/70">
+                          <span className="text-amber-400/50">💰</span>
+                          {formatDecimal(map.goldPerMinute, locale)}/分
                         </span>
                       </div>
-                      {isSelected && (
-                        <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
-                      )}
                     </button>
                   );
                 })}
             </div>
-          </>
+
+            {/* Start button — floating at bottom */}
+            <div className="mt-3">
+              {maps
+                .filter((map) => map.key === selectedMapKey)
+                .map((map) => (
+                  <CommandButton
+                    key={map.key}
+                    disabled={status === "saving" || !isRealtimeReady || role.level < map.minLevel}
+                    onClick={() => void startAfk().catch(() => { })}
+                    tone="primary"
+                  >
+                    {status === "saving" ? messages.common.submit : copy.dashboard.startAfk}
+                  </CommandButton>
+                ))}
+            </div>
+          </div>
         ) : null}
 
         {/* Battle & encounter log — only when active */}
@@ -2159,23 +2471,6 @@ function CenterPanel({
           </div>
         ) : null}
 
-        {/* Start button — only when idle */}
-        {!isAfkActive ? (
-          <div className="rounded-lg border border-[#30363d] bg-[#0d1117] p-2.5 sm:p-3">
-            {maps
-              .filter((map) => map.key === selectedMapKey)
-              .map((map) => (
-                <CommandButton
-                  key={map.key}
-                  disabled={status === "saving" || !isRealtimeReady || role.level < map.minLevel}
-                  onClick={() => void startAfk().catch(() => { })}
-                  tone="primary"
-                >
-                  {status === "saving" ? messages.common.submit : copy.dashboard.startAfk}
-                </CommandButton>
-              ))}
-          </div>
-        ) : null}
       </div>
     </SectionCard>
   );
@@ -2187,6 +2482,7 @@ function MainDashboard() {
   const {
     activePanel,
     buyMarketListing,
+    createBuyOrder,
     createMarketListing,
     dropBackpackItem,
     deleteAccountRole,
@@ -2856,13 +3152,13 @@ function MainDashboard() {
       <div className="mx-auto flex max-w-[1680px] flex-col gap-2 sm:gap-2.5 xl:h-full xl:overflow-hidden">
         {/* ── Compact Header Bar ── */}
         <SectionCard className="game-panel-accent overflow-hidden">
-          <div className="flex items-center gap-3 px-3 py-2 sm:px-4 sm:py-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-300/[0.25] bg-linear-to-br from-cyan-300/[0.16] via-emerald-300/10 to-amber-300/10 text-[10px] font-bold text-cyan-200 sm:h-9 sm:w-9 sm:text-[11px]">
+          <div className="flex items-center gap-2.5 px-3 py-1.5 sm:px-4 sm:py-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-300/[0.25] bg-linear-to-br from-cyan-300/[0.16] via-emerald-300/10 to-amber-300/10 text-[10px] font-bold text-cyan-200 sm:h-8 sm:w-8">
               {role.avatarSeed}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span className="min-w-0 break-words text-sm font-semibold leading-tight text-white sm:truncate">{role.name}</span>
+                <span className="min-w-0 break-words text-xs font-semibold leading-tight text-white sm:truncate">{role.name}</span>
                 <StatusChip tone={activeBattle ? "warning" : snapshot.afk.status === "active" ? "emerald" : "neutral"}>
                   {activeBattle ? messages.common.fighting : snapshot.afk.status === "active" ? copy.dashboard.menu.afk.running : messages.common.idle}
                 </StatusChip>
@@ -2871,14 +3167,14 @@ function MainDashboard() {
                 <span className="hidden text-[10px] text-slate-500 sm:inline">{localizeRaceLabel(role.raceKey, snapshot.config.races.find((item) => item.key === role.raceKey)?.label ?? role.raceKey, locale)} · {localizeClassLabel(role.classKey, snapshot.config.classes.find((item) => item.key === role.classKey)?.label ?? role.classKey, locale)}</span>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1.5 text-[10px]">
-              <span className="rounded-md bg-amber-300/10 px-1.5 py-0.5 font-medium tabular-nums text-amber-200">💰{formatNumber(role.gold, locale)}</span>
-              <span className="rounded-md bg-cyan-300/10 px-1.5 py-0.5 font-medium tabular-nums text-cyan-200">💎{formatNumber(role.aetherCrystal, locale)}</span>
-              <span className="hidden rounded-md bg-emerald-300/10 px-1.5 py-0.5 font-medium tabular-nums text-emerald-200 sm:inline">✦{formatNumber(role.exp, locale)}</span>
+            <div className="flex shrink-0 items-center gap-1 text-[10px]">
+              <span className="rounded bg-amber-300/10 px-1.5 py-0.5 font-medium tabular-nums text-amber-200">💰{formatNumber(role.gold, locale)}</span>
+              <span className="rounded bg-cyan-300/10 px-1.5 py-0.5 font-medium tabular-nums text-cyan-200">💎{formatNumber(role.aetherCrystal, locale)}</span>
+              <span className="hidden rounded bg-emerald-300/10 px-1.5 py-0.5 font-medium tabular-nums text-emerald-200 sm:inline">✦{formatNumber(role.exp, locale)}</span>
             </div>
             {isGuestUser ? (
               <button
-                className="hidden min-h-7 shrink-0 rounded-md border border-white/10 bg-white/[0.055] px-2.5 py-1 text-[10px] font-medium text-slate-300 transition hover:border-cyan-200/[0.30] hover:bg-cyan-200/10 hover:text-white lg:inline"
+                className="hidden min-h-6 shrink-0 rounded border border-white/10 bg-white/[0.055] px-2 py-0.5 text-[10px] font-medium text-slate-300 transition hover:border-cyan-200/[0.30] hover:bg-cyan-200/10 hover:text-white lg:inline"
                 disabled={status === "saving"}
                 onClick={() => setShowRegisterAccountModal(true)}
                 type="button"
@@ -2888,7 +3184,7 @@ function MainDashboard() {
             ) : null}
           </div>
           {/* Level progress — embedded in header */}
-          <div className="px-3 pb-1.5 sm:px-4 sm:pb-2">
+          <div className="px-3 pb-1 sm:px-4 sm:pb-1.5">
             <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.14em] text-slate-600">
               <span>{copy.dashboard.levelBar}</span>
               <span>{progressCopy}</span>
@@ -2927,6 +3223,12 @@ function MainDashboard() {
             isRealtimeReady={isRealtimeReady}
             activities={snapshot.config.activities}
             maps={maps}
+            onCreateBuyOrder={(itemId, price, quantity) =>
+              createBuyOrder(itemId, price, quantity)
+            }
+            onCreateMarketListing={(backpackId, price, quantity) =>
+              createMarketListing(backpackId, price, quantity)
+            }
             onRequestBuyMarketListing={(listingId) => {
               setPendingMarketPurchaseListingId(listingId);
             }}

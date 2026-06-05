@@ -419,7 +419,7 @@ function sortBackpackRows(backpack) {
   });
 }
 
-function buildMarketSnapshot(roleId, activeListings, ownListings) {
+function buildMarketSnapshot(roleId, activeListings, ownListings, buyOrders) {
   return {
     feeRatePercent: MARKET_FEE_RATE_PERCENT,
     categoryOptions: [...MARKET_CATEGORY_OPTIONS],
@@ -463,6 +463,17 @@ function buildMarketSnapshot(roleId, activeListings, ownListings) {
       feeAmount: listing.fee_amount || 0,
       quantity: normalizeNumber(listing.listing_count || 0),
       sellerNoticeSeen: Boolean(listing.seller_notice_seen),
+    })),
+    buyOrders: (buyOrders || []).map((order) => ({
+      orderId: order.order_id,
+      itemId: order.item_id,
+      categoryKey: order.category_key,
+      price: normalizeNumber(order.price),
+      quantity: normalizeNumber(order.quantity),
+      filledQuantity: normalizeNumber(order.filled_quantity || 0),
+      buyerName: order.buyer_name || "未知",
+      createdAt: toMillis(order.created_at) || Date.now(),
+      isOwnOrder: roleId === order.buyer_role_id,
     })),
   };
 }
@@ -3168,13 +3179,38 @@ async function getMarketOwnListingRows(roleId) {
   return result.rows;
 }
 
+async function getActiveBuyOrdersRows() {
+  const result = await queryPool(
+    `
+      SELECT
+        bo.order_id,
+        bo.buyer_role_id,
+        bo.item_id,
+        bo.category_key,
+        bo.price,
+        bo.quantity,
+        bo.filled_quantity,
+        bo.created_at,
+        r.name AS buyer_name
+      FROM market_buy_order bo
+      JOIN "role" r ON r.role_id = bo.buyer_role_id
+      WHERE bo.status = 'active'
+      ORDER BY bo.price DESC, bo.created_at ASC
+      LIMIT 200
+    `,
+  );
+
+  return result.rows;
+}
+
 async function getMarketSnapshotForRole(roleId) {
-  const [activeListings, ownListings] = await Promise.all([
+  const [activeListings, ownListings, buyOrders] = await Promise.all([
     getMarketActiveSummaryRows(),
     roleId ? getMarketOwnListingRows(roleId) : Promise.resolve([]),
+    getActiveBuyOrdersRows(),
   ]);
 
-  return buildMarketSnapshot(roleId || null, activeListings, ownListings);
+  return buildMarketSnapshot(roleId || null, activeListings, ownListings, buyOrders);
 }
 
 async function deleteBackpackEntry(client, roleId, backpackId) {
@@ -4427,10 +4463,141 @@ async function dismissMarketSoldNotificationForGuest(guestToken, listingId) {
   return getSessionSnapshot(guestToken);
 }
 
+async function createBuyOrderForGuest(guestToken, itemId, price, quantity) {
+  await ensureRuntimeGameConfig();
+  const normalizedItemId = typeof itemId === "string" ? itemId.trim() : "";
+  const normalizedPrice = normalizeNumber(price);
+  const normalizedQuantity = normalizeNumber(quantity);
+
+  if (!normalizedItemId) {
+    throw createServiceError("缺少物品标识。", 400);
+  }
+
+  if (normalizedPrice <= 0) {
+    throw createServiceError("买入价格必须大于 0。", 400);
+  }
+
+  if (normalizedQuantity <= 0) {
+    throw createServiceError("买入数量必须大于 0。", 400);
+  }
+
+  const data = await requireDashboardData(guestToken);
+  const totalCost = normalizedPrice * normalizedQuantity;
+
+  if (data.role.gold < totalCost) {
+    throw createServiceError("金币不足。", 409);
+  }
+
+  // Look up item metadata
+  const itemResult = await queryPool(
+    `SELECT item_id, category_key FROM item WHERE item_id = $1`,
+    [normalizedItemId],
+  );
+  const itemRow = itemResult.rows[0];
+
+  if (!itemRow) {
+    throw createServiceError("物品不存在。", 404);
+  }
+
+  await withTransaction(async (client) => {
+    // Lock buyer role row and verify gold
+    const roleResult = await client.query(
+      `SELECT role_id, gold FROM "role" WHERE role_id = $1 FOR UPDATE`,
+      [data.role.role_id],
+    );
+    const buyerRole = roleResult.rows[0];
+
+    if (!buyerRole || buyerRole.gold < totalCost) {
+      throw createServiceError("金币不足。", 409);
+    }
+
+    // Try to match against existing sell listings (cheapest first)
+    let remainingQty = normalizedQuantity;
+    const matchedListings = await client.query(
+      `
+        SELECT listing_id, seller_role_id, price, item_id
+        FROM market_listing
+        WHERE item_id = $1 AND status = 'active' AND price <= $2 AND seller_role_id != $3
+        ORDER BY price ASC, created_at ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT $4
+      `,
+      [normalizedItemId, normalizedPrice, data.role.role_id, remainingQty],
+    );
+
+    for (const listing of matchedListings.rows) {
+      if (remainingQty <= 0) break;
+
+      const matchFee = calculateMarketFee(listing.price);
+      const sellerReceives = listing.price - matchFee;
+
+      // Deduct gold from buyer
+      await client.query(
+        `UPDATE "role" SET gold = gold - $1, updated_at = NOW() WHERE role_id = $2`,
+        [listing.price, data.role.role_id],
+      );
+
+      // Credit seller pending gold
+      await client.query(
+        `UPDATE afk SET pending_gold = pending_gold + $1, updated_at = NOW() WHERE role_id = $2`,
+        [sellerReceives, listing.seller_role_id],
+      );
+
+      // Add item to buyer backpack
+      await upsertBackpackItemQuantity(client, data.role.role_id, listing.item_id, 1);
+
+      // Mark listing sold
+      await client.query(
+        `
+          UPDATE market_listing
+          SET status = 'sold', buyer_role_id = $1, sold_price = $2,
+              fee_amount = $3, seller_receive_amount = $4, sold_at = NOW(), updated_at = NOW()
+          WHERE listing_id = $5
+        `,
+        [data.role.role_id, listing.price, matchFee, sellerReceives, listing.listing_id],
+      );
+
+      remainingQty -= 1;
+    }
+
+    // If unmatched quantity remains, create a buy order
+    if (remainingQty > 0) {
+      const reservedGold = normalizedPrice * remainingQty;
+
+      // Reserve gold from buyer
+      await client.query(
+        `UPDATE "role" SET gold = gold - $1, updated_at = NOW() WHERE role_id = $2`,
+        [reservedGold, data.role.role_id],
+      );
+
+      await client.query(
+        `
+          INSERT INTO market_buy_order (
+            order_id, buyer_role_id, item_id, category_key, price, quantity,
+            status, created_at, updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW(), NOW())
+        `,
+        [
+          `buyorder-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          data.role.role_id,
+          normalizedItemId,
+          itemRow.category_key,
+          normalizedPrice,
+          remainingQty,
+        ],
+      );
+    }
+  });
+
+  return getSessionSnapshot(guestToken);
+}
+
 module.exports = {
   AFK_TASK_SECONDS,
   buyMarketListingForGuest,
   cancelMarketListingForGuest,
+  createBuyOrderForGuest,
   dismissMarketSoldNotificationForGuest,
   getSessionSnapshot,
   createMarketListingForGuest,
