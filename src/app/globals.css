@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  /* 暗色主题 - GitHub Dark 风格 */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: #30363d;
+  --border-primary: #30363d;
+  --border-secondary: #21262d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+  /* 稀有度颜色 */
+  --rarity-white: #9ca3af;
+  --rarity-green: #22c55e;
+  --rarity-blue: #3b82f6;
+  --rarity-purple: #a855f7;
+  --rarity-orange: #f97316;
+}
+
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-hover: var(--bg-hover);
+  --color-border-primary: var(--border-primary);
+  --color-border-secondary: var(--border-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-red: var(--accent-red);
+  --color-accent-purple: var(--accent-purple);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-hover) transparent;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* 进度条样式 */
+.progress-bar {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 6px;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* 稀有度边框 */
+.rarity-white { border-color: var(--rarity-white); }
+.rarity-green { border-color: var(--rarity-green); }
+.rarity-blue { border-color: var(--rarity-blue); }
+.rarity-purple { border-color: var(--rarity-purple); }
+.rarity-orange { border-color: var(--rarity-orange); }
+
+.rarity-text-white { color: var(--rarity-white); }
+.rarity-text-green { color: var(--rarity-green); }
+.rarity-text-blue { color: var(--rarity-blue); }
+.rarity-text-purple { color: var(--rarity-purple); }
+.rarity-text-orange { color: var(--rarity-orange); }
+
+/* 战斗日志滚动 */
+.battle-log {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .game-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
