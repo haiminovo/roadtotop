@@ -25,7 +25,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     let token = localStorage.getItem('guest_token');
     if (!token) {
-      token = `guest_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      // 生成短 token: guest_ + 8位随机字符
+      token = `guest_${Math.random().toString(36).slice(2, 10)}`;
       localStorage.setItem('guest_token', token);
     }
     guestTokenRef.current = token;
