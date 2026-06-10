@@ -497,7 +497,7 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
   const enemyLevel = roleLevel;
   const maxHp = getMaxHealth(roleLevel, role.vitality);
 
-  return {
+  const state: BattleState = {
     enemyKey: enemy.key, enemyName: enemy.name,
     enemyHealth: Math.floor(enemy.baseHealth * (1 + enemyLevel * 0.1)),
     enemyMaxHealth: Math.floor(enemy.baseHealth * (1 + enemyLevel * 0.1)),
@@ -511,10 +511,38 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
     playerMaxHealth: maxHp,
     playerActionPoints: 0, enemyActionPoints: 0,
     playerEffects: [], enemyEffects: [],
-    logs: [{ timestamp: Date.now(), message: `遭遇了 ${enemy.name}！`, type: 'info' }],
+    logs: [{ timestamp: Date.now(), message: `遭遇了 ${enemy.name}！准备战斗！`, type: 'info' }],
     playerSkillStates: {},
     result: 'ongoing',
   };
+  return state;
+}
+
+// --- 战斗动作名称 ---
+const PLAYER_ATTACK_NAMES = [
+  '挥剑斩击', '猛力劈砍', '精准刺击', '旋风斩', '破甲一击', '连续攻击', '致命一击', '蓄力重击',
+];
+const ENEMY_ATTACK_NAMES: Record<string, string[]> = {
+  default: ['扑咬', '利爪撕裂', '猛烈撞击', '怒吼攻击', '尾扫'],
+  slime: ['酸液喷射', '弹跳撞击', '粘液缠绕'],
+  wolf: ['獠牙撕咬', '狼嚎冲锋', '利爪连击'],
+  goblin: ['匕首偷袭', '投掷石块', '狡猾一击'],
+  bear: ['熊掌重击', '咆哮冲锋', '猛扑'],
+  skeleton: ['骨剑斩击', '亡灵诅咒', '骷髅冲锋'],
+  fire_elemental: ['烈焰喷射', '火焰爆发', '灼烧之触'],
+  dragon_whelp: ['龙息', '利爪撕裂', '尾锤扫击'],
+  void_walker: ['虚空射线', '暗影侵蚀', '空间撕裂'],
+};
+
+function getPlayerAttackName(isCrit: boolean): string {
+  const name = PLAYER_ATTACK_NAMES[Math.floor(Math.random() * PLAYER_ATTACK_NAMES.length)];
+  return isCrit ? `【暴击】${name}` : name;
+}
+
+function getEnemyAttackName(enemyKey: string, isCrit: boolean): string {
+  const names = ENEMY_ATTACK_NAMES[enemyKey] || ENEMY_ATTACK_NAMES.default;
+  const name = names[Math.floor(Math.random() * names.length)];
+  return isCrit ? `【暴击】${name}` : name;
 }
 
 // --- 模拟战斗 tick ---
@@ -528,12 +556,34 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
   // 玩家行动
   if (state.playerActionPoints >= 100) {
     state.playerActionPoints = 0;
-    const damage = Math.max(1, role.strength - Math.floor(state.enemyStats.vitality * 0.3) + randomInt(-2, 2));
+
+    // 计算伤害（含暴击判定）
+    const critChance = Math.min(0.3, role.agility * 0.005);
+    const isCrit = Math.random() < critChance;
+    const critMult = isCrit ? 1.8 : 1;
+    const baseDmg = role.strength + Math.floor(role.agility * 0.3);
+    const enemyDef = Math.floor(state.enemyStats.vitality * 0.4);
+    const variance = randomInt(-3, 5);
+    const damage = Math.max(1, Math.floor((baseDmg - enemyDef + variance) * critMult));
+
     state.enemyHealth = Math.max(0, state.enemyHealth - damage);
-    state.logs.push({ timestamp: Date.now(), message: `你对 ${state.enemyName} 造成了 ${damage} 点伤害`, type: 'damage' });
+    const attackName = getPlayerAttackName(isCrit);
+    state.logs.push({
+      timestamp: Date.now(),
+      message: `${attackName}！对 ${state.enemyName} 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+      type: isCrit ? 'effect' : 'damage',
+    });
+
+    // 随机触发额外效果
+    if (Math.random() < 0.15 && state.enemyEffects.length < 3) {
+      const effectType = Math.random() < 0.5 ? '灼烧' : '破甲';
+      state.enemyEffects.push({ type: effectType, value: 2, duration: 3, source: 'player' });
+      state.logs.push({ timestamp: Date.now(), message: `${state.enemyName} 被施加了 ${effectType} 效果！`, type: 'effect' });
+    }
+
     if (state.enemyHealth <= 0) {
       state.result = 'win';
-      state.logs.push({ timestamp: Date.now(), message: `击败了 ${state.enemyName}！`, type: 'info' });
+      state.logs.push({ timestamp: Date.now(), message: `🎉 击败了 ${state.enemyName}！获得了胜利！`, type: 'info' });
       return state;
     }
   }
@@ -541,15 +591,56 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
   // 敌人行动
   if (state.enemyActionPoints >= 100) {
     state.enemyActionPoints = 0;
-    const damage = Math.max(1, state.enemyStats.strength - Math.floor(role.vitality * 0.3) + randomInt(-2, 2));
+
+    const critChance = Math.min(0.2, state.enemyStats.agility * 0.004);
+    const isCrit = Math.random() < critChance;
+    const critMult = isCrit ? 1.6 : 1;
+    const baseDmg = state.enemyStats.strength + Math.floor(state.enemyStats.agility * 0.2);
+    const playerDef = Math.floor(role.vitality * 0.4);
+    const variance = randomInt(-3, 5);
+    const damage = Math.max(1, Math.floor((baseDmg - playerDef + variance) * critMult));
+
     state.playerHealth = Math.max(0, state.playerHealth - damage);
-    state.logs.push({ timestamp: Date.now(), message: `${state.enemyName} 对你造成了 ${damage} 点伤害`, type: 'damage' });
+    const attackName = getEnemyAttackName(state.enemyKey, isCrit);
+    state.logs.push({
+      timestamp: Date.now(),
+      message: `${state.enemyName} 使出 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+      type: isCrit ? 'effect' : 'damage',
+    });
+
+    // 敌人随机触发效果
+    if (Math.random() < 0.1 && state.playerEffects.length < 3) {
+      state.playerEffects.push({ type: '中毒', value: 3, duration: 2, source: 'enemy' });
+      state.logs.push({ timestamp: Date.now(), message: `你中毒了！每回合受到持续伤害`, type: 'effect' });
+    }
+
     if (state.playerHealth <= 0) {
       state.result = 'lose';
-      state.logs.push({ timestamp: Date.now(), message: `你被 ${state.enemyName} 击败了...`, type: 'info' });
+      state.logs.push({ timestamp: Date.now(), message: `💀 你被 ${state.enemyName} 击败了...`, type: 'info' });
       return state;
     }
   }
+
+  // 处理持续效果
+  state.playerEffects = state.playerEffects.filter(eff => {
+    if (eff.type === '灼烧' || eff.type === '中毒') {
+      const dotDmg = eff.value || 2;
+      state.playerHealth = Math.max(0, state.playerHealth - dotDmg);
+      state.logs.push({ timestamp: Date.now(), message: `${eff.type}效果造成 ${dotDmg} 点伤害`, type: 'effect' });
+    }
+    eff.duration--;
+    return eff.duration > 0;
+  });
+
+  state.enemyEffects = state.enemyEffects.filter(eff => {
+    if (eff.type === '灼烧' || eff.type === '中毒') {
+      const dotDmg = eff.value || 2;
+      state.enemyHealth = Math.max(0, state.enemyHealth - dotDmg);
+      state.logs.push({ timestamp: Date.now(), message: `${state.enemyName} 受到${eff.type}效果 ${dotDmg} 点伤害`, type: 'effect' });
+    }
+    eff.duration--;
+    return eff.duration > 0;
+  });
 
   return state;
 }
