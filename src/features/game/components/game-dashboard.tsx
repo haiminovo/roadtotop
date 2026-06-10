@@ -40,7 +40,7 @@ export function GameDashboard() {
   const [selectedClass, setSelectedClass] = useState('');
 
   // 检查是否有离线奖励（在渲染前检查）
-  const hasOfflineReward = snapshot && (
+  const hasOfflineReward = snapshot?.afk && (
     snapshot.afk.pendingReward.gold > 0 ||
     snapshot.afk.pendingReward.aether > 0 ||
     snapshot.afk.pendingReward.exp > 0
