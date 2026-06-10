@@ -23,7 +23,7 @@ const CHANNELS = [
   { key: 'tavern', name: '酒馆', color: 'var(--accent-green)' },
 ];
 
-const MIN_HEIGHT = 36; // 只露出频道 tab
+const MIN_HEIGHT = 36;
 const MAX_HEIGHT = 500;
 const DEFAULT_HEIGHT = 200;
 
@@ -60,7 +60,6 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
     setInput('');
   };
 
-  // 拖动调整高度
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
@@ -136,16 +135,18 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
             {ch.name}
           </button>
         ))}
-        {!collapsed && (
-          <span className="text-text-muted text-xs ml-auto">{filteredMessages.length} 条</span>
-        )}
-        <button
-          onClick={toggleCollapse}
-          className="ml-1 px-1 text-xs text-text-muted hover:text-text-secondary"
-          title={collapsed ? '展开聊天' : '收起聊天'}
-        >
-          {collapsed ? '▲' : '▼'}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {!collapsed && (
+            <span className="text-text-muted text-xs">{filteredMessages.length} 条</span>
+          )}
+          <button
+            onClick={toggleCollapse}
+            className="text-text-muted hover:text-text-secondary text-xs"
+            title={collapsed ? '展开聊天' : '收起聊天'}
+          >
+            {collapsed ? '◀' : '▶'}
+          </button>
+        </div>
       </div>
 
       {/* 聊天历史 + 输入栏（收起时隐藏） */}
