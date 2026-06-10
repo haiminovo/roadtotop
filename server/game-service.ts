@@ -310,7 +310,13 @@ export async function startAfk(userId: number, activityKey: string, mapKey: stri
   const map = config.mapConfigs.find(m => m.key === mapKey);
   if (!map) throw new Error('无效的地图');
   const role = await getRoleByUserId(userId);
-  if (role.level < map.levelRequired) throw new Error(`需要等级 ${map.levelRequired}`);
+  const { level } = getLevelFromExp(role.exp);
+  if (level < map.levelRequired) throw new Error(`需要等级 ${map.levelRequired}`);
+
+  // 同步等级到数据库
+  if (level !== role.level) {
+    await query('UPDATE role SET level=$1, updated_at=NOW() WHERE role_id=$2', [level, role.role_id]);
+  }
 
   // 先结算离线收益
   await settleAfkState(userId);
@@ -332,10 +338,12 @@ export async function stopAfk(userId: number) {
 export async function claimOfflineReward(userId: number) {
   const rewards = await settleAfkState(userId);
   const role = await getRoleByUserId(userId);
+  const newExp = role.exp + rewards.gold + rewards.exp;
+  const { level: newLevel } = getLevelFromExp(role.exp + rewards.exp);
   await withTransaction(async (txQuery) => {
     await txQuery(
-      `UPDATE role SET gold=gold+$1, aether_crystal=aether_crystal+$2, exp=exp+$3, updated_at=NOW() WHERE role_id=$4`,
-      [rewards.gold, rewards.aether, rewards.exp, role.role_id]
+      `UPDATE role SET gold=gold+$1, aether_crystal=aether_crystal+$2, exp=exp+$3, level=$4, updated_at=NOW() WHERE role_id=$5`,
+      [rewards.gold, rewards.aether, rewards.exp, newLevel, role.role_id]
     );
     await txQuery(
       `UPDATE afk SET pending_gold=0, pending_aether=0, pending_exp=0, updated_at=NOW() WHERE role_id=$1`,
@@ -440,6 +448,9 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
   // 保留最近20条遭遇记录
   while (recentEncounters.length > 20) recentEncounters.shift();
 
+  // 同步等级
+  const { level: settledLevel } = getLevelFromExp(role.exp + pendingExp);
+
   // 更新数据库
   await query(
     `UPDATE afk SET pending_gold=$1, pending_aether=$2, pending_exp=$3,
@@ -450,6 +461,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
      JSON.stringify(recentEncounters), JSON.stringify(battleState),
      battleState ? 'battle' : 'afk', role.role_id]
   );
+  await query('UPDATE role SET level=$1, updated_at=NOW() WHERE role_id=$2', [settledLevel, role.role_id]);
 
   return { gold: pendingGold, aether: pendingAether, exp: pendingExp };
 }
