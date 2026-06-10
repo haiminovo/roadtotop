@@ -94,10 +94,18 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
         const snapshot = await getSessionSnapshot(user.user_id);
         send(client.ws, 'game:session:ready', snapshot);
       } else {
-        // 没有角色，需要创建
+        // 没有角色，需要创建 - 加载配置数据
+        const config = await getGameConfig();
         send(client.ws, 'game:session:ready', {
           account: { guestToken, mode: 'guest', username: null, userId: user.user_id },
           needCreateRole: true,
+          config: {
+            activities: config.activityConfigs,
+            classes: config.classConfigs,
+            levels: [],
+            maps: config.mapConfigs,
+            races: config.raceConfigs,
+          },
         });
       }
       break;
