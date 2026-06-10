@@ -140,19 +140,20 @@ export function GameDashboard() {
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* 顶部状态栏 */}
-      <TopStatusBar snapshot={snapshot} />
-
-      {/* 主内容区 */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* 桌面端侧边导航 */}
-        <nav className="hidden lg:flex flex-col w-16 bg-bg-secondary border-r border-border-primary py-2">
+    <div className="flex h-screen">
+      {/* 桌面端侧边导航（全高） */}
+      <nav className="hidden lg:flex flex-col w-16 bg-bg-secondary border-r border-border-primary">
+        {/* 游戏标题 */}
+        <div className="py-3 text-center border-b border-border-primary">
+          <span className="text-xs font-bold text-accent-blue">RTT</span>
+        </div>
+        {/* 标签按钮 */}
+        <div className="flex-1 flex flex-col py-2">
           {TABS.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`py-2 text-xs text-center transition-colors ${
+              className={`flex-1 flex items-center justify-center text-xs transition-colors min-h-0 ${
                 activeTab === tab.key
                   ? 'bg-bg-tertiary text-accent-blue border-l-2 border-accent-blue'
                   : 'text-text-muted hover:text-text-secondary'
@@ -161,9 +162,15 @@ export function GameDashboard() {
               {tab.label}
             </button>
           ))}
-        </nav>
+        </div>
+      </nav>
 
-        {/* 主面板 */}
+      {/* 右侧主区域 */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* 顶部状态栏 */}
+        <TopStatusBar snapshot={snapshot} />
+
+        {/* 主内容区 */}
         <main className="flex-1 overflow-y-auto p-3">
           {/* 战斗视图（如果在战斗中） */}
           {snapshot.afk.battle && (
@@ -211,30 +218,30 @@ export function GameDashboard() {
             />
           )}
         </main>
+
+        {/* 底部聊天栏（常驻） */}
+        <ChatPanel
+          messages={chatMessages}
+          currentChannel={chatChannel}
+          onChannelChange={setChatChannel}
+          onSend={sendChat}
+        />
+
+        {/* 移动端底部标签栏 */}
+        <nav className="lg:hidden flex bg-bg-secondary border-t border-border-primary">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 py-2 text-xs text-center transition-colors ${
+                activeTab === tab.key ? 'text-accent-blue' : 'text-text-muted'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
-
-      {/* 底部聊天栏（常驻） */}
-      <ChatPanel
-        messages={chatMessages}
-        currentChannel={chatChannel}
-        onChannelChange={setChatChannel}
-        onSend={sendChat}
-      />
-
-      {/* 移动端底部标签栏 */}
-      <nav className="lg:hidden flex bg-bg-secondary border-t border-border-primary">
-        {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-2 text-xs text-center transition-colors ${
-              activeTab === tab.key ? 'text-accent-blue' : 'text-text-muted'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
 
       {/* 离线收益弹窗 */}
       {showOfflineReward && hasOfflineReward && (

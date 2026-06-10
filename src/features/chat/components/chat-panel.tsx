@@ -23,16 +23,20 @@ const CHANNELS = [
   { key: 'tavern', name: '酒馆', color: 'var(--accent-green)' },
 ];
 
+function formatTime(dateStr?: string): string {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }: ChatPanelProps) {
   const [input, setInput] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (showHistory) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, showHistory]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSend = () => {
     const content = input.trim();
@@ -45,26 +49,25 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
 
   return (
     <div className="bg-bg-secondary border-t border-border-primary">
-      {/* 聊天历史（可展开） */}
-      {showHistory && (
-        <div className="max-h-48 overflow-y-auto px-3 py-2 space-y-0.5 border-b border-border-secondary">
-          {filteredMessages.length === 0 ? (
-            <p className="text-text-muted text-xs text-center py-2">暂无消息</p>
-          ) : (
-            filteredMessages.map((msg, i) => (
-              <div key={msg.chatId || i} className="text-xs leading-5">
-                <span className="text-accent-blue font-medium">{msg.senderName}</span>
-                <span className="text-text-muted">: </span>
-                <span className="text-text-primary">{msg.content}</span>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      )}
+      {/* 聊天历史（默认展开） */}
+      <div className="h-32 overflow-y-auto px-3 py-1.5 space-y-0.5">
+        {filteredMessages.length === 0 ? (
+          <p className="text-text-muted text-xs text-center py-4">暂无消息，说点什么吧...</p>
+        ) : (
+          filteredMessages.map((msg, i) => (
+            <div key={msg.chatId || i} className="text-xs leading-5">
+              <span className="text-text-muted">[{formatTime(msg.createdAt)}]</span>
+              <span className="text-accent-blue font-medium ml-1">{msg.senderName}</span>
+              <span className="text-text-muted">: </span>
+              <span className="text-text-primary">{msg.content}</span>
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
       {/* 输入栏 */}
-      <div className="flex items-center gap-1 px-2 py-1.5">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-t border-border-secondary">
         {/* 频道切换 */}
         <div className="flex gap-0.5">
           {CHANNELS.map(ch => (
@@ -97,18 +100,9 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
         {/* 发送按钮 */}
         <button
           onClick={handleSend}
-          className="px-2 py-1 text-xs bg-accent-blue text-white rounded hover:brightness-110"
+          className="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:brightness-110"
         >
           发送
-        </button>
-
-        {/* 展开/收起历史 */}
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className="px-1.5 py-1 text-xs text-text-muted hover:text-text-secondary"
-          title={showHistory ? '收起聊天' : '展开聊天'}
-        >
-          {showHistory ? '▼' : '▲'}
         </button>
       </div>
     </div>
