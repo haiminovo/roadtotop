@@ -25,9 +25,12 @@ const CHANNELS = [
 
 function formatTime(dateStr?: string): string {
   const d = dateStr ? new Date(dateStr) : new Date();
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
   const h = d.getHours().toString().padStart(2, '0');
   const m = d.getMinutes().toString().padStart(2, '0');
-  return `${h}:${m}`;
+  return `${year}-${month}-${day} ${h}:${m}`;
 }
 
 export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }: ChatPanelProps) {
