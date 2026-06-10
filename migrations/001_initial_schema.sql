@@ -6,7 +6,7 @@
 -- 用户表
 CREATE TABLE IF NOT EXISTS "user" (
   user_id       SERIAL PRIMARY KEY,
-  guest_token   VARCHAR(64) UNIQUE,
+  guest_token   VARCHAR(128) UNIQUE,
   account_type  VARCHAR(16) NOT NULL DEFAULT 'guest', -- guest | registered
   username      VARCHAR(32) UNIQUE,
   password_hash VARCHAR(128),
