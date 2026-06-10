@@ -10,6 +10,7 @@ import {
   getSessionSnapshot, createRole, startAfk, stopAfk, claimOfflineReward,
   equipItem, unequipItem, dropItem, learnSkillBook, configureSkillLoadout,
   createMarketListing, cancelMarketListing, buyMarketListing, challengePvp,
+  settleAfkState,
 } from './game-service.js';
 import { saveChatMessage, getChannelHistory, getAllChannelHistories } from './chat-service.js';
 
@@ -121,6 +122,18 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
       await createRole(client.userId, name, raceKey, classKey);
       const snapshot = await getSessionSnapshot(client.userId);
       send(client.ws, 'game:session:ready', snapshot);
+      break;
+    }
+
+    case 'game:state:poll': {
+      if (!client.userId) return;
+      try {
+        await settleAfkState(client.userId);
+        const snapshot = await getSessionSnapshot(client.userId);
+        if (snapshot) send(client.ws, 'game:state:update', snapshot);
+      } catch (e) {
+        // 轮询错误静默处理
+      }
       break;
     }
 

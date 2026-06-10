@@ -346,7 +346,7 @@ export async function claimOfflineReward(userId: number) {
 }
 
 // --- 离线收益结算（微模拟） ---
-async function settleAfkState(userId: number): Promise<{ gold: number; aether: number; exp: number }> {
+export async function settleAfkState(userId: number): Promise<{ gold: number; aether: number; exp: number }> {
   const config = await getGameConfig();
   const role = await getRoleByUserId(userId);
   const afkResult = await query('SELECT * FROM afk WHERE role_id=$1', [role.role_id]);

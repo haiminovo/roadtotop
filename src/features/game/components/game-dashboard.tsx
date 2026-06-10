@@ -6,7 +6,6 @@ import { TopStatusBar } from './top-status-bar';
 import { RolePanel } from './role-panel';
 import { BackpackPanel } from './backpack-panel';
 import { AfkPanel } from './afk-panel';
-import { BattleView } from './battle-view';
 import { MarketPanel } from './market-panel';
 import { PvpPanel } from './pvp-panel';
 import { OfflineRewardModal } from './offline-reward-modal';
@@ -172,13 +171,6 @@ export function GameDashboard() {
 
         {/* 主内容区 */}
         <main className="flex-1 overflow-y-auto p-3">
-          {/* 战斗视图（如果在战斗中） */}
-          {snapshot.afk.battle && (
-            <div className="mb-3">
-              <BattleView battle={snapshot.afk.battle} />
-            </div>
-          )}
-
           {/* 各面板 */}
           {activeTab === 'role' && (
             <RolePanel

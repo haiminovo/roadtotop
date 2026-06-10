@@ -21,12 +21,12 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const guestTokenRef = useRef<string>('');
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 获取或创建 guest token
   useEffect(() => {
     let token = localStorage.getItem('guest_token');
     if (!token) {
-      // 生成唯一 token: guest_ + 时间戳 + 随机字符
       token = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       localStorage.setItem('guest_token', token);
     }
@@ -45,12 +45,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
 
       ws.onopen = () => {
         setConnectionStatus('ready');
-        // 发送认证消息
         ws.send(JSON.stringify({
           type: 'game:session:start',
           payload: { guestToken: guestTokenRef.current },
         }));
-        // 加载聊天历史
         ws.send(JSON.stringify({ type: 'game:chat:history', payload: { channelKey: 'world' } }));
       };
 
@@ -92,6 +90,21 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     return () => {
       clearTimeout(reconnectTimer);
       ws.close();
+    };
+  }, []);
+
+  // 挂机状态轮询 - 每2秒拉取一次更新
+  useEffect(() => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+    pollTimerRef.current = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'game:state:poll' }));
+      }
+    }, 2000);
+
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
 
