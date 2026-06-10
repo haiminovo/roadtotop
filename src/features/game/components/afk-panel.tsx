@@ -27,7 +27,17 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
     <div className="space-y-3">
       {/* 当前挂机状态 */}
       {afk.status !== 'idle' && (
-        <SectionCard title="挂机状态">
+        <SectionCard
+          title="挂机状态"
+          action={
+            <button
+              onClick={onStop}
+              className="text-xs text-accent-red hover:text-accent-red/80 px-2 py-0.5 rounded hover:bg-accent-red/10"
+            >
+              停止
+            </button>
+          }
+        >
           <div className="flex items-center gap-2 mb-2">
             <StatusChip status={statusLabel} variant={statusVariant} />
             <span className="text-xs text-text-muted">{currentMap?.name || afk.mapKey}</span>
@@ -72,10 +82,6 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
             <span className="text-accent-purple ml-2">水晶 {formatNumber(afk.estimatedHourlyReward.aether)}</span>
             <span className="text-accent-blue ml-2">经验 {formatNumber(afk.estimatedHourlyReward.exp)}</span>
           </div>
-
-          <CommandButton variant="danger" onClick={onStop} className="w-full mt-2">
-            停止挂机
-          </CommandButton>
         </SectionCard>
       )}
 
