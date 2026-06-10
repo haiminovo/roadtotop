@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS role (
   agility          INTEGER NOT NULL DEFAULT 5,
   vitality         INTEGER NOT NULL DEFAULT 5,
   current_health   INTEGER NOT NULL DEFAULT 100,
-  avatar_seed      VARCHAR(16) NOT NULL DEFAULT 'default',
+  avatar_seed      VARCHAR(64) NOT NULL DEFAULT 'default',
   skill_state      JSONB NOT NULL DEFAULT '{"equippedSkills":[],"learnedSkills":[]}'::jsonb,
   pvp_rating       INTEGER NOT NULL DEFAULT 1000,
   pvp_wins         INTEGER NOT NULL DEFAULT 0,
