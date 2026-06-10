@@ -25,7 +25,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export function GameDashboard() {
   const {
-    snapshot, connectionStatus,
+    snapshot, connectionStatus, chatMessages,
     createRole, startAfk, stopAfk, claimOfflineReward,
     equipItem, unequipItem, dropItem, learnSkillBook,
     createMarketListing, cancelMarketListing, buyMarketListing,
@@ -213,7 +213,7 @@ export function GameDashboard() {
           )}
           {activeTab === 'chat' && (
             <ChatPanel
-              messages={[]}
+              messages={chatMessages}
               currentChannel={chatChannel}
               onChannelChange={setChatChannel}
               onSend={sendChat}
@@ -224,7 +224,7 @@ export function GameDashboard() {
         {/* 桌面端右侧聊天面板 */}
         <aside className="hidden xl:block w-72 bg-bg-secondary border-l border-border-primary p-3 overflow-y-auto">
           <ChatPanel
-            messages={[]}
+            messages={chatMessages}
             currentChannel={chatChannel}
             onChannelChange={setChatChannel}
             onSend={sendChat}

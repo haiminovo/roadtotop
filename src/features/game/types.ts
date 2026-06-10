@@ -186,10 +186,20 @@ export interface PvpBattleRecord {
   createdAt: string;
 }
 
+// --- 聊天消息 ---
+export interface ChatMessageData {
+  chatId?: number;
+  senderName: string;
+  content: string;
+  channelKey: string;
+  createdAt?: string;
+}
+
 // --- 游戏会话上下文 ---
 export interface GameSessionContextValue {
   snapshot: SessionSnapshot | null;
   connectionStatus: ConnectionStatus;
+  chatMessages: ChatMessageData[];
   // 操作函数
   createRole: (name: string, raceKey: RaceKey, classKey: ClassKey) => void;
   startAfk: (activityKey: ActivityKey, mapKey: string) => void;

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import type {
-  SessionSnapshot, GameSessionContextValue, ConnectionStatus,
+  SessionSnapshot, GameSessionContextValue, ConnectionStatus, ChatMessageData,
 } from '../types';
 import type { ActivityKey, RaceKey, ClassKey, BodySlotType } from '@/lib/game-config';
 import { parseServerMessage } from '@/../shared/realtime-protocol';
@@ -18,6 +18,7 @@ export function useGameSession(): GameSessionContextValue {
 export function GameSessionProvider({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('booting');
+  const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const guestTokenRef = useRef<string>('');
 
@@ -49,6 +50,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
           type: 'game:session:start',
           payload: { guestToken: guestTokenRef.current },
         }));
+        // 加载聊天历史
+        ws.send(JSON.stringify({ type: 'game:chat:history', payload: { channelKey: 'world' } }));
       };
 
       ws.onmessage = (event) => {
@@ -63,7 +66,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
             setSnapshot(msg.payload as SessionSnapshot);
             break;
           case 'game:chat:message':
-            // 聊天消息通过 snapshot 处理，或单独处理
+            setChatMessages(prev => [...prev.slice(-79), msg.payload as ChatMessageData]);
+            break;
+          case 'game:chat:history':
+            setChatMessages((msg.payload as { messages: ChatMessageData[] }).messages);
             break;
           case 'game:error':
             console.error('[Game Error]', (msg.payload as { message: string })?.message);
@@ -156,6 +162,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const value: GameSessionContextValue = {
     snapshot,
     connectionStatus,
+    chatMessages,
     createRole,
     startAfk,
     stopAfk,
