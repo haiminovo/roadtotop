@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import type { BattleSnapshot } from '@/features/game/types';
 
 interface ChatMessage {
   chatId?: number;
@@ -10,17 +11,25 @@ interface ChatMessage {
   createdAt?: string;
 }
 
+interface BattleLog {
+  timestamp: number;
+  message: string;
+  type: string;
+}
+
 interface ChatPanelProps {
   messages: ChatMessage[];
   currentChannel: string;
   onChannelChange: (channel: string) => void;
   onSend: (channelKey: string, content: string) => void;
+  battleLogs?: BattleLog[];
 }
 
 const CHANNELS = [
   { key: 'world', name: '综合', color: 'var(--accent-blue)' },
   { key: 'trade', name: '交易', color: 'var(--accent-orange)' },
   { key: 'tavern', name: '酒馆', color: 'var(--accent-green)' },
+  { key: 'battle', name: '战斗', color: 'var(--accent-red)' },
 ];
 
 const MIN_HEIGHT = 32;
@@ -37,7 +46,22 @@ function formatTime(dateStr?: string): string {
   return `${year}-${month}-${day} ${h}:${m}`;
 }
 
-export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }: ChatPanelProps) {
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const h = d.getHours().toString().padStart(2, '0');
+  const m = d.getMinutes().toString().padStart(2, '0');
+  const s = d.getSeconds().toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
+const LOG_COLORS: Record<string, string> = {
+  damage: 'text-accent-red',
+  heal: 'text-accent-green',
+  effect: 'text-accent-purple',
+  info: 'text-accent-blue',
+};
+
+export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, battleLogs = [] }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [chatHeight, setChatHeight] = useState(DEFAULT_HEIGHT);
   const [collapsed, setCollapsed] = useState(false);
@@ -51,7 +75,7 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
     if (!collapsed) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, collapsed]);
+  }, [messages, battleLogs, currentChannel, collapsed]);
 
   const handleSend = () => {
     const content = input.trim();
@@ -103,7 +127,9 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
     }
   };
 
-  const filteredMessages = messages.filter(m => m.channelKey === currentChannel);
+  const isBattle = currentChannel === 'battle';
+  const filteredMessages = isBattle ? [] : messages.filter(m => m.channelKey === currentChannel);
+  const recentBattleLogs = battleLogs.slice(-100);
   const currentHeight = collapsed ? MIN_HEIGHT : chatHeight;
 
   return (
@@ -135,7 +161,9 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
         ))}
         <div className="ml-auto flex items-center gap-2">
           {!collapsed && (
-            <span className="text-text-muted text-xs">{filteredMessages.length} 条</span>
+            <span className="text-text-muted text-xs">
+              {isBattle ? `${recentBattleLogs.length} 条` : `${filteredMessages.length} 条`}
+            </span>
           )}
           <button
             onClick={toggleCollapse}
@@ -147,42 +175,60 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
         </div>
       </div>
 
-      {/* 聊天历史 + 输入栏（收起时隐藏） */}
+      {/* 内容区 + 输入栏（收起时隐藏） */}
       {!collapsed && (
         <>
           <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 min-h-0">
-            {filteredMessages.length === 0 ? (
-              <p className="text-text-muted text-xs text-center py-4">暂无消息，说点什么吧...</p>
+            {isBattle ? (
+              // 战斗日志
+              recentBattleLogs.length === 0 ? (
+                <p className="text-text-muted text-xs text-center py-4">暂无战斗记录</p>
+              ) : (
+                recentBattleLogs.map((log, i) => (
+                  <div key={i} className={`text-xs leading-5 ${LOG_COLORS[log.type] || 'text-text-secondary'}`}>
+                    <span className="text-text-muted">[{formatTimestamp(log.timestamp)}]</span>
+                    <span className="ml-1">{log.message}</span>
+                  </div>
+                ))
+              )
             ) : (
-              filteredMessages.map((msg, i) => (
-                <div key={msg.chatId || i} className="text-xs leading-5 hover:bg-bg-hover px-1 rounded">
-                  <span className="text-text-muted">[{formatTime(msg.createdAt)}]</span>
-                  <span className="text-accent-blue font-medium ml-1">{msg.senderName}</span>
-                  <span className="text-text-muted">: </span>
-                  <span className="text-text-primary">{msg.content}</span>
-                </div>
-              ))
+              // 聊天消息
+              filteredMessages.length === 0 ? (
+                <p className="text-text-muted text-xs text-center py-4">暂无消息，说点什么吧...</p>
+              ) : (
+                filteredMessages.map((msg, i) => (
+                  <div key={msg.chatId || i} className="text-xs leading-5 hover:bg-bg-hover px-1 rounded">
+                    <span className="text-text-muted">[{formatTime(msg.createdAt)}]</span>
+                    <span className="text-accent-blue font-medium ml-1">{msg.senderName}</span>
+                    <span className="text-text-muted">: </span>
+                    <span className="text-text-primary">{msg.content}</span>
+                  </div>
+                ))
+              )
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border-secondary shrink-0">
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSend()}
-              placeholder={`在 ${CHANNELS.find(c => c.key === currentChannel)?.name || ''} 频道发言...`}
-              maxLength={160}
-              className="flex-1 px-2 py-1 text-xs bg-bg-tertiary border border-border-primary rounded text-text-primary placeholder:text-text-muted outline-none focus:border-accent-blue"
-            />
-            <button
-              onClick={handleSend}
-              className="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:brightness-110 active:brightness-90"
-            >
-              发送
-            </button>
-          </div>
+          {/* 聊天频道显示输入框，战斗频道隐藏 */}
+          {!isBattle && (
+            <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border-secondary shrink-0">
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+                placeholder={`在 ${CHANNELS.find(c => c.key === currentChannel)?.name || ''} 频道发言...`}
+                maxLength={160}
+                className="flex-1 px-2 py-1 text-xs bg-bg-tertiary border border-border-primary rounded text-text-primary placeholder:text-text-muted outline-none focus:border-accent-blue"
+              />
+              <button
+                onClick={handleSend}
+                className="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:brightness-110 active:brightness-90"
+              >
+                发送
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

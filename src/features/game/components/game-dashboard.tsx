@@ -216,6 +216,7 @@ export function GameDashboard() {
           currentChannel={chatChannel}
           onChannelChange={setChatChannel}
           onSend={sendChat}
+          battleLogs={snapshot?.afk?.battle?.logs || []}
         />
 
         {/* 移动端底部标签栏 */}
