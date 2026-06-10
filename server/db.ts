@@ -65,7 +65,18 @@ export async function ensureDatabaseInitialized(): Promise<void> {
   const migrationPath = join(process.cwd(), 'migrations', '001_initial_schema.sql');
   try {
     const sql = readFileSync(migrationPath, 'utf-8');
-    await query(sql);
+    // 使用 IF NOT EXISTS 所以重复执行不会报错
+    const statements = sql.split(';').filter(s => s.trim());
+    for (const stmt of statements) {
+      try {
+        await query(stmt);
+      } catch (err: any) {
+        // 忽略 "already exists" 错误
+        if (!err.message?.includes('already exists')) {
+          throw err;
+        }
+      }
+    }
     initialized = true;
     console.log('[DB] Database initialized');
   } catch (err) {
