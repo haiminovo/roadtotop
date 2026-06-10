@@ -12,7 +12,7 @@ import { PvpPanel } from './pvp-panel';
 import { OfflineRewardModal } from './offline-reward-modal';
 import { ChatPanel } from '@/features/chat/components/chat-panel';
 
-type TabKey = 'role' | 'backpack' | 'afk' | 'market' | 'pvp' | 'chat';
+type TabKey = 'role' | 'backpack' | 'afk' | 'market' | 'pvp';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'role', label: '角色' },
@@ -20,7 +20,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'afk', label: '挂机' },
   { key: 'market', label: '市场' },
   { key: 'pvp', label: 'PVP' },
-  { key: 'chat', label: '聊天' },
 ];
 
 export function GameDashboard() {
@@ -211,26 +210,16 @@ export function GameDashboard() {
               onChallenge={challengePvp}
             />
           )}
-          {activeTab === 'chat' && (
-            <ChatPanel
-              messages={chatMessages}
-              currentChannel={chatChannel}
-              onChannelChange={setChatChannel}
-              onSend={sendChat}
-            />
-          )}
         </main>
-
-        {/* 桌面端右侧聊天面板 */}
-        <aside className="hidden xl:block w-72 bg-bg-secondary border-l border-border-primary p-3 overflow-y-auto">
-          <ChatPanel
-            messages={chatMessages}
-            currentChannel={chatChannel}
-            onChannelChange={setChatChannel}
-            onSend={sendChat}
-          />
-        </aside>
       </div>
+
+      {/* 底部聊天栏（常驻） */}
+      <ChatPanel
+        messages={chatMessages}
+        currentChannel={chatChannel}
+        onChannelChange={setChatChannel}
+        onSend={sendChat}
+      />
 
       {/* 移动端底部标签栏 */}
       <nav className="lg:hidden flex bg-bg-secondary border-t border-border-primary">
