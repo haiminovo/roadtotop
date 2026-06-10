@@ -108,14 +108,14 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
 
   return (
     <div ref={containerRef} className="bg-bg-secondary border-t border-border-primary flex flex-col relative" style={{ height: currentHeight }}>
-      {/* 拖动手柄 - 绝对定位在顶部边缘，不占空间 */}
+      {/* 拖动手柄 */}
       <div
         className="absolute top-0 left-0 right-0 h-1 cursor-row-resize z-10 hover:bg-accent-blue/20"
         onMouseDown={handleMouseDown}
       />
 
       {/* 频道切换栏 */}
-      <div className="flex items-center gap-1 px-3 py-1 shrink-0 mt-1">
+      <div className="flex items-center gap-1 px-3 shrink-0" style={{ height: 28, marginTop: 4 }}>
         {CHANNELS.map(ch => (
           <button
             key={ch.key}
@@ -139,10 +139,10 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
           )}
           <button
             onClick={toggleCollapse}
-            className="text-text-muted hover:text-text-secondary text-xs px-1"
+            className="text-text-muted hover:text-text-secondary text-xs px-1 leading-none"
             title={collapsed ? '展开聊天' : '收起聊天'}
           >
-            {collapsed ? '⌃' : '⌄'}
+            {collapsed ? '▲' : '▼'}
           </button>
         </div>
       </div>
