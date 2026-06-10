@@ -23,7 +23,7 @@ const CHANNELS = [
   { key: 'tavern', name: '酒馆', color: 'var(--accent-green)' },
 ];
 
-const MIN_HEIGHT = 36;
+const MIN_HEIGHT = 32;
 const MAX_HEIGHT = 500;
 const DEFAULT_HEIGHT = 200;
 
@@ -107,17 +107,15 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
   const currentHeight = collapsed ? MIN_HEIGHT : chatHeight;
 
   return (
-    <div ref={containerRef} className="bg-bg-secondary border-t border-border-primary flex flex-col" style={{ height: currentHeight }}>
-      {/* 拖动手柄 */}
+    <div ref={containerRef} className="bg-bg-secondary border-t border-border-primary flex flex-col relative" style={{ height: currentHeight }}>
+      {/* 拖动手柄 - 绝对定位在顶部边缘，不占空间 */}
       <div
-        className="h-1.5 cursor-row-resize flex items-center justify-center hover:bg-bg-hover group shrink-0"
+        className="absolute top-0 left-0 right-0 h-1 cursor-row-resize z-10 hover:bg-accent-blue/20"
         onMouseDown={handleMouseDown}
-      >
-        <div className="w-8 h-0.5 rounded bg-border-primary group-hover:bg-text-muted transition-colors" />
-      </div>
+      />
 
       {/* 频道切换栏 */}
-      <div className="flex items-center gap-1 px-3 py-1 border-b border-border-secondary shrink-0">
+      <div className="flex items-center gap-1 px-3 py-1 shrink-0 mt-1">
         {CHANNELS.map(ch => (
           <button
             key={ch.key}
@@ -141,10 +139,10 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
           )}
           <button
             onClick={toggleCollapse}
-            className="text-text-muted hover:text-text-secondary text-xs"
+            className="text-text-muted hover:text-text-secondary text-xs px-1"
             title={collapsed ? '展开聊天' : '收起聊天'}
           >
-            {collapsed ? '◀' : '▶'}
+            {collapsed ? '⌃' : '⌄'}
           </button>
         </div>
       </div>
@@ -152,7 +150,7 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend }:
       {/* 聊天历史 + 输入栏（收起时隐藏） */}
       {!collapsed && (
         <>
-          <div className="flex-1 overflow-y-auto px-3 py-1.5 space-y-0.5 min-h-0">
+          <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 min-h-0">
             {filteredMessages.length === 0 ? (
               <p className="text-text-muted text-xs text-center py-4">暂无消息，说点什么吧...</p>
             ) : (
