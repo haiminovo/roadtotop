@@ -32,7 +32,6 @@ export function GameDashboard() {
 
   const [activeTab, setActiveTab] = useState<TabKey>('afk');
   const [chatChannel, setChatChannel] = useState('world');
-  const [showOfflineReward, setShowOfflineReward] = useState(false);
   const [roleName, setRoleName] = useState('');
   const [selectedRace, setSelectedRace] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -235,12 +234,11 @@ export function GameDashboard() {
         </nav>
       </div>
 
-      {/* 离线收益弹窗 */}
-      {showOfflineReward && hasOfflineReward && (
+      {/* 离线收益弹窗（登录时自动结算） */}
+      {hasOfflineReward && (
         <OfflineRewardModal
           snapshot={snapshot}
-          onClaim={() => { claimOfflineReward(); setShowOfflineReward(false); }}
-          onClose={() => setShowOfflineReward(false)}
+          onClaim={() => { claimOfflineReward(); }}
         />
       )}
     </div>
