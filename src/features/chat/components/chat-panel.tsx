@@ -34,7 +34,7 @@ const CHANNELS = [
 
 const MIN_HEIGHT = 32;
 const MAX_HEIGHT = 500;
-const DEFAULT_HEIGHT = 200;
+const DEFAULT_HEIGHT = 120;
 
 function formatTime(dateStr?: string): string {
   const d = dateStr ? new Date(dateStr) : new Date();
