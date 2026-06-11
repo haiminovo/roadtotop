@@ -43,7 +43,8 @@ function formatTime(dateStr?: string): string {
   const day = d.getDate().toString().padStart(2, '0');
   const h = d.getHours().toString().padStart(2, '0');
   const m = d.getMinutes().toString().padStart(2, '0');
-  return `${year}-${month}-${day} ${h}:${m}`;
+  const s = d.getSeconds().toString().padStart(2, '0');
+  return `${year}-${month}-${day} ${h}:${m}:${s}`;
 }
 
 function formatTimestamp(ts: number): string {
