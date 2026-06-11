@@ -19,11 +19,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen">
-      {/* 侧边导航 */}
-      <aside className="w-48 bg-bg-secondary border-r border-border-primary p-3">
+    <div className="flex h-screen">
+      {/* 侧边导航（不滚动） */}
+      <aside className="w-48 shrink-0 bg-bg-secondary border-r border-border-primary p-3 flex flex-col">
         <h1 className="text-lg font-bold mb-4 text-accent-blue">管理后台</h1>
-        <nav className="space-y-1">
+        <nav className="space-y-1 flex-1">
           {NAV_ITEMS.map(item => (
             <Link
               key={item.href}
@@ -38,15 +38,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           ))}
         </nav>
-        <div className="mt-6 pt-4 border-t border-border-primary">
+        <div className="pt-4 border-t border-border-primary">
           <Link href="/" className="text-xs text-text-muted hover:text-text-secondary">
             ← 返回游戏
           </Link>
         </div>
       </aside>
 
-      {/* 主内容 */}
-      <main className="flex-1 p-4 overflow-y-auto">
+      {/* 主内容（可滚动） */}
+      <main className="flex-1 overflow-y-auto p-4">
         {children}
       </main>
     </div>

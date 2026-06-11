@@ -26,6 +26,22 @@ export async function GET(request: NextRequest) {
         const config = await getDynamicGameConfig();
         return jsonOk({ items: config.itemCatalog });
       }
+      case 'enemies': {
+        const config = await getDynamicGameConfig();
+        return jsonOk({ enemies: config.enemyTemplates });
+      }
+      case 'event_rules': {
+        const config = await getDynamicGameConfig();
+        return jsonOk({ rules: config.eventRules });
+      }
+      case 'skills': {
+        const config = await getDynamicGameConfig();
+        return jsonOk({ skills: config.skillTemplates });
+      }
+      case 'maps': {
+        const config = await getDynamicGameConfig();
+        return jsonOk({ maps: config.mapConfigs });
+      }
       case 'system_balance': {
         const config = await getDynamicGameConfig();
         return jsonOk({ balance: config.systemBalance });
@@ -74,6 +90,22 @@ export async function POST(request: NextRequest) {
       }
       case 'save_system_balance': {
         await saveAdminGameConfig({ systemBalance: body.balance });
+        return jsonOk({ success: true });
+      }
+      case 'save_enemies': {
+        await saveAdminGameConfig({ enemyTemplates: body.enemies });
+        return jsonOk({ success: true });
+      }
+      case 'save_event_rules': {
+        await saveAdminGameConfig({ eventRules: body.rules });
+        return jsonOk({ success: true });
+      }
+      case 'save_skills': {
+        await saveAdminGameConfig({ skillTemplates: body.skills });
+        return jsonOk({ success: true });
+      }
+      case 'save_maps': {
+        await saveAdminGameConfig({ mapConfigs: body.maps });
         return jsonOk({ success: true });
       }
       default:

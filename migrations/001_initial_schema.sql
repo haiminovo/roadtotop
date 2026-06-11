@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS item (
   description  TEXT NOT NULL DEFAULT '',
   stat_json    JSONB NOT NULL DEFAULT '{}'::jsonb,
   level_requirement INTEGER NOT NULL DEFAULT 1,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(name)
 );
 
 -- 背包（玩家库存）
@@ -269,7 +270,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
 }'::jsonb)
 ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
 
--- 初始物品数据
+-- 初始物品数据（ON CONFLICT 防止重复插入）
 INSERT INTO item (name, rarity, item_type, icon_key, slot, slot_usage, sell_price, description, stat_json, level_requirement) VALUES
 -- 白色装备
 ('木剑', 'white', 'equipment', 'GiBroadsword', 'hand', 1, 5, '新手用的木剑', '{"strength":2}', 1),
@@ -308,4 +309,5 @@ INSERT INTO item (name, rarity, item_type, icon_key, slot, slot_usage, sell_pric
 ('狼牙', 'white', 'material', 'GiFang', NULL, 0, 3, '灰狼的牙齿', '{}', 1),
 ('哥布林耳朵', 'green', 'material', 'GiEar', NULL, 0, 8, '哥布林的耳朵作为证明', '{}', 5),
 ('龙鳞碎片', 'blue', 'material', 'GiDragonScales', NULL, 0, 25, '龙鳞的碎片', '{}', 10),
-('虚空精华', 'purple', 'material', 'GiCrystalBall', NULL, 0, 60, '来自虚空的能量精华', '{}', 20);
+('虚空精华', 'purple', 'material', 'GiCrystalBall', NULL, 0, 60, '来自虚空的能量精华', '{}', 20)
+ON CONFLICT DO NOTHING;
