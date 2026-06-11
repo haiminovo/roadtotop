@@ -268,6 +268,12 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
       break;
     }
 
+    case 'game:admin:reload-config': {
+      invalidateConfigCache();
+      send(client.ws, 'game:state:update', { message: '配置已重载' });
+      break;
+    }
+
     default:
       sendError(client.ws, `未知消息类型: ${type}`);
   }

@@ -7,7 +7,7 @@ import type { DynamicGameConfig, SystemBalance, ItemCatalogEntry } from '../src/
 
 let cachedConfig: DynamicGameConfig | null = null;
 let lastLoadTime = 0;
-const CACHE_TTL_MS = 30_000; // 30秒缓存
+const CACHE_TTL_MS = 3_000; // 3秒缓存
 
 export async function getGameConfig(forceReload = false): Promise<DynamicGameConfig> {
   const now = Date.now();
