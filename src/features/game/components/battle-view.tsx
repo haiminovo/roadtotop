@@ -1,19 +1,13 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
-import type { BattleSnapshot, EnemySnapshot } from '../types';
+import React from 'react';
+import type { BattleSnapshot } from '../types';
 
 interface BattleViewProps {
   battle: BattleSnapshot;
 }
 
 export function BattleView({ battle }: BattleViewProps) {
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [battle.logs]);
-
   const playerHpPct = battle.playerMaxHealth > 0 ? (battle.playerHealth / battle.playerMaxHealth) * 100 : 0;
   const playerHpColor = playerHpPct > 60 ? '#3fb950' : playerHpPct > 30 ? '#d29922' : '#f85149';
 
@@ -36,12 +30,11 @@ export function BattleView({ battle }: BattleViewProps) {
       <div className="p-2" style={{ background: '#0d1117' }}>
         <div className="flex gap-2">
           {/* 左侧：玩家 */}
-          <div className="w-28 shrink-0 rounded-md p-2" style={{ background: '#161b22', border: '1px solid #238636' }}>
+          <div className="rounded-md p-2" style={{ background: '#161b22', border: '1px solid #238636', width: 120 }}>
             <div className="flex items-center gap-1.5 mb-2">
               <div className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: '#238636' }}>🧙</div>
-              <div className="text-xs font-bold" style={{ color: '#3fb950' }}>你</div>
+              <div className="text-xs font-bold truncate" style={{ color: '#3fb950' }}>你</div>
             </div>
-            {/* HP */}
             <div className="mb-1.5">
               <div className="flex justify-between text-[10px] mb-0.5">
                 <span style={{ color: '#8b949e' }}>HP</span>
@@ -51,7 +44,6 @@ export function BattleView({ battle }: BattleViewProps) {
                 <div className="h-full rounded-full transition-all duration-300" style={{ width: `${playerHpPct}%`, background: playerHpColor }} />
               </div>
             </div>
-            {/* 行动条 */}
             <div className="mb-1">
               <div className="flex justify-between text-[10px] mb-0.5">
                 <span style={{ color: '#8b949e' }}>ATB</span>
@@ -61,7 +53,6 @@ export function BattleView({ battle }: BattleViewProps) {
                 <div className="h-full rounded-full transition-all duration-200" style={{ width: `${battle.playerActionPoints}%`, background: '#58a6ff' }} />
               </div>
             </div>
-            {/* 状态 */}
             {battle.playerEffects.length > 0 && (
               <div className="flex gap-0.5 flex-wrap">
                 {battle.playerEffects.map((eff, i) => (
@@ -73,12 +64,12 @@ export function BattleView({ battle }: BattleViewProps) {
             )}
           </div>
 
-          {/* 中间：VS */}
-          <div className="flex items-center justify-center px-1">
+          {/* VS */}
+          <div className="flex items-center justify-center px-0.5">
             <span className="text-sm font-black" style={{ color: '#30363d' }}>VS</span>
           </div>
 
-          {/* 右侧：敌人列表 */}
+          {/* 右侧：敌人（等宽等高网格） */}
           <div className="flex-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(battle.enemies.length, 4)}, 1fr)` }}>
             {battle.enemies.map((enemy, i) => {
               const hpPct = enemy.maxHealth > 0 ? (enemy.health / enemy.maxHealth) * 100 : 0;
@@ -87,32 +78,34 @@ export function BattleView({ battle }: BattleViewProps) {
                   background: enemy.alive ? '#161b22' : '#0d1117',
                   border: `1px solid ${enemy.alive ? '#f8514940' : '#21262d'}`,
                   opacity: enemy.alive ? 1 : 0.4,
+                  width: 120,
                 }}>
-                  <div className="flex items-center gap-1 mb-1.5">
-                    <div className="w-5 h-5 rounded flex items-center justify-center text-[10px]" style={{ background: '#f8514920' }}>
+                  <div className="flex items-center gap-1 mb-2">
+                    <div className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: '#f8514920' }}>
                       {enemy.alive ? '👹' : '💀'}
                     </div>
-                    <div className="text-[10px] font-bold truncate" style={{ color: enemy.alive ? '#f85149' : '#6e7681' }}>{enemy.name}</div>
+                    <div className="text-xs font-bold truncate" style={{ color: enemy.alive ? '#f85149' : '#6e7681' }}>{enemy.name}</div>
                   </div>
-                  {/* HP */}
-                  <div className="mb-1">
-                    <div className="flex justify-between text-[9px] mb-0.5">
+                  <div className="mb-1.5">
+                    <div className="flex justify-between text-[10px] mb-0.5">
                       <span style={{ color: '#8b949e' }}>HP</span>
-                      <span style={{ color: '#e6edf3' }}>{enemy.health}</span>
+                      <span style={{ color: '#e6edf3' }}>{enemy.health}/{enemy.maxHealth}</span>
                     </div>
-                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
                       <div className="h-full rounded-full transition-all duration-300" style={{ width: `${hpPct}%`, background: '#f85149' }} />
                     </div>
                   </div>
-                  {/* ATB */}
-                  <div>
+                  <div className="mb-1">
+                    <div className="flex justify-between text-[10px] mb-0.5">
+                      <span style={{ color: '#8b949e' }}>ATB</span>
+                      <span style={{ color: '#e6edf3' }}>{enemy.actionPoints}%</span>
+                    </div>
                     <div className="h-1 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
                       <div className="h-full rounded-full transition-all duration-200" style={{ width: `${enemy.actionPoints}%`, background: '#d29922' }} />
                     </div>
                   </div>
-                  {/* 状态 */}
                   {enemy.effects.length > 0 && (
-                    <div className="flex gap-0.5 flex-wrap mt-1">
+                    <div className="flex gap-0.5 flex-wrap">
                       {enemy.effects.map((eff, i) => (
                         <span key={i} className="text-[8px] px-0.5 rounded" style={{ background: '#d2992220', color: '#d29922' }}>
                           {eff.type}
@@ -125,17 +118,6 @@ export function BattleView({ battle }: BattleViewProps) {
             })}
           </div>
         </div>
-      </div>
-
-      {/* 战斗日志 */}
-      <div ref={logRef} className="max-h-24 overflow-y-auto px-2 py-1" style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
-        {battle.logs.slice(-15).map((log, i) => (
-          <div key={i} className="text-[10px] leading-4" style={{
-            color: log.type === 'damage' ? '#f85149' : log.type === 'heal' ? '#3fb950' : log.type === 'effect' ? '#bc8cff' : '#8b949e',
-          }}>
-            {log.message}
-          </div>
-        ))}
       </div>
     </div>
   );
