@@ -84,12 +84,10 @@ export function BattleCanvas({ battle, classKey, containerRef }: BattleCanvasPro
     }
   }, [battle, classKey, containerRef]);
 
-  // 战斗结束时重置日志计数
+  // 战斗变化时重置日志计数（新战斗或战斗结束重新开始）
   useEffect(() => {
-    if (!battle || battle.result !== 'ongoing') {
-      lastLogCountRef.current = 0;
-    }
-  }, [battle?.result]);
+    lastLogCountRef.current = 0;
+  }, [battle?.totalEnemies, battle?.defeatedCount, battle?.result]);
 
   return (
     <canvas

@@ -65,7 +65,7 @@ export function updateProjectile(proj: ProjectileEffect, particles: ParticlePool
         p.gravity = 0.05; p.drag = 0.95; p.shrink = 0.93;
       }
     }
-    setTimeout(() => { proj.done = true; }, 200);
+    proj.done = true;
   }
   return !proj.done;
 }
