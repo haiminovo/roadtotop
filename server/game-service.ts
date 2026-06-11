@@ -53,6 +53,7 @@ interface BattleState {
   logs: BattleLog[];
   playerSkillStates: Record<string, { used: number; cooldownLeft: number }>;
   result: 'ongoing' | 'win' | 'lose';
+  resultShown?: boolean;
   // 兼容旧字段
   enemyKey: string; enemyName: string; enemyHealth: number; enemyMaxHealth: number;
   enemyStats: { strength: number; intelligence: number; agility: number; vitality: number };
@@ -399,7 +400,6 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
     if (battleState && battleState.result === 'ongoing') {
       battleState = simulateBattleTick(battleState, role, config);
       if (battleState.result === 'win') {
-        // 战斗胜利奖励（所有敌人）
         for (const e of battleState!.enemies) {
           const template = config.enemyTemplates.find(t => t.key === e.key);
           if (template) {
@@ -417,9 +417,18 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           pendingAether += rewards.aether;
           pendingExp += rewards.exp;
         }
-        battleState = null;
+        // 保留战斗结果快照，下次轮询时清除
+        if (!battleState.resultShown) {
+          battleState.resultShown = true;
+        } else {
+          battleState = null;
+        }
       } else if (battleState.result === 'lose') {
-        battleState = null;
+        if (!battleState.resultShown) {
+          battleState.resultShown = true;
+        } else {
+          battleState = null;
+        }
       }
       continue;
     }
