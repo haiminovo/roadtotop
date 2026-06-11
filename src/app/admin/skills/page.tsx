@@ -198,13 +198,15 @@ function Field({ label, value, onChange, type = 'text', disabled = false }: { la
   );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectField({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void }) {
+  const CATEGORY_LABELS: Record<string, string> = { attack: '攻击', spell: '法术', guard: '防御' };
+  const allLabels = { ...CATEGORY_LABELS, ...labels };
   return (
     <div>
       <label className="text-xs text-text-muted block mb-1">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 text-sm bg-bg-tertiary border border-border-primary rounded text-text-primary">
-        {options.map(o => <option key={o} value={o}>{o === 'attack' ? '攻击' : o === 'spell' ? '法术' : o === 'guard' ? '防御' : o}</option>)}
+        {options.map(o => <option key={o} value={o}>{allLabels[o] || o}</option>)}
       </select>
     </div>
   );

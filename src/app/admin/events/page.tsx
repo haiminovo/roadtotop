@@ -19,10 +19,15 @@ interface EventRule {
 }
 
 const TRIGGER_TYPES = ['afk_tick', 'enemy_kill'];
+const TRIGGER_LABELS: Record<string, string> = { afk_tick: '挂机tick', enemy_kill: '击杀敌人' };
 const TIERS = ['common', 'rare', 'legendary'];
+const TIER_LABELS: Record<string, string> = { common: '普通', rare: '稀有', legendary: '传说' };
 const ACTION_TYPES = ['grant_gold', 'grant_aether', 'grant_exp', 'grant_item', 'start_battle', 'adjust_health'];
+const ACTION_LABELS: Record<string, string> = { grant_gold: '金币', grant_aether: '水晶', grant_exp: '经验', grant_item: '物品', start_battle: '开始战斗', adjust_health: '调整血量' };
 const MAP_KEYS = ['', 'plains', 'forest', 'cave', 'volcano', 'ruins', 'void'];
+const MAP_LABELS: Record<string, string> = { '': '(全部)', plains: '翡翠平原', forest: '迷雾森林', cave: '水晶洞穴', volcano: '烈焰火山', ruins: '远古遗迹', void: '虚空裂隙' };
 const ACTIVITY_KEYS = ['', 'combat', 'gathering', 'fishing'];
+const ACTIVITY_LABELS: Record<string, string> = { '': '(全部)', combat: '战斗', gathering: '采集', fishing: '钓鱼' };
 
 export default function EventsAdmin() {
   const [rules, setRules] = useState<EventRule[]>([]);
@@ -153,11 +158,11 @@ function EventEditor({ rule, onSave, onClose }: { rule: EventRule | null; onSave
         <div className="space-y-3">
           <Field label="Key" value={form.key} onChange={v => setForm({ ...form, key: v })} disabled={!!rule} />
 
-          <SelectField label="触发器类型" value={form.triggerType} options={TRIGGER_TYPES} onChange={v => setForm({ ...form, triggerType: v })} />
-          <SelectField label="地图条件 (空=全部)" value={form.triggerMapKey} options={MAP_KEYS} onChange={v => setForm({ ...form, triggerMapKey: v })} />
-          <SelectField label="活动条件 (空=全部)" value={form.triggerActivityKey} options={ACTIVITY_KEYS} onChange={v => setForm({ ...form, triggerActivityKey: v })} />
+          <SelectField label="触发器类型" value={form.triggerType} options={TRIGGER_TYPES} labels={TRIGGER_LABELS} onChange={v => setForm({ ...form, triggerType: v })} />
+          <SelectField label="地图条件" value={form.triggerMapKey} options={MAP_KEYS} labels={MAP_LABELS} onChange={v => setForm({ ...form, triggerMapKey: v })} />
+          <SelectField label="活动条件" value={form.triggerActivityKey} options={ACTIVITY_KEYS} labels={ACTIVITY_LABELS} onChange={v => setForm({ ...form, triggerActivityKey: v })} />
 
-          <SelectField label="遭遇等级" value={form.tier} options={TIERS} onChange={v => setForm({ ...form, tier: v })} />
+          <SelectField label="遭遇等级" value={form.tier} options={TIERS} labels={TIER_LABELS} onChange={v => setForm({ ...form, tier: v })} />
           <Field label="标题" value={form.title} onChange={v => setForm({ ...form, title: v })} />
           <Field label="描述" value={form.description} onChange={v => setForm({ ...form, description: v })} />
 
@@ -209,7 +214,7 @@ function Field({ label, value, onChange, disabled = false }: { label: string; va
   );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectField({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void }) {
   return (
     <div>
       <label className="text-xs text-text-muted block mb-1">{label}</label>
@@ -218,7 +223,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
         onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 text-sm bg-bg-tertiary border border-border-primary rounded text-text-primary"
       >
-        {options.map(o => <option key={o} value={o}>{o || '(空)'}</option>)}
+        {options.map(o => <option key={o} value={o}>{labels?.[o] || o || '(全部)'}</option>)}
       </select>
     </div>
   );

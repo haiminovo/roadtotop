@@ -160,7 +160,7 @@ function EnemyEditor({ enemy, onSave, onClose }: { enemy: EnemyTemplate | null; 
         <div className="space-y-3">
           <Field label="Key" value={form.key} onChange={v => setForm({ ...form, key: v })} disabled={!!enemy} />
           <Field label="名称" value={form.name} onChange={v => setForm({ ...form, name: v })} />
-          <SelectField label="地图" value={form.mapKey} options={MAP_KEYS} onChange={v => setForm({ ...form, mapKey: v })} />
+          <SelectField label="地图" value={form.mapKey} options={MAP_KEYS} labels={MAP_LABELS} onChange={v => setForm({ ...form, mapKey: v })} />
           <Field label="基础血量" type="number" value={String(form.baseHealth)} onChange={v => setForm({ ...form, baseHealth: Number(v) })} />
 
           <div className="grid grid-cols-2 gap-2">
@@ -224,7 +224,7 @@ function Field({ label, value, onChange, type = 'text', disabled = false }: { la
   );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectField({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void }) {
   return (
     <div>
       <label className="text-xs text-text-muted block mb-1">{label}</label>
@@ -233,7 +233,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
         onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 text-sm bg-bg-tertiary border border-border-primary rounded text-text-primary"
       >
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {options.map(o => <option key={o} value={o}>{labels?.[o] || o || '(空)'}</option>)}
       </select>
     </div>
   );

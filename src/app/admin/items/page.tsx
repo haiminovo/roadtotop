@@ -20,6 +20,7 @@ const SLOTS = ['head', 'hand', 'torso', 'legs', 'feet', 'neck', 'accessory'];
 
 const RARITY_LABELS: Record<string, string> = { white: '普通', green: '优秀', blue: '稀有', purple: '史诗', orange: '传说' };
 const TYPE_LABELS: Record<string, string> = { equipment: '装备', skill_book: '技能书', material: '材料' };
+const SLOT_LABELS: Record<string, string> = { '': '无', head: '头部', hand: '手部', torso: '躯干', legs: '腿部', feet: '脚部', neck: '颈部', accessory: '饰品' };
 
 export default function ItemsAdmin() {
   const [items, setItems] = useState<Item[]>([]);
@@ -162,10 +163,10 @@ function ItemEditor({ item, onSave, onClose }: { item: Item | null; onSave: (ite
         <h3 className="text-lg font-bold mb-4">{item ? '编辑物品' : '新增物品'}</h3>
         <div className="space-y-3">
           <Field label="名称" value={form.name} onChange={v => setForm({ ...form, name: v })} />
-          <SelectField label="稀有度" value={form.rarity} options={RARITIES} onChange={v => setForm({ ...form, rarity: v })} />
-          <SelectField label="类型" value={form.itemType} options={ITEM_TYPES} onChange={v => setForm({ ...form, itemType: v })} />
+          <SelectField label="稀有度" value={form.rarity} options={RARITIES} labels={RARITY_LABELS} onChange={v => setForm({ ...form, rarity: v })} />
+          <SelectField label="类型" value={form.itemType} options={ITEM_TYPES} labels={TYPE_LABELS} onChange={v => setForm({ ...form, itemType: v })} />
           {form.itemType === 'equipment' && (
-            <SelectField label="槽位" value={form.slot} options={['', ...SLOTS]} onChange={v => setForm({ ...form, slot: v })} />
+            <SelectField label="槽位" value={form.slot} options={['', ...SLOTS]} labels={SLOT_LABELS} onChange={v => setForm({ ...form, slot: v })} />
           )}
           <Field label="售价" type="number" value={String(form.sellPrice)} onChange={v => setForm({ ...form, sellPrice: Number(v) })} />
           <Field label="等级要求" type="number" value={String(form.levelRequirement)} onChange={v => setForm({ ...form, levelRequirement: Number(v) })} />
@@ -212,7 +213,7 @@ function Field({ label, value, onChange, type = 'text' }: { label: string; value
   );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+function SelectField({ label, value, options, labels, onChange }: { label: string; value: string; options: string[]; labels?: Record<string, string>; onChange: (v: string) => void }) {
   return (
     <div>
       <label className="text-xs text-text-muted block mb-1">{label}</label>
@@ -221,7 +222,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
         onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 text-sm bg-bg-tertiary border border-border-primary rounded text-text-primary"
       >
-        {options.map(o => <option key={o} value={o}>{o || '无'}</option>)}
+        {options.map(o => <option key={o} value={o}>{labels?.[o] || o || '无'}</option>)}
       </select>
     </div>
   );
