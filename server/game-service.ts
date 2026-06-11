@@ -307,12 +307,14 @@ function buildAfkSnapshot(afk: AfkRow | undefined, config: DynamicGameConfig, ro
 
 function buildBattleSnapshot(bs: BattleState, role: RoleRow) {
   return {
-    enemyKey: bs.enemyKey, enemyName: bs.enemyName,
-    enemyHealth: bs.enemyHealth, enemyMaxHealth: bs.enemyMaxHealth,
-    enemyStats: bs.enemyStats, playerHealth: bs.playerHealth, playerMaxHealth: bs.playerMaxHealth,
-    playerActionPoints: bs.playerActionPoints, enemyActionPoints: bs.enemyActionPoints,
-    playerEffects: bs.playerEffects, enemyEffects: bs.enemyEffects,
-    logs: bs.logs.slice(-20), playerSkillStates: bs.playerSkillStates, result: bs.result,
+    enemies: bs.enemies.map(e => ({
+      key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
+      stats: e.stats, actionPoints: e.actionPoints, effects: e.effects, alive: e.alive,
+    })),
+    totalEnemies: bs.totalEnemies, defeatedCount: bs.defeatedCount,
+    playerHealth: bs.playerHealth, playerMaxHealth: bs.playerMaxHealth,
+    playerActionPoints: bs.playerActionPoints, playerEffects: bs.playerEffects,
+    logs: bs.logs.slice(-30), playerSkillStates: bs.playerSkillStates, result: bs.result,
   };
 }
 

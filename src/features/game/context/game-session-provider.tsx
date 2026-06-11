@@ -74,7 +74,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
             // 收集战斗日志
             if (newSnapshot.afk?.battle?.logs) {
               const logs = newSnapshot.afk.battle.logs;
-              const battleKey = `${newSnapshot.afk.battle.enemyKey}_${newSnapshot.afk.battle.enemyHealth}`;
+              const firstAlive = newSnapshot.afk.battle.enemies.find(e => e.alive);
+              const battleKey = `${newSnapshot.afk.battle.totalEnemies}_${newSnapshot.afk.battle.defeatedCount}_${firstAlive?.health || 0}`;
               if (battleKey !== prevBattleRef.current) {
                 // 新战斗或状态变化，追加新日志
                 setBattleLogs(prev => {

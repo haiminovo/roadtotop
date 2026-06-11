@@ -107,18 +107,25 @@ export interface RecentEncounter {
 }
 
 // --- 战斗快照 ---
+export interface EnemySnapshot {
+  key: string;
+  name: string;
+  health: number;
+  maxHealth: number;
+  stats: { strength: number; intelligence: number; agility: number; vitality: number };
+  actionPoints: number;
+  effects: StatusEffect[];
+  alive: boolean;
+}
+
 export interface BattleSnapshot {
-  enemyKey: string;
-  enemyName: string;
-  enemyHealth: number;
-  enemyMaxHealth: number;
-  enemyStats: { strength: number; intelligence: number; agility: number; vitality: number };
+  enemies: EnemySnapshot[];
+  totalEnemies: number;
+  defeatedCount: number;
   playerHealth: number;
   playerMaxHealth: number;
   playerActionPoints: number;
-  enemyActionPoints: number;
   playerEffects: StatusEffect[];
-  enemyEffects: StatusEffect[];
   logs: BattleLog[];
   playerSkillStates: Record<string, { used: number; cooldownLeft: number }>;
   result: 'ongoing' | 'win' | 'lose';
