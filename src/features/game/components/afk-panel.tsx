@@ -92,7 +92,7 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
       )}
 
       {/* 战斗视图 */}
-      {afk.battle && <BattleView battle={afk.battle} />}
+      {afk.battle && <BattleView battle={afk.battle} classKey={snapshot.role.classKey} />}
 
       {/* 最近遭遇 */}
       {afk.recentEncounters.length > 0 && (
