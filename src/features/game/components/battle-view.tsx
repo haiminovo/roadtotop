@@ -21,44 +21,50 @@ const LOG_ICONS: Record<string, string> = {
   info: '📢',
 };
 
-function EnemyCard({ enemy, index, total }: { enemy: EnemySnapshot; index: number; total: number }) {
-  const hpPercent = enemy.maxHealth > 0 ? (enemy.health / enemy.maxHealth) * 100 : 0;
-  const hpColor = hpPercent > 60 ? 'bg-accent-red' : hpPercent > 30 ? 'bg-accent-orange' : 'bg-accent-red';
+function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side }: {
+  name: string; icon: string; hp: number; maxHp: number; ap: number;
+  effects: { type: string; duration: number }[]; alive: boolean; side: 'player' | 'enemy';
+}) {
+  const hpPercent = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+  const hpColor = side === 'player'
+    ? (hpPercent > 60 ? 'bg-accent-green' : hpPercent > 30 ? 'bg-accent-orange' : 'bg-accent-red')
+    : 'bg-accent-red';
+  const borderColor = side === 'player' ? 'border-accent-green/20' : 'border-accent-red/20';
+  const nameColor = side === 'player' ? 'text-accent-green' : 'text-accent-red';
 
   return (
-    <div className={`bg-bg-tertiary rounded-lg p-2 border ${enemy.alive ? 'border-accent-red/20' : 'border-border-secondary opacity-50'}`}>
+    <div className={`bg-bg-tertiary rounded-lg p-2 border ${alive ? borderColor : 'border-border-secondary opacity-50'} flex flex-col`} style={{ minHeight: 100 }}>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${enemy.alive ? 'bg-accent-red/20' : 'bg-bg-hover'}`}>
-          {enemy.alive ? '👹' : '💀'}
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${alive ? (side === 'player' ? 'bg-accent-green/20' : 'bg-accent-red/20') : 'bg-bg-hover'}`}>
+          {alive ? icon : '💀'}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-bold text-accent-red truncate">{enemy.name}</div>
-          <div className="text-[10px] text-text-muted">#{index + 1}/{total}</div>
+          <div className={`text-xs font-bold truncate ${nameColor}`}>{name}</div>
         </div>
       </div>
       <div className="mb-1">
         <div className="flex items-center justify-between text-[10px] mb-0.5">
           <span className="text-text-muted">HP</span>
-          <span className="text-text-secondary">{enemy.health}/{enemy.maxHealth}</span>
+          <span className="text-text-secondary">{hp}/{maxHp}</span>
         </div>
-        <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
+        <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
           <div className={`h-full rounded-full transition-all duration-300 ${hpColor}`} style={{ width: `${hpPercent}%` }} />
         </div>
       </div>
-      <div>
+      <div className="mb-1">
         <div className="flex items-center justify-between text-[10px] mb-0.5">
           <span className="text-text-muted">行动</span>
-          <span className="text-text-secondary">{enemy.actionPoints}%</span>
+          <span className="text-text-secondary">{ap}%</span>
         </div>
-        <div className="h-1 bg-bg-primary rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-accent-orange transition-all duration-200" style={{ width: `${enemy.actionPoints}%` }} />
+        <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-accent-blue transition-all duration-200" style={{ width: `${ap}%` }} />
         </div>
       </div>
-      {enemy.effects.length > 0 && (
-        <div className="flex gap-0.5 mt-1 flex-wrap">
-          {enemy.effects.map((eff, i) => (
-            <span key={i} className="text-[9px] px-1 py-0.5 rounded bg-accent-orange/20 text-accent-orange">
-              {eff.type}
+      {effects.length > 0 && (
+        <div className="flex gap-0.5 flex-wrap mt-auto">
+          {effects.map((eff, i) => (
+            <span key={i} className="text-[9px] px-1 py-0.5 rounded bg-accent-purple/20 text-accent-purple">
+              {eff.type} {eff.duration}s
             </span>
           ))}
         </div>
@@ -74,8 +80,7 @@ export function BattleView({ battle }: BattleViewProps) {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [battle.logs]);
 
-  const playerHpPercent = battle.playerMaxHealth > 0 ? (battle.playerHealth / battle.playerMaxHealth) * 100 : 0;
-  const playerHpColor = playerHpPercent > 60 ? 'bg-accent-green' : playerHpPercent > 30 ? 'bg-accent-orange' : 'bg-accent-red';
+  const aliveEnemies = battle.enemies.filter(e => e.alive);
 
   return (
     <div className="bg-bg-secondary border border-accent-red/30 rounded-lg overflow-hidden">
@@ -90,53 +95,43 @@ export function BattleView({ battle }: BattleViewProps) {
       </div>
 
       <div className="p-3 space-y-3">
-        {/* 敌人区域（多个） */}
-        <div className="grid grid-cols-2 gap-2">
-          {battle.enemies.map((enemy, i) => (
-            <EnemyCard key={i} enemy={enemy} index={i} total={battle.totalEnemies} />
-          ))}
-        </div>
+        {/* 左右对战布局 */}
+        <div className="flex items-stretch gap-3">
+          {/* 玩家侧 */}
+          <div className="w-36 shrink-0">
+            <EntityCard
+              name="你"
+              icon="🧙"
+              hp={battle.playerHealth}
+              maxHp={battle.playerMaxHealth}
+              ap={battle.playerActionPoints}
+              effects={battle.playerEffects}
+              alive={battle.playerHealth > 0}
+              side="player"
+            />
+          </div>
 
-        {/* VS */}
-        <div className="text-center">
-          <span className="text-lg font-black text-text-muted">VS</span>
-        </div>
+          {/* VS */}
+          <div className="flex items-center justify-center px-1">
+            <span className="text-xl font-black text-text-muted">VS</span>
+          </div>
 
-        {/* 玩家区域 */}
-        <div className="bg-bg-tertiary rounded-lg p-2 border border-accent-green/20">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-accent-green/20 flex items-center justify-center text-sm">🧙</div>
-            <div className="flex-1">
-              <div className="text-xs font-bold text-accent-green">你</div>
-            </div>
+          {/* 敌人侧（多个，等宽网格） */}
+          <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(battle.enemies.length, 4)}, 1fr)` }}>
+            {battle.enemies.map((enemy, i) => (
+              <EntityCard
+                key={i}
+                name={enemy.name}
+                icon="👹"
+                hp={enemy.health}
+                maxHp={enemy.maxHealth}
+                ap={enemy.actionPoints}
+                effects={enemy.effects}
+                alive={enemy.alive}
+                side="enemy"
+              />
+            ))}
           </div>
-          <div className="mb-1">
-            <div className="flex items-center justify-between text-[10px] mb-0.5">
-              <span className="text-text-muted">HP</span>
-              <span className="text-text-secondary">{battle.playerHealth}/{battle.playerMaxHealth}</span>
-            </div>
-            <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-300 ${playerHpColor}`} style={{ width: `${playerHpPercent}%` }} />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center justify-between text-[10px] mb-0.5">
-              <span className="text-text-muted">行动</span>
-              <span className="text-text-secondary">{battle.playerActionPoints}%</span>
-            </div>
-            <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
-              <div className="h-full rounded-full bg-accent-blue transition-all duration-200" style={{ width: `${battle.playerActionPoints}%` }} />
-            </div>
-          </div>
-          {battle.playerEffects.length > 0 && (
-            <div className="flex gap-1 mt-1.5 flex-wrap">
-              {battle.playerEffects.map((eff, i) => (
-                <span key={i} className="text-[10px] px-1 py-0.5 rounded bg-accent-purple/20 text-accent-purple">
-                  {eff.type} {eff.duration}s
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* 战斗日志 */}
