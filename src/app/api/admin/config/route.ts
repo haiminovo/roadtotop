@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { ensureDatabaseInitialized, query } from '@/lib/server/db';
 import { jsonOk, jsonError } from '@/lib/server/http';
 import { getDynamicGameConfig, saveAdminGameConfig } from '@/lib/server/admin-config';
-import { invalidateConfigCache } from '@/../../server/dynamic-game-config';
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,17 +66,14 @@ export async function POST(request: NextRequest) {
              item.description, JSON.stringify(item.statJson), item.levelRequirement]
           );
         }
-        invalidateConfigCache();
         return jsonOk({ success: true });
       }
       case 'delete_item': {
         await query('DELETE FROM item WHERE item_id=$1', [body.itemId]);
-        invalidateConfigCache();
         return jsonOk({ success: true });
       }
       case 'save_system_balance': {
         await saveAdminGameConfig({ systemBalance: body.balance });
-        invalidateConfigCache();
         return jsonOk({ success: true });
       }
       default:
