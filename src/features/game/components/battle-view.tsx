@@ -7,72 +7,6 @@ interface BattleViewProps {
   battle: BattleSnapshot;
 }
 
-const LOG_COLORS: Record<string, string> = {
-  damage: 'text-accent-red',
-  heal: 'text-accent-green',
-  effect: 'text-accent-purple',
-  info: 'text-accent-blue',
-};
-
-const LOG_ICONS: Record<string, string> = {
-  damage: '⚔️',
-  heal: '💚',
-  effect: '✨',
-  info: '📢',
-};
-
-function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side }: {
-  name: string; icon: string; hp: number; maxHp: number; ap: number;
-  effects: { type: string; duration: number }[]; alive: boolean; side: 'player' | 'enemy';
-}) {
-  const hpPercent = maxHp > 0 ? (hp / maxHp) * 100 : 0;
-  const hpColor = side === 'player'
-    ? (hpPercent > 60 ? 'bg-accent-green' : hpPercent > 30 ? 'bg-accent-orange' : 'bg-accent-red')
-    : 'bg-accent-red';
-  const borderColor = side === 'player' ? 'border-accent-green/20' : 'border-accent-red/20';
-  const nameColor = side === 'player' ? 'text-accent-green' : 'text-accent-red';
-
-  return (
-    <div className={`bg-bg-tertiary rounded-lg p-2 border ${alive ? borderColor : 'border-border-secondary opacity-50'} flex flex-col`} style={{ minHeight: 100 }}>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${alive ? (side === 'player' ? 'bg-accent-green/20' : 'bg-accent-red/20') : 'bg-bg-hover'}`}>
-          {alive ? icon : '💀'}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className={`text-xs font-bold truncate ${nameColor}`}>{name}</div>
-        </div>
-      </div>
-      <div className="mb-1">
-        <div className="flex items-center justify-between text-[10px] mb-0.5">
-          <span className="text-text-muted">HP</span>
-          <span className="text-text-secondary">{hp}/{maxHp}</span>
-        </div>
-        <div className="h-2 bg-bg-primary rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all duration-300 ${hpColor}`} style={{ width: `${hpPercent}%` }} />
-        </div>
-      </div>
-      <div className="mb-1">
-        <div className="flex items-center justify-between text-[10px] mb-0.5">
-          <span className="text-text-muted">行动</span>
-          <span className="text-text-secondary">{ap}%</span>
-        </div>
-        <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-accent-blue transition-all duration-200" style={{ width: `${ap}%` }} />
-        </div>
-      </div>
-      {effects.length > 0 && (
-        <div className="flex gap-0.5 flex-wrap mt-auto">
-          {effects.map((eff, i) => (
-            <span key={i} className="text-[9px] px-1 py-0.5 rounded bg-accent-purple/20 text-accent-purple">
-              {eff.type} {eff.duration}s
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function BattleView({ battle }: BattleViewProps) {
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -80,69 +14,128 @@ export function BattleView({ battle }: BattleViewProps) {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [battle.logs]);
 
-  const aliveEnemies = battle.enemies.filter(e => e.alive);
+  const playerHpPct = battle.playerMaxHealth > 0 ? (battle.playerHealth / battle.playerMaxHealth) * 100 : 0;
+  const playerHpColor = playerHpPct > 60 ? '#3fb950' : playerHpPct > 30 ? '#d29922' : '#f85149';
 
   return (
-    <div className="bg-bg-secondary border border-accent-red/30 rounded-lg overflow-hidden">
-      {/* 战斗标题 */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-accent-red/10 border-b border-accent-red/20">
-        <span className="text-sm font-bold text-accent-red">
-          ⚔️ 战斗中 ({battle.defeatedCount}/{battle.totalEnemies})
-        </span>
-        <span className="text-xs text-text-muted">
-          {battle.result === 'ongoing' ? '进行中...' : battle.result === 'win' ? '🎉 胜利！' : '💀 战败...'}
+    <div className="rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '1px solid #30363d' }}>
+      {/* 顶部标题栏 */}
+      <div className="flex items-center justify-between px-3 py-1" style={{ background: '#161b22', borderBottom: '1px solid #30363d' }}>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold" style={{ color: '#f85149' }}>⚔️ 战斗</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#21262d', color: '#8b949e' }}>
+            {battle.defeatedCount}/{battle.totalEnemies}
+          </span>
+        </div>
+        <span className="text-[10px]" style={{ color: '#6e7681' }}>
+          {battle.result === 'ongoing' ? '进行中' : battle.result === 'win' ? '🎉 胜利' : '💀 战败'}
         </span>
       </div>
 
-      <div className="p-3 space-y-3">
-        {/* 左右对战布局 */}
-        <div className="flex items-stretch gap-3">
-          {/* 玩家侧 */}
-          <div className="w-36 shrink-0">
-            <EntityCard
-              name="你"
-              icon="🧙"
-              hp={battle.playerHealth}
-              maxHp={battle.playerMaxHealth}
-              ap={battle.playerActionPoints}
-              effects={battle.playerEffects}
-              alive={battle.playerHealth > 0}
-              side="player"
-            />
-          </div>
-
-          {/* VS */}
-          <div className="flex items-center justify-center px-1">
-            <span className="text-xl font-black text-text-muted">VS</span>
-          </div>
-
-          {/* 敌人侧（多个，等宽网格） */}
-          <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(battle.enemies.length, 4)}, 1fr)` }}>
-            {battle.enemies.map((enemy, i) => (
-              <EntityCard
-                key={i}
-                name={enemy.name}
-                icon="👹"
-                hp={enemy.health}
-                maxHp={enemy.maxHealth}
-                ap={enemy.actionPoints}
-                effects={enemy.effects}
-                alive={enemy.alive}
-                side="enemy"
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* 战斗日志 */}
-        <div ref={logRef} className="bg-bg-primary rounded-lg p-2 max-h-28 overflow-y-auto space-y-0.5">
-          {battle.logs.map((log, i) => (
-            <div key={i} className={`text-xs leading-5 ${LOG_COLORS[log.type] || 'text-text-secondary'}`}>
-              <span className="mr-1">{LOG_ICONS[log.type] || '•'}</span>
-              {log.message}
+      {/* 对战区域 */}
+      <div className="p-2" style={{ background: '#0d1117' }}>
+        <div className="flex gap-2">
+          {/* 左侧：玩家 */}
+          <div className="w-28 shrink-0 rounded-md p-2" style={{ background: '#161b22', border: '1px solid #238636' }}>
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: '#238636' }}>🧙</div>
+              <div className="text-xs font-bold" style={{ color: '#3fb950' }}>你</div>
             </div>
-          ))}
+            {/* HP */}
+            <div className="mb-1.5">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span style={{ color: '#8b949e' }}>HP</span>
+                <span style={{ color: '#e6edf3' }}>{battle.playerHealth}/{battle.playerMaxHealth}</span>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${playerHpPct}%`, background: playerHpColor }} />
+              </div>
+            </div>
+            {/* 行动条 */}
+            <div className="mb-1">
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span style={{ color: '#8b949e' }}>ATB</span>
+                <span style={{ color: '#e6edf3' }}>{battle.playerActionPoints}%</span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div className="h-full rounded-full transition-all duration-200" style={{ width: `${battle.playerActionPoints}%`, background: '#58a6ff' }} />
+              </div>
+            </div>
+            {/* 状态 */}
+            {battle.playerEffects.length > 0 && (
+              <div className="flex gap-0.5 flex-wrap">
+                {battle.playerEffects.map((eff, i) => (
+                  <span key={i} className="text-[9px] px-1 rounded" style={{ background: '#a371f720', color: '#bc8cff' }}>
+                    {eff.type}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 中间：VS */}
+          <div className="flex items-center justify-center px-1">
+            <span className="text-sm font-black" style={{ color: '#30363d' }}>VS</span>
+          </div>
+
+          {/* 右侧：敌人列表 */}
+          <div className="flex-1 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(battle.enemies.length, 4)}, 1fr)` }}>
+            {battle.enemies.map((enemy, i) => {
+              const hpPct = enemy.maxHealth > 0 ? (enemy.health / enemy.maxHealth) * 100 : 0;
+              return (
+                <div key={i} className="rounded-md p-2" style={{
+                  background: enemy.alive ? '#161b22' : '#0d1117',
+                  border: `1px solid ${enemy.alive ? '#f8514940' : '#21262d'}`,
+                  opacity: enemy.alive ? 1 : 0.4,
+                }}>
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <div className="w-5 h-5 rounded flex items-center justify-center text-[10px]" style={{ background: '#f8514920' }}>
+                      {enemy.alive ? '👹' : '💀'}
+                    </div>
+                    <div className="text-[10px] font-bold truncate" style={{ color: enemy.alive ? '#f85149' : '#6e7681' }}>{enemy.name}</div>
+                  </div>
+                  {/* HP */}
+                  <div className="mb-1">
+                    <div className="flex justify-between text-[9px] mb-0.5">
+                      <span style={{ color: '#8b949e' }}>HP</span>
+                      <span style={{ color: '#e6edf3' }}>{enemy.health}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                      <div className="h-full rounded-full transition-all duration-300" style={{ width: `${hpPct}%`, background: '#f85149' }} />
+                    </div>
+                  </div>
+                  {/* ATB */}
+                  <div>
+                    <div className="h-1 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                      <div className="h-full rounded-full transition-all duration-200" style={{ width: `${enemy.actionPoints}%`, background: '#d29922' }} />
+                    </div>
+                  </div>
+                  {/* 状态 */}
+                  {enemy.effects.length > 0 && (
+                    <div className="flex gap-0.5 flex-wrap mt-1">
+                      {enemy.effects.map((eff, i) => (
+                        <span key={i} className="text-[8px] px-0.5 rounded" style={{ background: '#d2992220', color: '#d29922' }}>
+                          {eff.type}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      {/* 战斗日志 */}
+      <div ref={logRef} className="max-h-24 overflow-y-auto px-2 py-1" style={{ background: '#161b22', borderTop: '1px solid #30363d' }}>
+        {battle.logs.slice(-15).map((log, i) => (
+          <div key={i} className="text-[10px] leading-4" style={{
+            color: log.type === 'damage' ? '#f85149' : log.type === 'heal' ? '#3fb950' : log.type === 'effect' ? '#bc8cff' : '#8b949e',
+          }}>
+            {log.message}
+          </div>
+        ))}
       </div>
     </div>
   );
