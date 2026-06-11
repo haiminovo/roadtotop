@@ -420,6 +420,10 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           pendingGold += rewards.gold;
           pendingAether += rewards.aether;
           pendingExp += rewards.exp;
+          // 掉落物品加入背包
+          for (const item of rewards.grantedItems) {
+            await addDropItem(role.role_id, item.itemId);
+          }
         }
         battleState = null;
       } else if (battleState.result === 'lose') {
@@ -455,6 +459,9 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
             battleState = createBattleState(enemy, role, config);
           }
         }
+        for (const item of rewards.grantedItems) {
+          await addDropItem(role.role_id, item.itemId);
+        }
       }
     }
   }
@@ -485,6 +492,7 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig)
   let gold = 0, aether = 0, exp = 0;
   let startBattle = false;
   let encounter: { tier: string; title: string; description: string } | null = null;
+  const grantedItems: { itemId: number; name: string }[] = [];
 
   for (const action of actions) {
     if (randomFloat() > action.chance) continue;
@@ -500,7 +508,9 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig)
         exp += randomInt(action.min || 0, action.max || 0);
         break;
       case 'grant_item':
-        // 从物品池中随机选取（实际应用中需要更复杂的逻辑）
+        if (action.itemId) {
+          grantedItems.push({ itemId: action.itemId, name: action.itemName || '未知物品' });
+        }
         break;
       case 'start_battle':
         startBattle = true;
@@ -514,7 +524,19 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig)
     // 这里需要从父级 EventRule 获取 encounter 信息
   }
 
-  return { gold, aether, exp, startBattle, encounter };
+  return { gold, aether, exp, startBattle, encounter, grantedItems };
+}
+
+// --- 添加掉落物品到背包 ---
+async function addDropItem(roleId: number, itemId: number) {
+  const existing = await query(
+    'SELECT backpack_id FROM backpack WHERE role_id=$1 AND item_id=$2', [roleId, itemId]
+  );
+  if (existing.rows.length > 0) {
+    await query('UPDATE backpack SET quantity=quantity+1 WHERE backpack_id=$1', [existing.rows[0].backpack_id]);
+  } else {
+    await query('INSERT INTO backpack (role_id, item_id, quantity) VALUES ($1, $2, 1)', [roleId, itemId]);
+  }
 }
 
 // --- 创建战斗状态（1-4个敌人同时对战） ---

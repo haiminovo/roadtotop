@@ -167,6 +167,8 @@ export interface EventAction {
   max?: number;
   itemType?: string;
   rarity?: string;
+  itemId?: number;
+  itemName?: string;
 }
 
 // --- 辅助函数 ---
