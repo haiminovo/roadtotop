@@ -113,8 +113,12 @@ export default function EventsAdmin() {
                 <td className="px-3 py-2">{rule.encounter.title}</td>
                 <td className="px-3 py-2 text-xs text-text-secondary">
                   {rule.actions.map((a, i) => (
-                    <span key={i} className="inline-block mr-1">
-                      {a.type}({(a.chance * 100).toFixed(0)}%)
+                    <span key={i} className="inline-block mr-1 px-1 py-0.5 rounded" style={{ background: '#21262d' }}>
+                      <span className="text-text-primary">{ACTION_LABELS[a.type] || a.type}</span>
+                      <span className="text-accent-orange ml-1">{(a.chance * 100).toFixed(0)}%</span>
+                      {a.min !== undefined && a.max !== undefined && (
+                        <span className="text-text-muted ml-1">({a.min}-{a.max})</span>
+                      )}
                     </span>
                   ))}
                 </td>
