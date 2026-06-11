@@ -392,11 +392,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
   const taskSeconds = config.systemBalance.afkTaskSeconds;
   const mapConfig = config.mapConfigs.find(m => m.key === afk.map_key);
 
-  // 战斗中限制每次 tick 数，让战斗分多次轮询进行
-  const isBattling = battleState && battleState.result === 'ongoing';
-  const maxTicks = isBattling ? 5 : grantedSeconds;
-
-  for (let t = 0; t < maxTicks; t++) {
+  for (let t = 0; t < grantedSeconds; t++) {
     // 如果在战斗中
     if (battleState && battleState.result === 'ongoing') {
       battleState = simulateBattleTick(battleState, role, config);
@@ -409,7 +405,6 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
             pendingExp += template.expDrop;
           }
         }
-        // 触发 enemy_kill 事件
         const killEvents = config.eventRules.filter(r =>
           r.trigger.type === 'enemy_kill' &&
           (!r.trigger.mapKey || r.trigger.mapKey === afk.map_key)
@@ -419,7 +414,6 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           pendingGold += rewards.gold;
           pendingAether += rewards.aether;
           pendingExp += rewards.exp;
-          if (rewards.encounter) recentEncounters.push({ ...rewards.encounter, timestamp: now });
         }
         battleState = null;
       } else if (battleState.result === 'lose') {
@@ -432,14 +426,12 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
     accrued++;
     if (accrued >= taskSeconds) {
       accrued = 0;
-      // 基础挂机奖励
       if (mapConfig) {
         pendingGold += mapConfig.goldPerTask;
         pendingAether += mapConfig.aetherPerTask;
         pendingExp += mapConfig.expPerTask;
       }
 
-      // 触发 afk_tick 事件
       const tickEvents = config.eventRules.filter(r =>
         r.trigger.type === 'afk_tick' &&
         (!r.trigger.mapKey || r.trigger.mapKey === afk.map_key) &&
@@ -451,14 +443,12 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
         pendingAether += rewards.aether;
         pendingExp += rewards.exp;
         if (rewards.startBattle && !battleState) {
-          // 开始战斗
           const enemies = config.enemyTemplates.filter(e => e.mapKey === afk.map_key);
           if (enemies.length > 0) {
             const enemy = pickRandom(enemies);
             battleState = createBattleState(enemy, role, config);
           }
         }
-        if (rewards.encounter) recentEncounters.push({ ...rewards.encounter, timestamp: now });
       }
     }
   }
@@ -527,19 +517,20 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
   const enemyLevel = roleLevel;
   const maxHp = getMaxHealth(roleLevel, role.vitality);
   const enemyCount = randomInt(1, 4);
+  const scaleFactor = 0.3 + roleLevel * 0.01; // 敌人属性缩放因子
 
   const mapEnemies = config.enemyTemplates.filter(e => e.mapKey === enemy.mapKey);
   const enemies: EnemyInstance[] = [];
   for (let i = 0; i < enemyCount; i++) {
     const template = mapEnemies.length > 0 ? pickRandom(mapEnemies) : enemy;
-    const hp = Math.floor(template.baseHealth * (1 + enemyLevel * 0.1));
+    const hp = Math.floor(template.baseHealth * (1 + enemyLevel * 0.15));
     enemies.push({
       key: template.key, name: template.name, health: hp, maxHealth: hp,
       stats: {
-        strength: Math.floor(template.statWeights.strength * enemyLevel * 2),
-        intelligence: Math.floor(template.statWeights.intelligence * enemyLevel * 2),
-        agility: Math.floor(template.statWeights.agility * enemyLevel * 2),
-        vitality: Math.floor(template.statWeights.vitality * enemyLevel * 2),
+        strength: Math.floor(template.statWeights.strength * enemyLevel * scaleFactor),
+        intelligence: Math.floor(template.statWeights.intelligence * enemyLevel * scaleFactor),
+        agility: Math.floor(template.statWeights.agility * enemyLevel * scaleFactor),
+        vitality: Math.floor(template.statWeights.vitality * enemyLevel * scaleFactor),
       },
       actionPoints: 0, effects: [], alive: true,
     });
