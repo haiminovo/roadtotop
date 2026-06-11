@@ -15,11 +15,13 @@ interface EnemyTemplate {
 }
 
 const MAP_KEYS = ['plains', 'forest', 'cave', 'volcano', 'ruins', 'void'];
+const MAP_LABELS: Record<string, string> = { plains: '翡翠平原', forest: '迷雾森林', cave: '水晶洞穴', volcano: '烈焰火山', ruins: '远古遗迹', void: '虚空裂隙' };
 
 export default function EnemiesAdmin() {
   const [enemies, setEnemies] = useState<EnemyTemplate[]>([]);
   const [editing, setEditing] = useState<EnemyTemplate | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [filterMap, setFilterMap] = useState('');
 
   useEffect(() => { loadEnemies(); }, []);
 
@@ -68,6 +70,20 @@ export default function EnemiesAdmin() {
         </button>
       </div>
 
+      {/* 筛选 */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <button onClick={() => setFilterMap('')}
+          className={`px-2 py-0.5 text-xs rounded ${!filterMap ? 'bg-accent-blue text-white' : 'bg-bg-tertiary text-text-secondary'}`}>
+          全部 ({enemies.length})
+        </button>
+        {MAP_KEYS.map(m => (
+          <button key={m} onClick={() => setFilterMap(m)}
+            className={`px-2 py-0.5 text-xs rounded ${filterMap === m ? 'bg-accent-blue text-white' : 'bg-bg-tertiary text-text-secondary'}`}>
+            {MAP_LABELS[m]} ({enemies.filter(e => e.mapKey === m).length})
+          </button>
+        ))}
+      </div>
+
       <div className="bg-bg-secondary border border-border-primary rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -86,11 +102,11 @@ export default function EnemiesAdmin() {
             </tr>
           </thead>
           <tbody>
-            {enemies.map(enemy => (
+            {enemies.filter(e => !filterMap || e.mapKey === filterMap).map(enemy => (
               <tr key={enemy.key} className="border-b border-border-secondary hover:bg-bg-hover">
                 <td className="px-3 py-2 text-text-muted font-mono text-xs">{enemy.key}</td>
                 <td className="px-3 py-2 font-medium">{enemy.name}</td>
-                <td className="px-3 py-2 text-text-secondary">{enemy.mapKey}</td>
+                <td className="px-3 py-2 text-text-secondary">{MAP_LABELS[enemy.mapKey] || enemy.mapKey}</td>
                 <td className="px-3 py-2">{enemy.baseHealth}</td>
                 <td className="px-3 py-2 text-accent-red">{enemy.statWeights.strength}</td>
                 <td className="px-3 py-2 text-accent-blue">{enemy.statWeights.intelligence}</td>

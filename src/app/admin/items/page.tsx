@@ -18,10 +18,15 @@ const RARITIES = ['white', 'green', 'blue', 'purple', 'orange'];
 const ITEM_TYPES = ['equipment', 'skill_book', 'material'];
 const SLOTS = ['head', 'hand', 'torso', 'legs', 'feet', 'neck', 'accessory'];
 
+const RARITY_LABELS: Record<string, string> = { white: '普通', green: '优秀', blue: '稀有', purple: '史诗', orange: '传说' };
+const TYPE_LABELS: Record<string, string> = { equipment: '装备', skill_book: '技能书', material: '材料' };
+
 export default function ItemsAdmin() {
   const [items, setItems] = useState<Item[]>([]);
   const [editing, setEditing] = useState<Item | null>(null);
   const [showNew, setShowNew] = useState(false);
+  const [filterRarity, setFilterRarity] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   useEffect(() => { loadItems(); }, []);
 
@@ -64,6 +69,27 @@ export default function ItemsAdmin() {
         </button>
       </div>
 
+      {/* 筛选 */}
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <button onClick={() => { setFilterRarity(''); setFilterType(''); }}
+          className={`px-2 py-0.5 text-xs rounded ${!filterRarity && !filterType ? 'bg-accent-blue text-white' : 'bg-bg-tertiary text-text-secondary'}`}>
+          全部 ({items.length})
+        </button>
+        {RARITIES.map(r => (
+          <button key={r} onClick={() => setFilterRarity(r)}
+            className={`px-2 py-0.5 text-xs rounded ${filterRarity === r ? 'bg-accent-blue text-white' : 'bg-bg-tertiary text-text-secondary'}`}>
+            {RARITY_LABELS[r]} ({items.filter(i => i.rarity === r).length})
+          </button>
+        ))}
+        <span className="text-border-primary">|</span>
+        {ITEM_TYPES.map(t => (
+          <button key={t} onClick={() => setFilterType(t)}
+            className={`px-2 py-0.5 text-xs rounded ${filterType === t ? 'bg-accent-blue text-white' : 'bg-bg-tertiary text-text-secondary'}`}>
+            {TYPE_LABELS[t]} ({items.filter(i => i.itemType === t).length})
+          </button>
+        ))}
+      </div>
+
       {/* 物品列表 */}
       <div className="bg-bg-secondary border border-border-primary rounded-lg overflow-hidden">
         <table className="w-full text-sm">
@@ -80,14 +106,18 @@ export default function ItemsAdmin() {
             </tr>
           </thead>
           <tbody>
-            {items.map(item => (
+            {items.filter(item => {
+              if (filterRarity && item.rarity !== filterRarity) return false;
+              if (filterType && item.itemType !== filterType) return false;
+              return true;
+            }).map(item => (
               <tr key={item.itemId} className="border-b border-border-secondary hover:bg-bg-hover">
                 <td className="px-3 py-2 text-text-muted">{item.itemId}</td>
                 <td className="px-3 py-2 font-medium">{item.name}</td>
                 <td className="px-3 py-2">
-                  <span className={`text-rarity-${item.rarity}`}>{item.rarity}</span>
+                  <span className={`text-rarity-${item.rarity}`}>{RARITY_LABELS[item.rarity] || item.rarity}</span>
                 </td>
-                <td className="px-3 py-2 text-text-secondary">{item.itemType}</td>
+                <td className="px-3 py-2 text-text-secondary">{TYPE_LABELS[item.itemType] || item.itemType}</td>
                 <td className="px-3 py-2 text-text-secondary">{item.slot || '-'}</td>
                 <td className="px-3 py-2 text-accent-orange">{item.sellPrice}</td>
                 <td className="px-3 py-2 text-text-secondary">{item.levelRequirement}</td>

@@ -14,8 +14,8 @@ interface MapConfig {
 
 export default function MapsAdmin() {
   const [maps, setMaps] = useState<MapConfig[]>([]);
-  const [editing, setEditing] = useState(false);
-  const [jsonStr, setJsonStr] = useState('');
+  const [editing, setEditing] = useState<MapConfig | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
   useEffect(() => { loadMaps(); }, []);
 
@@ -25,28 +25,36 @@ export default function MapsAdmin() {
     setMaps(data.maps || []);
   }
 
-  async function saveMaps() {
-    try {
-      const parsed = JSON.parse(jsonStr);
-      await fetch('/api/admin/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save_maps', maps: parsed }),
-      });
-      loadMaps();
-      setEditing(false);
-    } catch { alert('JSON 格式错误'); }
+  async function saveMap(map: MapConfig) {
+    const isNew = !maps.find(m => m.key === map.key);
+    const updated = isNew ? [...maps, map] : maps.map(m => m.key === map.key ? map : m);
+    await fetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_maps', maps: updated }),
+    });
+    loadMaps();
+    setEditing(null);
+    setShowNew(false);
+  }
+
+  async function deleteMap(key: string) {
+    if (!confirm('确定删除？')) return;
+    const updated = maps.filter(m => m.key !== key);
+    await fetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_maps', maps: updated }),
+    });
+    loadMaps();
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">地图管理</h2>
-        <button
-          onClick={() => { setJsonStr(JSON.stringify(maps, null, 2)); setEditing(true); }}
-          className="px-3 py-1.5 bg-accent-blue text-white rounded text-sm"
-        >
-          编辑 JSON
+        <button onClick={() => setShowNew(true)} className="px-3 py-1.5 bg-accent-blue text-white rounded text-sm">
+          新增地图
         </button>
       </div>
 
@@ -61,6 +69,7 @@ export default function MapsAdmin() {
               <th className="px-3 py-2 text-left">金币/次</th>
               <th className="px-3 py-2 text-left">经验/次</th>
               <th className="px-3 py-2 text-left">水晶/次</th>
+              <th className="px-3 py-2 text-left">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -73,28 +82,64 @@ export default function MapsAdmin() {
                 <td className="px-3 py-2 text-accent-orange">{m.goldPerTask}</td>
                 <td className="px-3 py-2 text-accent-blue">{m.expPerTask}</td>
                 <td className="px-3 py-2 text-accent-purple">{m.aetherPerTask}</td>
+                <td className="px-3 py-2">
+                  <button onClick={() => setEditing(m)} className="text-accent-blue text-xs mr-2">编辑</button>
+                  <button onClick={() => deleteMap(m.key)} className="text-accent-red text-xs">删除</button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-bg-secondary border border-border-primary rounded-lg p-4 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-4">编辑地图配置 (JSON)</h3>
-            <textarea
-              value={jsonStr}
-              onChange={e => setJsonStr(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-bg-tertiary border border-border-primary rounded font-mono h-96"
-            />
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setEditing(false)} className="flex-1 py-1.5 bg-bg-tertiary text-text-secondary rounded text-sm">取消</button>
-              <button onClick={saveMaps} className="flex-1 py-1.5 bg-accent-blue text-white rounded text-sm">保存</button>
-            </div>
+      {(editing || showNew) && (
+        <MapEditor map={editing} onSave={saveMap} onClose={() => { setEditing(null); setShowNew(false); }} />
+      )}
+    </div>
+  );
+}
+
+function MapEditor({ map, onSave, onClose }: { map: MapConfig | null; onSave: (m: MapConfig) => void; onClose: () => void }) {
+  const [form, setForm] = useState({
+    key: map?.key || '',
+    name: map?.name || '',
+    description: map?.description || '',
+    levelRequired: map?.levelRequired || 1,
+    goldPerTask: map?.goldPerTask || 5,
+    expPerTask: map?.expPerTask || 5,
+    aetherPerTask: map?.aetherPerTask || 0,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-bg-secondary border border-border-primary rounded-lg p-4 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <h3 className="text-lg font-bold mb-4">{map ? '编辑地图' : '新增地图'}</h3>
+        <div className="space-y-3">
+          <Field label="Key" value={form.key} onChange={v => setForm({ ...form, key: v })} disabled={!!map} />
+          <Field label="名称" value={form.name} onChange={v => setForm({ ...form, name: v })} />
+          <Field label="描述" value={form.description} onChange={v => setForm({ ...form, description: v })} />
+          <Field label="等级要求" type="number" value={String(form.levelRequired)} onChange={v => setForm({ ...form, levelRequired: Number(v) })} />
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="金币/次" type="number" value={String(form.goldPerTask)} onChange={v => setForm({ ...form, goldPerTask: Number(v) })} />
+            <Field label="经验/次" type="number" value={String(form.expPerTask)} onChange={v => setForm({ ...form, expPerTask: Number(v) })} />
+            <Field label="水晶/次" type="number" value={String(form.aetherPerTask)} onChange={v => setForm({ ...form, aetherPerTask: Number(v) })} />
           </div>
         </div>
-      )}
+        <div className="flex gap-2 mt-4">
+          <button onClick={onClose} className="flex-1 py-1.5 bg-bg-tertiary text-text-secondary rounded text-sm">取消</button>
+          <button onClick={() => onSave(form)} className="flex-1 py-1.5 bg-accent-blue text-white rounded text-sm">保存</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, type = 'text', disabled = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean }) {
+  return (
+    <div>
+      <label className="text-xs text-text-muted block mb-1">{label}</label>
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} disabled={disabled}
+        className="w-full px-2 py-1 text-sm bg-bg-tertiary border border-border-primary rounded text-text-primary disabled:opacity-50" />
     </div>
   );
 }
