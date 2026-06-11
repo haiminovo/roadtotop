@@ -36,15 +36,27 @@ interface BackpackRow {
   equipped: boolean; equipped_slot_groups: unknown;
 }
 
+interface EnemyInstance {
+  key: string; name: string; health: number; maxHealth: number;
+  stats: { strength: number; intelligence: number; agility: number; vitality: number };
+  actionPoints: number; effects: StatusEffect[];
+}
+
 interface BattleState {
-  enemyKey: string; enemyName: string; enemyHealth: number; enemyMaxHealth: number;
-  enemyStats: { strength: number; intelligence: number; agility: number; vitality: number };
+  enemies: EnemyInstance[];
+  totalEnemies: number;
+  defeatedCount: number;
+  currentEnemyIndex: number;
   playerHealth: number; playerMaxHealth: number;
-  playerActionPoints: number; enemyActionPoints: number;
-  playerEffects: StatusEffect[]; enemyEffects: StatusEffect[];
+  playerActionPoints: number;
+  playerEffects: StatusEffect[];
   logs: BattleLog[];
   playerSkillStates: Record<string, { used: number; cooldownLeft: number }>;
   result: 'ongoing' | 'win' | 'lose';
+  // 兼容旧字段（用于 buildBattleSnapshot）
+  enemyKey: string; enemyName: string; enemyHealth: number; enemyMaxHealth: number;
+  enemyStats: { strength: number; intelligence: number; agility: number; vitality: number };
+  enemyActionPoints: number; enemyEffects: StatusEffect[];
 }
 
 interface StatusEffect { type: string; value?: number; duration: number; source: 'player' | 'enemy'; }
@@ -503,31 +515,54 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig)
   return { gold, aether, exp, startBattle, encounter };
 }
 
-// --- 创建战斗状态 ---
+// --- 创建战斗状态（1-4个敌人） ---
 function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicGameConfig): BattleState {
   const roleLevel = getLevelFromExp(role.exp).level;
   const enemyLevel = roleLevel;
   const maxHp = getMaxHealth(roleLevel, role.vitality);
+  const enemyCount = randomInt(1, 4);
 
+  // 从同地图怪物池中随机选取敌人
+  const mapEnemies = config.enemyTemplates.filter(e => e.mapKey === enemy.mapKey);
+  const enemies: EnemyInstance[] = [];
+  for (let i = 0; i < enemyCount; i++) {
+    const template = mapEnemies.length > 0 ? pickRandom(mapEnemies) : enemy;
+    const hp = Math.floor(template.baseHealth * (1 + enemyLevel * 0.1));
+    enemies.push({
+      key: template.key, name: template.name, health: hp, maxHealth: hp,
+      stats: {
+        strength: Math.floor(template.statWeights.strength * enemyLevel * 2),
+        intelligence: Math.floor(template.statWeights.intelligence * enemyLevel * 2),
+        agility: Math.floor(template.statWeights.agility * enemyLevel * 2),
+        vitality: Math.floor(template.statWeights.vitality * enemyLevel * 2),
+      },
+      actionPoints: 0, effects: [],
+    });
+  }
+
+  const firstEnemy = enemies[0];
   const state: BattleState = {
-    enemyKey: enemy.key, enemyName: enemy.name,
-    enemyHealth: Math.floor(enemy.baseHealth * (1 + enemyLevel * 0.1)),
-    enemyMaxHealth: Math.floor(enemy.baseHealth * (1 + enemyLevel * 0.1)),
-    enemyStats: {
-      strength: Math.floor(enemy.statWeights.strength * enemyLevel * 2),
-      intelligence: Math.floor(enemy.statWeights.intelligence * enemyLevel * 2),
-      agility: Math.floor(enemy.statWeights.agility * enemyLevel * 2),
-      vitality: Math.floor(enemy.statWeights.vitality * enemyLevel * 2),
-    },
-    playerHealth: role.current_health || maxHp,
-    playerMaxHealth: maxHp,
-    playerActionPoints: 0, enemyActionPoints: 0,
-    playerEffects: [], enemyEffects: [],
-    logs: [{ timestamp: Date.now(), message: `遭遇了 ${enemy.name}！准备战斗！`, type: 'info' }],
-    playerSkillStates: {},
-    result: 'ongoing',
+    enemies, totalEnemies: enemyCount, defeatedCount: 0, currentEnemyIndex: 0,
+    playerHealth: role.current_health || maxHp, playerMaxHealth: maxHp,
+    playerActionPoints: 0, playerEffects: [],
+    logs: [{ timestamp: Date.now(), message: `遭遇了 ${enemyCount} 个敌人！${enemies.map(e => e.name).join('、')} 出现了！`, type: 'info' }],
+    playerSkillStates: {}, result: 'ongoing',
+    // 兼容字段
+    enemyKey: firstEnemy.key, enemyName: firstEnemy.name,
+    enemyHealth: firstEnemy.health, enemyMaxHealth: firstEnemy.maxHealth,
+    enemyStats: firstEnemy.stats, enemyActionPoints: 0, enemyEffects: [],
   };
   return state;
+}
+
+function syncCurrentEnemy(state: BattleState) {
+  const enemy = state.enemies[state.currentEnemyIndex];
+  if (enemy) {
+    state.enemyKey = enemy.key; state.enemyName = enemy.name;
+    state.enemyHealth = enemy.health; state.enemyMaxHealth = enemy.maxHealth;
+    state.enemyStats = enemy.stats; state.enemyActionPoints = enemy.actionPoints;
+    state.enemyEffects = enemy.effects;
+  }
 }
 
 // --- 战斗动作名称 ---
@@ -559,64 +594,76 @@ function getEnemyAttackName(enemyKey: string, isCrit: boolean): string {
 
 // --- 模拟战斗 tick ---
 function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGameConfig): BattleState {
+  syncCurrentEnemy(state);
+  const currentEnemy = state.enemies[state.currentEnemyIndex];
+  if (!currentEnemy) { state.result = 'win'; return state; }
+
   const playerSpeed = getActionSpeed(role.agility);
-  const enemySpeed = getActionSpeed(state.enemyStats.agility);
+  const enemySpeed = getActionSpeed(currentEnemy.stats.agility);
 
   state.playerActionPoints = Math.min(state.playerActionPoints + playerSpeed, 100);
-  state.enemyActionPoints = Math.min(state.enemyActionPoints + enemySpeed, 100);
+  currentEnemy.actionPoints = Math.min(currentEnemy.actionPoints + enemySpeed, 100);
 
   // 玩家行动
   if (state.playerActionPoints >= 100) {
     state.playerActionPoints = 0;
 
-    // 计算伤害（含暴击判定）
     const critChance = Math.min(0.3, role.agility * 0.005);
     const isCrit = Math.random() < critChance;
     const critMult = isCrit ? 1.8 : 1;
     const baseDmg = role.strength + Math.floor(role.agility * 0.3);
-    const enemyDef = Math.floor(state.enemyStats.vitality * 0.4);
+    const enemyDef = Math.floor(currentEnemy.stats.vitality * 0.4);
     const variance = randomInt(-3, 5);
     const damage = Math.max(1, Math.floor((baseDmg - enemyDef + variance) * critMult));
 
-    state.enemyHealth = Math.max(0, state.enemyHealth - damage);
+    currentEnemy.health = Math.max(0, currentEnemy.health - damage);
     const attackName = getPlayerAttackName(isCrit);
     state.logs.push({
       timestamp: Date.now(),
-      message: `${attackName}！对 ${state.enemyName} 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+      message: `${attackName}！对 ${currentEnemy.name}(${state.currentEnemyIndex + 1}/${state.totalEnemies}) 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
       type: isCrit ? 'effect' : 'damage',
     });
 
-    // 随机触发额外效果
-    if (Math.random() < 0.15 && state.enemyEffects.length < 3) {
+    if (Math.random() < 0.15 && currentEnemy.effects.length < 3) {
       const effectType = Math.random() < 0.5 ? '灼烧' : '破甲';
-      state.enemyEffects.push({ type: effectType, value: 2, duration: 3, source: 'player' });
-      state.logs.push({ timestamp: Date.now(), message: `${state.enemyName} 被施加了 ${effectType} 效果！`, type: 'effect' });
+      currentEnemy.effects.push({ type: effectType, value: 2, duration: 3, source: 'player' });
+      state.logs.push({ timestamp: Date.now(), message: `${currentEnemy.name} 被施加了 ${effectType} 效果！`, type: 'effect' });
     }
 
-    if (state.enemyHealth <= 0) {
-      state.result = 'win';
-      state.logs.push({ timestamp: Date.now(), message: `🎉 击败了 ${state.enemyName}！获得了胜利！`, type: 'info' });
+    if (currentEnemy.health <= 0) {
+      state.defeatedCount++;
+      state.logs.push({ timestamp: Date.now(), message: `⚔️ 击败了 ${currentEnemy.name}！(${state.defeatedCount}/${state.totalEnemies})`, type: 'info' });
+
+      if (state.defeatedCount >= state.totalEnemies) {
+        state.result = 'win';
+        state.logs.push({ timestamp: Date.now(), message: `🎉 全部击败！获得了胜利！`, type: 'info' });
+      } else {
+        state.currentEnemyIndex++;
+        const next = state.enemies[state.currentEnemyIndex];
+        state.logs.push({ timestamp: Date.now(), message: `👉 ${next.name}(${state.currentEnemyIndex + 1}/${state.totalEnemies}) 上前迎战！`, type: 'info' });
+        syncCurrentEnemy(state);
+      }
       return state;
     }
   }
 
   // 敌人行动
-  if (state.enemyActionPoints >= 100) {
-    state.enemyActionPoints = 0;
+  if (currentEnemy.actionPoints >= 100) {
+    currentEnemy.actionPoints = 0;
 
-    const critChance = Math.min(0.2, state.enemyStats.agility * 0.004);
+    const critChance = Math.min(0.2, currentEnemy.stats.agility * 0.004);
     const isCrit = Math.random() < critChance;
     const critMult = isCrit ? 1.6 : 1;
-    const baseDmg = state.enemyStats.strength + Math.floor(state.enemyStats.agility * 0.2);
+    const baseDmg = currentEnemy.stats.strength + Math.floor(currentEnemy.stats.agility * 0.2);
     const playerDef = Math.floor(role.vitality * 0.4);
     const variance = randomInt(-3, 5);
     const damage = Math.max(1, Math.floor((baseDmg - playerDef + variance) * critMult));
 
     state.playerHealth = Math.max(0, state.playerHealth - damage);
-    const attackName = getEnemyAttackName(state.enemyKey, isCrit);
+    const attackName = getEnemyAttackName(currentEnemy.key, isCrit);
     state.logs.push({
       timestamp: Date.now(),
-      message: `${state.enemyName} 使出 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+      message: `${currentEnemy.name} 使出 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
       type: isCrit ? 'effect' : 'damage',
     });
 
@@ -633,7 +680,7 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
     }
   }
 
-  // 处理持续效果
+  // 处理玩家持续效果
   state.playerEffects = state.playerEffects.filter(eff => {
     if (eff.type === '灼烧' || eff.type === '中毒') {
       const dotDmg = eff.value || 2;
@@ -644,15 +691,19 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
     return eff.duration > 0;
   });
 
-  state.enemyEffects = state.enemyEffects.filter(eff => {
-    if (eff.type === '灼烧' || eff.type === '中毒') {
-      const dotDmg = eff.value || 2;
-      state.enemyHealth = Math.max(0, state.enemyHealth - dotDmg);
-      state.logs.push({ timestamp: Date.now(), message: `${state.enemyName} 受到${eff.type}效果 ${dotDmg} 点伤害`, type: 'effect' });
-    }
-    eff.duration--;
-    return eff.duration > 0;
-  });
+  // 处理当前敌人持续效果
+  if (currentEnemy) {
+    currentEnemy.effects = currentEnemy.effects.filter(eff => {
+      if (eff.type === '灼烧' || eff.type === '中毒') {
+        const dotDmg = eff.value || 2;
+        currentEnemy.health = Math.max(0, currentEnemy.health - dotDmg);
+        state.logs.push({ timestamp: Date.now(), message: `${currentEnemy.name} 受到${eff.type}效果 ${dotDmg} 点伤害`, type: 'effect' });
+      }
+      eff.duration--;
+      return eff.duration > 0;
+    });
+    syncCurrentEnemy(state);
+  }
 
   return state;
 }
