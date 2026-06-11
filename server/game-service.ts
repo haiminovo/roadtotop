@@ -392,16 +392,22 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
   const taskSeconds = config.systemBalance.afkTaskSeconds;
   const mapConfig = config.mapConfigs.find(m => m.key === afk.map_key);
 
-  for (let t = 0; t < grantedSeconds; t++) {
+  // 战斗中限制每次 tick 数，让战斗分多次轮询进行
+  const isBattling = battleState && battleState.result === 'ongoing';
+  const maxTicks = isBattling ? 5 : grantedSeconds;
+
+  for (let t = 0; t < maxTicks; t++) {
     // 如果在战斗中
     if (battleState && battleState.result === 'ongoing') {
       battleState = simulateBattleTick(battleState, role, config);
       if (battleState.result === 'win') {
-        // 战斗胜利奖励
-        const enemy = config.enemyTemplates.find(e => e.key === battleState!.enemyKey);
-        if (enemy) {
-          pendingGold += enemy.goldDrop;
-          pendingExp += enemy.expDrop;
+        // 战斗胜利奖励（所有敌人）
+        for (const e of battleState!.enemies) {
+          const template = config.enemyTemplates.find(t => t.key === e.key);
+          if (template) {
+            pendingGold += template.goldDrop;
+            pendingExp += template.expDrop;
+          }
         }
         // 触发 enemy_kill 事件
         const killEvents = config.eventRules.filter(r =>
