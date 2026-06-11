@@ -196,10 +196,17 @@ export interface ChatMessageData {
 }
 
 // --- 游戏会话上下文 ---
+export interface BattleLogEntry {
+  timestamp: number;
+  message: string;
+  type: string;
+}
+
 export interface GameSessionContextValue {
   snapshot: SessionSnapshot | null;
   connectionStatus: ConnectionStatus;
   chatMessages: ChatMessageData[];
+  battleLogs: BattleLogEntry[];
   // 操作函数
   createRole: (name: string, raceKey: RaceKey, classKey: ClassKey) => void;
   startAfk: (activityKey: ActivityKey, mapKey: string) => void;

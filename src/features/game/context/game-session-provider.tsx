@@ -15,10 +15,18 @@ export function useGameSession(): GameSessionContextValue {
   return ctx;
 }
 
+interface BattleLogEntry {
+  timestamp: number;
+  message: string;
+  type: string;
+}
+
 export function GameSessionProvider({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('booting');
   const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
+  const [battleLogs, setBattleLogs] = useState<BattleLogEntry[]>([]);
+  const prevBattleRef = useRef<string>('');
   const wsRef = useRef<WebSocket | null>(null);
   const guestTokenRef = useRef<string>('');
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -60,9 +68,26 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
           case 'game:session:ready':
             setSnapshot(msg.payload as SessionSnapshot);
             break;
-          case 'game:state:update':
-            setSnapshot(msg.payload as SessionSnapshot);
+          case 'game:state:update': {
+            const newSnapshot = msg.payload as SessionSnapshot;
+            setSnapshot(newSnapshot);
+            // 收集战斗日志
+            if (newSnapshot.afk?.battle?.logs) {
+              const logs = newSnapshot.afk.battle.logs;
+              const battleKey = `${newSnapshot.afk.battle.enemyKey}_${newSnapshot.afk.battle.enemyHealth}`;
+              if (battleKey !== prevBattleRef.current) {
+                // 新战斗或状态变化，追加新日志
+                setBattleLogs(prev => {
+                  const existingTimestamps = new Set(prev.map(l => l.timestamp));
+                  const newLogs = logs.filter(l => !existingTimestamps.has(l.timestamp));
+                  const combined = [...prev, ...newLogs];
+                  return combined.slice(-100);
+                });
+                prevBattleRef.current = battleKey;
+              }
+            }
             break;
+          }
           case 'game:chat:message':
             setChatMessages(prev => [...prev.slice(-79), msg.payload as ChatMessageData]);
             break;
@@ -176,6 +201,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     snapshot,
     connectionStatus,
     chatMessages,
+    battleLogs,
     createRole,
     startAfk,
     stopAfk,
