@@ -59,7 +59,16 @@ export async function ensureDatabaseInitialized(): Promise<void> {
   const migrationPath = join(process.cwd(), 'migrations', '001_initial_schema.sql');
   try {
     const sql = readFileSync(migrationPath, 'utf-8');
-    await query(sql);
+    const statements = sql.split(';').filter(s => s.trim());
+    for (const stmt of statements) {
+      try {
+        await query(stmt);
+      } catch (err: any) {
+        if (!err.message?.includes('already exists')) {
+          throw err;
+        }
+      }
+    }
     initialized = true;
   } catch (err) {
     console.error('[DB] Migration failed:', err);
