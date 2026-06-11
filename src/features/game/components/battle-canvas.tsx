@@ -15,39 +15,41 @@ export function BattleCanvas({ battle, classKey, containerRef }: BattleCanvasPro
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<EffectEngine | null>(null);
   const lastLogCountRef = useRef(0);
+  const lastBattleKeyRef = useRef('');
 
   // 初始化引擎
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const container = containerRef.current;
-    if (container) {
-      canvas.width = container.clientWidth * dpr;
-      canvas.height = container.clientHeight * dpr;
-      canvas.style.width = container.clientWidth + 'px';
-      canvas.style.height = container.clientHeight + 'px';
-      ctx.scale(dpr, dpr);
-    }
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.scale(dpr, dpr);
 
-    engineRef.current = new EffectEngine(ctx, container?.clientWidth || 400, container?.clientHeight || 200);
+    engineRef.current = new EffectEngine(ctx, w, h);
 
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
+        const d = window.devicePixelRatio || 1;
+        canvas.width = width * d;
+        canvas.height = height * d;
         canvas.style.width = width + 'px';
         canvas.style.height = height + 'px';
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.scale(dpr, dpr);
+        ctx.scale(d, d);
         engineRef.current?.resize(width, height);
       }
     });
-    if (container) observer.observe(container);
+    observer.observe(container);
 
     return () => {
       observer.disconnect();
@@ -58,36 +60,38 @@ export function BattleCanvas({ battle, classKey, containerRef }: BattleCanvasPro
   // 处理战斗日志 -> 特效
   useEffect(() => {
     const engine = engineRef.current;
-    if (!engine || !battle?.logs?.length) return;
+    const container = containerRef.current;
+    if (!engine || !battle?.logs?.length || !container) return;
+
+    // 检测是否是新战斗
+    const battleKey = `${battle.totalEnemies}_${battle.result}`;
+    if (battleKey !== lastBattleKeyRef.current) {
+      lastLogCountRef.current = 0;
+      lastBattleKeyRef.current = battleKey;
+    }
 
     const newLogs = battle.logs.slice(lastLogCountRef.current);
     lastLogCountRef.current = battle.logs.length;
+    if (newLogs.length === 0) return;
 
-    // 获取实体位置（从 DOM data 属性）
-    const getPosition = (index: number): { x: number; y: number } | null => {
-      const container = containerRef.current;
-      if (!container) return null;
+    // 获取实体卡片中心位置（相对于容器）
+    const getPos = (index: number): { x: number; y: number } | null => {
       const el = container.querySelector(`[data-entity-index="${index}"]`);
       if (!el) return null;
       const rect = el.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
+      const cRect = container.getBoundingClientRect();
       return {
-        x: rect.left - containerRect.left + rect.width / 2,
-        y: rect.top - containerRect.top + rect.height / 2,
+        x: rect.left - cRect.left + rect.width / 2,
+        y: rect.top - cRect.top + rect.height / 2,
       };
     };
 
-    const enemyIndices = battle.enemies.map((_, i) => i);
+    const enemyIdxs = battle.enemies.map((_, i) => i);
 
     for (const log of newLogs) {
-      engine.enqueueFromLog(log, classKey, getPosition, -1, enemyIndices);
+      engine.enqueueFromLog(log, classKey, getPos, -1, enemyIdxs);
     }
   }, [battle, classKey, containerRef]);
-
-  // 战斗变化时重置日志计数（新战斗或战斗结束重新开始）
-  useEffect(() => {
-    lastLogCountRef.current = 0;
-  }, [battle?.totalEnemies, battle?.defeatedCount, battle?.result]);
 
   return (
     <canvas

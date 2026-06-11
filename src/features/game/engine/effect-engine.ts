@@ -12,7 +12,6 @@ import { createShieldFlash, updateShieldFlash, drawShieldFlash } from './effects
 import { createHealAura, updateHealAura, drawHealAura } from './effects/heal-aura';
 import { createDamageNumber, updateDamageNumber, drawDamageNumber } from './effects/damage-number';
 
-// 职业 -> 默认攻击特效
 const CLASS_ATTACK_STYLE: Record<string, { type: string; style?: string; color?: string }> = {
   warrior: { type: 'slash', color: '#ffffff' },
   mage: { type: 'projectile', style: 'fireball' },
@@ -43,137 +42,87 @@ export class EffectEngine {
     this.height = height;
   }
 
-  // 从 BattleLog 解析并生成特效
   enqueueFromLog(
     log: { type: string; message: string; timestamp: number },
     classKey: ClassKey,
-    getPosition: (index: number) => { x: number; y: number } | null,
-    playerIndex = -1,
-    enemyIndices: number[] = [],
+    getPos: (index: number) => { x: number; y: number } | null,
+    playerIdx: number,
+    enemyIdxs: number[],
   ) {
     const msg = log.message;
-    const isPlayerAttack = msg.startsWith('你') || msg.includes('挥剑') || msg.includes('斩击') ||
-      msg.includes('劈砍') || msg.includes('刺击') || msg.includes('旋风') || msg.includes('致命') ||
-      msg.includes('蓄力') || msg.includes('连续') || msg.includes('精准') || msg.includes('火球') ||
-      msg.includes('闪电') || msg.includes('毒刃') || msg.includes('背刺') || msg.includes('治愈') ||
-      msg.includes('包扎') || msg.includes('战吼') || msg.includes('盾击');
 
-    const isEnemyAttack = !isPlayerAttack && (msg.includes('使出') || msg.includes('对你造成'));
-    const isHeal = msg.includes('恢复') || msg.includes('治愈') || msg.includes('包扎');
-    const isCrit = msg.includes('暴击');
-    const isEffect = msg.includes('效果') || msg.includes('施加');
+    // 判断攻击方向
+    const playerAttacking = msg.startsWith('你对') || msg.match(/^(挥剑|斩击|劈砍|刺击|旋风|致命|蓄力|连续|精准|火球|闪电|毒刃|背刺|治愈|包扎|战吼|盾击)/);
+    const enemyAttacking = msg.includes('对你造成') || (msg.includes('使出') && !playerAttacking);
+
+    // 提取目标名字
+    const playerTargetMatch = msg.match(/对\s*(\S+)\s*造成/);
+    const enemyNameMatch = msg.match(/^(\S+)\s*使出/);
 
     // 提取伤害数字
     const dmgMatch = msg.match(/(\d+)\s*点伤害/);
-    const healMatch = msg.match(/(\d+)\s*点/);
-    const amount = dmgMatch ? parseInt(dmgMatch[1]) : healMatch ? parseInt(healMatch[1]) : 0;
+    const amount = dmgMatch ? parseInt(dmgMatch[1]) : 0;
+    const isCrit = msg.includes('暴击');
 
-    // 提取攻击者和目标名字
-    const playerAttackMatch = msg.match(/对\s*(\S+)\s*造成/); // "你对 史莱姆 造成"
-    const enemyAttackMatch = msg.match(/^(\S+)\s*使出/);       // "灰狼 使出 利爪连击"
-    const playerHitMatch = msg.match(/对你造成/);              // "对你造成"
-
-    // 根据名字匹配具体的敌人 index
-    function findEnemyIndex(name: string): number {
-      for (const idx of enemyIndices) {
-        const el = document.querySelector(`[data-entity-index="${idx}"]`);
-        if (el) {
-          const nameEl = el.querySelector('[data-entity-name]');
-          if (nameEl && nameEl.textContent === name) return idx;
-        }
+    // 通过名字找敌人 index
+    function findIdxByName(name: string): number {
+      for (const idx of enemyIdxs) {
+        const el = document.querySelector(`[data-entity-index="${idx}"] [data-entity-name]`);
+        if (el?.textContent === name) return idx;
       }
       return -1;
     }
 
-    let targetPos: { x: number; y: number } | null = null;
-    let sourcePos: { x: number; y: number } | null = null;
+    let sx: number, sy: number, tx: number, ty: number;
 
-    if (isPlayerAttack || msg.startsWith('你')) {
-      // 玩家发起攻击 -> 起点是玩家，终点是被攻击的敌人
-      sourcePos = getPosition(playerIndex);
-      if (playerAttackMatch) {
-        const targetName = playerAttackMatch[1];
-        const idx = findEnemyIndex(targetName);
-        if (idx >= 0) targetPos = getPosition(idx);
-      }
-      if (!targetPos) {
-        // fallback: 找第一个存活敌人
-        for (const idx of enemyIndices) {
-          const pos = getPosition(idx);
-          if (pos) { targetPos = pos; break; }
-        }
-      }
-    } else if (isEnemyAttack || playerHitMatch) {
-      // 敌人发起攻击 -> 起点是该敌人，终点是玩家
-      targetPos = getPosition(playerIndex);
-      if (enemyAttackMatch) {
-        const attackerName = enemyAttackMatch[1];
-        const idx = findEnemyIndex(attackerName);
-        if (idx >= 0) sourcePos = getPosition(idx);
-      }
-      if (!sourcePos) {
-        // fallback: 找第一个存活敌人
-        for (const idx of enemyIndices) {
-          const pos = getPosition(idx);
-          if (pos) { sourcePos = pos; break; }
-        }
-      }
+    if (playerAttacking) {
+      // 玩家 -> 敌人
+      const sp = getPos(playerIdx);
+      sx = sp?.x ?? this.width * 0.2;
+      sy = sp?.y ?? this.height * 0.5;
+      let targetIdx = -1;
+      if (playerTargetMatch) targetIdx = findIdxByName(playerTargetMatch[1]);
+      if (targetIdx < 0) targetIdx = enemyIdxs[0] ?? 0;
+      const tp = getPos(targetIdx);
+      tx = tp?.x ?? this.width * 0.8;
+      ty = tp?.y ?? this.height * 0.5;
+    } else if (enemyAttacking) {
+      // 敌人 -> 玩家
+      const tp = getPos(playerIdx);
+      tx = tp?.x ?? this.width * 0.2;
+      ty = tp?.y ?? this.height * 0.5;
+      let srcIdx = -1;
+      if (enemyNameMatch) srcIdx = findIdxByName(enemyNameMatch[1]);
+      if (srcIdx < 0) srcIdx = enemyIdxs[0] ?? 0;
+      const sp = getPos(srcIdx);
+      sx = sp?.x ?? this.width * 0.8;
+      sy = sp?.y ?? this.height * 0.5;
+    } else {
+      return; // 非攻击日志不生成特效
     }
-
-    if (!sourcePos) sourcePos = getPosition(playerIndex) || { x: this.width * 0.2, y: this.height * 0.5 };
-    if (!targetPos) targetPos = getPosition(enemyIndices[0]) || { x: this.width * 0.8, y: this.height * 0.5 };
 
     // 生成攻击特效
-    if (log.type === 'damage' || isPlayerAttack || isEnemyAttack) {
-      if (isPlayerAttack) {
-        const style = CLASS_ATTACK_STYLE[classKey] || CLASS_ATTACK_STYLE.warrior;
-        if (style.type === 'slash') {
-          this.effects.push(createSlash(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, style.color));
-        } else if (style.type === 'projectile') {
-          const pStyle = (style.style || 'arrow') as 'arrow' | 'fireball' | 'lightning' | 'heal_bolt' | 'stab';
-          this.effects.push(createProjectile(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, pStyle));
-        }
+    if (playerAttacking) {
+      const style = CLASS_ATTACK_STYLE[classKey] || CLASS_ATTACK_STYLE.warrior;
+      if (style.type === 'slash') {
+        this.effects.push(createSlash(sx, sy, tx, ty, style.color));
       } else {
-        // 敌人攻击 - 通用红色刀光
-        this.effects.push(createSlash(sourcePos.x, sourcePos.y, targetPos.x, targetPos.y, '#f85149'));
+        this.effects.push(createProjectile(sx, sy, tx, ty, (style.style || 'arrow') as any));
       }
-
-      // 伤害数字
-      if (amount > 0) {
-        setTimeout(() => {
-          this.damageNumbers.push(createDamageNumber(
-            targetPos!.x, targetPos!.y - 20,
-            isCrit ? `暴击! -${amount}` : `-${amount}`,
-            isCrit ? '#ffa500' : '#f85149',
-            isCrit,
-          ));
-        }, 300);
-      }
+    } else {
+      this.effects.push(createSlash(sx, sy, tx, ty, '#f85149'));
     }
 
-    // 治疗
-    if (isHeal && amount > 0) {
-      const pos = getPosition(playerIndex) || { x: this.width * 0.3, y: this.height * 0.5 };
-      this.effects.push(createHealAura(pos.x, pos.y));
-      this.effects.push(createProjectile(pos.x, pos.y + 40, pos.x, pos.y, 'heal_bolt'));
+    // 伤害数字
+    if (amount > 0) {
       setTimeout(() => {
-        this.damageNumbers.push(createDamageNumber(pos.x, pos.y - 20, `+${amount}`, '#3fb950'));
-      }, 200);
-    }
-
-    // 闪电链
-    if (msg.includes('闪电')) {
-      const sp = getPosition(playerIndex) || { x: this.width * 0.3, y: this.height * 0.5 };
-      for (const idx of enemyIndices) {
-        const tp = getPosition(idx);
-        if (tp) this.effects.push(createLightning(sp.x, sp.y, tp.x, tp.y));
-      }
-    }
-
-    // 护盾/防御
-    if (msg.includes('防御') || msg.includes('护盾') || msg.includes('格挡')) {
-      const pos = getPosition(playerIndex) || { x: this.width * 0.3, y: this.height * 0.5 };
-      this.effects.push(createShieldFlash(pos.x, pos.y));
+        this.damageNumbers.push(createDamageNumber(
+          tx, ty - 20,
+          isCrit ? `暴击! -${amount}` : `-${amount}`,
+          isCrit ? '#ffa500' : '#f85149',
+          isCrit,
+        ));
+      }, 250);
     }
 
     this.startLoop();
@@ -198,10 +147,8 @@ export class EffectEngine {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.width, this.height);
 
-    // 更新粒子
     this.particles.update(1);
 
-    // 更新特效
     this.effects = this.effects.filter(effect => {
       switch (effect.type) {
         case 'slash': return updateSlash(effect, this.particles);
@@ -212,7 +159,6 @@ export class EffectEngine {
       }
     });
 
-    // 更新伤害数字
     this.damageNumbers = this.damageNumbers.filter(dn => updateDamageNumber(dn));
 
     // 绘制粒子
@@ -221,7 +167,7 @@ export class EffectEngine {
       ctx.globalAlpha = p.alpha;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, Math.max(0.5, p.size), 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     });
