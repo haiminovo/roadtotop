@@ -166,7 +166,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"lizardfolk","name":"蜥蜴人","description":"灵活多变，适应力强","statBonus":{"strength":1,"intelligence":1,"agility":3,"vitality":0}},
   {"key":"moonkin","name":"月灵","description":"神秘优雅，魔法天赋","statBonus":{"strength":-1,"intelligence":4,"agility":1,"vitality":1}}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 职业配置
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -178,7 +178,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"priest","name":"牧师","description":"治疗辅助，高智力","baseStats":{"strength":3,"intelligence":8,"agility":3,"vitality":7}},
   {"key":"rogue","name":"盗贼","description":"高爆发，高暴击","baseStats":{"strength":6,"intelligence":3,"agility":9,"vitality":3}}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 活动类型配置
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -187,7 +187,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"gathering","name":"采集","description":"采集资源，获取材料"},
   {"key":"fishing","name":"钓鱼","description":"悠闲钓鱼，获取稀有物品"}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 地图配置
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -199,7 +199,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"ruins","name":"远古遗迹","description":"沉睡着强大守卫的废墟","levelRequired":20,"goldPerTask":80,"expPerTask":100,"aetherPerTask":3},
   {"key":"void","name":"虚空裂隙","description":"维度之间的混沌空间","levelRequired":25,"goldPerTask":150,"expPerTask":180,"aetherPerTask":5}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 技能模板
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -215,7 +215,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"bandage","name":"包扎","category":"spell","description":"简单包扎伤口","baseDamage":-8,"levelGrowth":1,"maxUses":5,"cooldown":1,"effects":[]},
   {"key":"war_cry","name":"战吼","category":"attack","description":"鼓舞士气","baseDamage":5,"levelGrowth":1,"maxUses":2,"cooldown":4,"effects":[{"type":"attack_up","value":0.3,"duration":3}]}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 怪物模板
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -229,7 +229,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"dragon_whelp","name":"幼龙","mapKey":"ruins","baseHealth":350,"statWeights":{"strength":1.2,"intelligence":0.8,"agility":0.7,"vitality":1.5},"fixedSkillKeys":["slash","fireball","shield_bash"],"skillCaps":{"attack":3,"spell":2,"guard":1},"goldDrop":80,"expDrop":100},
   {"key":"void_walker","name":"虚空行者","mapKey":"void","baseHealth":500,"statWeights":{"strength":1.0,"intelligence":1.5,"agility":1.0,"vitality":1.8},"fixedSkillKeys":["lightning","fireball","backstab","guard"],"skillCaps":{"attack":3,"spell":3,"guard":2},"goldDrop":150,"expDrop":180}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 事件规则配置
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -241,7 +241,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   {"key":"gathering_bonus","trigger":{"type":"afk_tick","activityKey":"gathering"},"encounter":{"tier":"common","title":"采集收获","description":"采集到了资源"},"actions":[{"type":"grant_gold","chance":0.8,"min":2,"max":8},{"type":"grant_item","chance":0.15,"itemType":"material","rarity":"white"}]},
   {"key":"fishing_treasure","trigger":{"type":"afk_tick","activityKey":"fishing"},"encounter":{"tier":"rare","title":"钓鱼宝箱！","description":"钓上来一个宝箱"},"actions":[{"type":"grant_gold","chance":0.5,"min":10,"max":50},{"type":"grant_aether","chance":0.08,"min":1,"max":2}]}
 ]'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 系统平衡参数
 INSERT INTO game_config (config_key, config_type, value) VALUES
@@ -268,7 +268,7 @@ INSERT INTO game_config (config_key, config_type, value) VALUES
   "chatCooldownSeconds": 3,
   "chatHistoryLimit": 80
 }'::jsonb)
-ON CONFLICT (config_key) DO UPDATE SET value = EXCLUDED.value;
+ON CONFLICT (config_key) DO NOTHING;
 
 -- 初始物品数据（ON CONFLICT 防止重复插入）
 INSERT INTO item (name, rarity, item_type, icon_key, slot, slot_usage, sell_price, description, stat_json, level_requirement) VALUES
