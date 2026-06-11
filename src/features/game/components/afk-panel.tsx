@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import type { SessionSnapshot, ActivityKey } from '../types';
 import { SectionCard } from './ui/section-card';
 import { StatusChip } from './ui/status-chip';
+import { BattleView } from './battle-view';
 import { formatNumber } from '@/lib/game-config';
 
 interface AfkPanelProps {
@@ -89,6 +90,9 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
           </div>
         </SectionCard>
       )}
+
+      {/* 战斗视图 */}
+      {afk.battle && <BattleView battle={afk.battle} />}
 
       {/* 最近遭遇 */}
       {afk.recentEncounters.length > 0 && (
