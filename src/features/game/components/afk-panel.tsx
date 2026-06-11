@@ -50,14 +50,17 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
           </div>
 
           {/* 挂机进度条 */}
-          {afk.status === 'afk' && (
+          {(afk.status === 'afk' || afk.status === 'battle') && (
             <div className="mb-2">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-text-muted">任务进度</span>
                 <span className="text-text-secondary">{afk.accruedSeconds}s / 10s</span>
               </div>
-              <div className="progress-bar">
-                <div className="progress-bar-fill bg-accent-green" style={{ width: `${(afk.accruedSeconds / 10) * 100}%` }} />
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{ width: `${(afk.accruedSeconds / 10) * 100}%`, background: '#3fb950' }}
+                />
               </div>
             </div>
           )}
