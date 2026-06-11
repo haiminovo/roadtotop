@@ -31,7 +31,7 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
         <div className="w-7 h-7 rounded flex items-center justify-center text-sm shrink-0" style={{ background: side === 'player' ? '#238636' : '#f8514920' }}>
           {alive ? icon : '💀'}
         </div>
-        <div className="text-xs font-bold truncate" style={{ color: alive ? nameColor : '#6e7681' }}>{name}</div>
+        <div className="text-xs font-bold truncate" data-entity-name={name} style={{ color: alive ? nameColor : '#6e7681' }}>{name}</div>
       </div>
       <div className="mb-1">
         <div className="flex justify-between text-[10px] mb-0.5">

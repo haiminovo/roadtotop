@@ -68,35 +68,60 @@ export class EffectEngine {
     const healMatch = msg.match(/(\d+)\s*点/);
     const amount = dmgMatch ? parseInt(dmgMatch[1]) : healMatch ? parseInt(healMatch[1]) : 0;
 
-    // 提取目标名字
-    const targetEnemyMatch = msg.match(/对\s*(\S+)\s*造成/);
-    const targetEnemyName = targetEnemyMatch ? targetEnemyMatch[1] : null;
+    // 提取攻击者和目标名字
+    const playerAttackMatch = msg.match(/对\s*(\S+)\s*造成/); // "你对 史莱姆 造成"
+    const enemyAttackMatch = msg.match(/^(\S+)\s*使出/);       // "灰狼 使出 利爪连击"
+    const playerHitMatch = msg.match(/对你造成/);              // "对你造成"
 
-    // 找到目标位置
-    let targetPos = null;
-    let sourcePos = null;
-
-    if (isPlayerAttack) {
-      sourcePos = getPosition(playerIndex);
-      // 攻击的目标是某个敌人
-      if (targetEnemyName) {
-        for (const idx of enemyIndices) {
-          const pos = getPosition(idx);
-          if (pos) { targetPos = pos; break; } // 简化：取第一个存活敌人位置
+    // 根据名字匹配具体的敌人 index
+    function findEnemyIndex(name: string): number {
+      for (const idx of enemyIndices) {
+        const el = document.querySelector(`[data-entity-index="${idx}"]`);
+        if (el) {
+          const nameEl = el.querySelector('[data-entity-name]');
+          if (nameEl && nameEl.textContent === name) return idx;
         }
       }
-      if (!targetPos && enemyIndices.length > 0) {
-        targetPos = getPosition(enemyIndices[0]);
-      }
-    } else if (isEnemyAttack) {
-      // 敌人攻击玩家
-      const enemyNameMatch = msg.match(/^(\S+)\s*使出/);
-      sourcePos = enemyIndices.length > 0 ? getPosition(enemyIndices[0]) : null;
-      targetPos = getPosition(playerIndex);
+      return -1;
     }
 
-    if (!sourcePos) sourcePos = { x: this.width * 0.3, y: this.height * 0.5 };
-    if (!targetPos) targetPos = { x: this.width * 0.7, y: this.height * 0.5 };
+    let targetPos: { x: number; y: number } | null = null;
+    let sourcePos: { x: number; y: number } | null = null;
+
+    if (isPlayerAttack || msg.startsWith('你')) {
+      // 玩家发起攻击 -> 起点是玩家，终点是被攻击的敌人
+      sourcePos = getPosition(playerIndex);
+      if (playerAttackMatch) {
+        const targetName = playerAttackMatch[1];
+        const idx = findEnemyIndex(targetName);
+        if (idx >= 0) targetPos = getPosition(idx);
+      }
+      if (!targetPos) {
+        // fallback: 找第一个存活敌人
+        for (const idx of enemyIndices) {
+          const pos = getPosition(idx);
+          if (pos) { targetPos = pos; break; }
+        }
+      }
+    } else if (isEnemyAttack || playerHitMatch) {
+      // 敌人发起攻击 -> 起点是该敌人，终点是玩家
+      targetPos = getPosition(playerIndex);
+      if (enemyAttackMatch) {
+        const attackerName = enemyAttackMatch[1];
+        const idx = findEnemyIndex(attackerName);
+        if (idx >= 0) sourcePos = getPosition(idx);
+      }
+      if (!sourcePos) {
+        // fallback: 找第一个存活敌人
+        for (const idx of enemyIndices) {
+          const pos = getPosition(idx);
+          if (pos) { sourcePos = pos; break; }
+        }
+      }
+    }
+
+    if (!sourcePos) sourcePos = getPosition(playerIndex) || { x: this.width * 0.2, y: this.height * 0.5 };
+    if (!targetPos) targetPos = getPosition(enemyIndices[0]) || { x: this.width * 0.8, y: this.height * 0.5 };
 
     // 生成攻击特效
     if (log.type === 'damage' || isPlayerAttack || isEnemyAttack) {
