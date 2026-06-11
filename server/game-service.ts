@@ -53,7 +53,6 @@ interface BattleState {
   logs: BattleLog[];
   playerSkillStates: Record<string, { used: number; cooldownLeft: number }>;
   result: 'ongoing' | 'win' | 'lose';
-  resultShown?: boolean;
   // 兼容旧字段
   enemyKey: string; enemyName: string; enemyHealth: number; enemyMaxHealth: number;
   enemyStats: { strength: number; intelligence: number; agility: number; vitality: number };
@@ -395,6 +394,11 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
   const taskSeconds = config.systemBalance.afkTaskSeconds;
   const mapConfig = config.mapConfigs.find(m => m.key === afk.map_key);
 
+  // 如果有已结束的战斗，先清除
+  if (battleState && battleState.result !== 'ongoing') {
+    battleState = null;
+  }
+
   for (let t = 0; t < grantedSeconds; t++) {
     // 如果在战斗中
     if (battleState && battleState.result === 'ongoing') {
@@ -417,18 +421,9 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           pendingAether += rewards.aether;
           pendingExp += rewards.exp;
         }
-        // 保留战斗结果快照，下次轮询时清除
-        if (!battleState.resultShown) {
-          battleState.resultShown = true;
-        } else {
-          battleState = null;
-        }
+        battleState = null;
       } else if (battleState.result === 'lose') {
-        if (!battleState.resultShown) {
-          battleState.resultShown = true;
-        } else {
-          battleState = null;
-        }
+        battleState = null;
       }
       continue;
     }
