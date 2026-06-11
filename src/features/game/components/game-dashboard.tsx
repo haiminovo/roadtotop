@@ -11,12 +11,12 @@ import { PvpPanel } from './pvp-panel';
 import { OfflineRewardModal } from './offline-reward-modal';
 import { ChatPanel } from '@/features/chat/components/chat-panel';
 
-type TabKey = 'role' | 'backpack' | 'afk' | 'market' | 'pvp';
+type TabKey = 'afk' | 'role' | 'backpack' | 'market' | 'pvp';
 
 const TABS: { key: TabKey; label: string }[] = [
+  { key: 'afk', label: '活动' },
   { key: 'role', label: '角色' },
   { key: 'backpack', label: '背包' },
-  { key: 'afk', label: '挂机' },
   { key: 'market', label: '市场' },
   { key: 'pvp', label: 'PVP' },
 ];

@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { SessionSnapshot, ActivityKey } from '../types';
 import { SectionCard } from './ui/section-card';
-import { CommandButton } from './ui/command-button';
 import { StatusChip } from './ui/status-chip';
 import { BattleView } from './battle-view';
 import { formatNumber } from '@/lib/game-config';
@@ -15,31 +14,39 @@ interface AfkPanelProps {
   onClaim: () => void;
 }
 
+const ACTIVITY_ICONS: Record<string, string> = {
+  combat: '⚔️',
+  gathering: '⛏️',
+  fishing: '🎣',
+};
+
 export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) {
   const { afk, config, role } = snapshot;
+  const [selectedActivity, setSelectedActivity] = useState<ActivityKey | ''>('');
 
   const statusLabel = afk.status === 'idle' ? '空闲' : afk.status === 'afk' ? '挂机中' : '战斗中';
   const statusVariant = afk.status === 'idle' ? 'default' : afk.status === 'afk' ? 'success' : 'danger';
-
   const currentMap = config.maps.find(m => m.key === afk.mapKey);
+  const currentActivity = config.activities.find(a => a.key === afk.activityKey);
 
   return (
     <div className="space-y-3">
       {/* 当前挂机状态 */}
       {afk.status !== 'idle' && (
         <SectionCard
-          title="挂机状态"
+          title="当前活动"
           action={
-            <button
-              onClick={onStop}
-              className="text-xs text-accent-red hover:text-accent-red/80 px-2 py-0.5 rounded hover:bg-accent-red/10"
-            >
+            <button onClick={onStop} className="text-xs text-accent-red hover:text-accent-red/80 px-2 py-0.5 rounded hover:bg-accent-red/10">
               停止
             </button>
           }
         >
           <div className="flex items-center gap-2 mb-2">
             <StatusChip status={statusLabel} variant={statusVariant} />
+            <span className="text-xs text-text-muted">
+              {ACTIVITY_ICONS[afk.activityKey] || ''} {currentActivity?.name || afk.activityKey}
+            </span>
+            <span className="text-xs text-text-muted">·</span>
             <span className="text-xs text-text-muted">{currentMap?.name || afk.mapKey}</span>
           </div>
 
@@ -51,10 +58,7 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
                 <span className="text-text-secondary">{afk.accruedSeconds}s / 10s</span>
               </div>
               <div className="progress-bar">
-                <div
-                  className="progress-bar-fill bg-accent-green"
-                  style={{ width: `${(afk.accruedSeconds / 10) * 100}%` }}
-                />
+                <div className="progress-bar-fill bg-accent-green" style={{ width: `${(afk.accruedSeconds / 10) * 100}%` }} />
               </div>
             </div>
           )}
@@ -75,7 +79,6 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
             </div>
           </div>
 
-          {/* 每小时收益预估 */}
           <div className="text-xs text-text-muted">
             预估每小时：
             <span className="text-accent-orange ml-1">金 {formatNumber(afk.estimatedHourlyReward.gold)}</span>
@@ -86,9 +89,7 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
       )}
 
       {/* 战斗实时视图 */}
-      {afk.battle && (
-        <BattleView battle={afk.battle} />
-      )}
+      {afk.battle && <BattleView battle={afk.battle} />}
 
       {/* 最近遭遇 */}
       {afk.recentEncounters.length > 0 && (
@@ -108,41 +109,71 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
         </SectionCard>
       )}
 
-      {/* 地图选择（空闲时显示） */}
+      {/* 选择活动（空闲时显示） */}
       {afk.status === 'idle' && (
-        <SectionCard title="选择地图开始挂机">
-          <div className="space-y-1.5">
-            {config.maps.map(map => {
-              const unlocked = role.level >= map.levelRequired;
-              return (
-                <div
-                  key={map.key}
-                  className={`flex items-center justify-between p-2 rounded border ${
-                    unlocked
-                      ? 'bg-bg-tertiary border-border-primary hover:bg-bg-hover cursor-pointer'
-                      : 'bg-bg-secondary border-border-secondary opacity-50'
-                  }`}
-                  onClick={() => unlocked && onStart('combat', map.key)}
-                >
-                  <div>
-                    <div className="text-sm font-medium text-text-primary">{map.name}</div>
-                    <div className="text-xs text-text-muted">
-                      {map.description} · 需要Lv.{map.levelRequired}
+        <>
+          {/* 第一步：选择活动类型 */}
+          {!selectedActivity && (
+            <SectionCard title="选择活动">
+              <div className="space-y-2">
+                {config.activities.map(activity => (
+                  <button
+                    key={activity.key}
+                    onClick={() => setSelectedActivity(activity.key as ActivityKey)}
+                    className="w-full flex items-center gap-3 p-3 rounded bg-bg-tertiary border border-border-primary hover:bg-bg-hover cursor-pointer transition-colors text-left"
+                  >
+                    <span className="text-2xl">{ACTIVITY_ICONS[activity.key] || '📋'}</span>
+                    <div>
+                      <div className="text-sm font-medium text-text-primary">{activity.name}</div>
+                      <div className="text-xs text-text-muted">{activity.description}</div>
                     </div>
-                    <div className="text-xs mt-0.5">
-                      <span className="text-accent-orange">金+{map.goldPerTask}</span>
-                      <span className="text-accent-blue ml-2">EXP+{map.expPerTask}</span>
-                      {map.aetherPerTask > 0 && <span className="text-accent-purple ml-2">水晶+{map.aetherPerTask}</span>}
+                    <span className="ml-auto text-xs text-accent-blue">→</span>
+                  </button>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
+          {/* 第二步：选择地图 */}
+          {selectedActivity && (
+            <SectionCard
+              title={`${ACTIVITY_ICONS[selectedActivity] || ''} ${config.activities.find(a => a.key === selectedActivity)?.name || ''} - 选择地图`}
+              action={
+                <button onClick={() => setSelectedActivity('')} className="text-xs text-text-muted hover:text-text-secondary px-2 py-0.5 rounded hover:bg-bg-hover">
+                  ← 返回
+                </button>
+              }
+            >
+              <div className="space-y-1.5">
+                {config.maps.map(map => {
+                  const unlocked = role.level >= map.levelRequired;
+                  return (
+                    <div
+                      key={map.key}
+                      className={`flex items-center justify-between p-2 rounded border ${
+                        unlocked
+                          ? 'bg-bg-tertiary border-border-primary hover:bg-bg-hover cursor-pointer'
+                          : 'bg-bg-secondary border-border-secondary opacity-50'
+                      }`}
+                      onClick={() => unlocked && onStart(selectedActivity, map.key)}
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-text-primary">{map.name}</div>
+                        <div className="text-xs text-text-muted">{map.description} · 需要Lv.{map.levelRequired}</div>
+                        <div className="text-xs mt-0.5">
+                          <span className="text-accent-orange">金+{map.goldPerTask}</span>
+                          <span className="text-accent-blue ml-2">EXP+{map.expPerTask}</span>
+                          {map.aetherPerTask > 0 && <span className="text-accent-purple ml-2">水晶+{map.aetherPerTask}</span>}
+                        </div>
+                      </div>
+                      {unlocked && <span className="text-xs text-accent-blue">点击开始 →</span>}
                     </div>
-                  </div>
-                  {unlocked && (
-                    <span className="text-xs text-accent-blue">点击开始 →</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </SectionCard>
+                  );
+                })}
+              </div>
+            </SectionCard>
+          )}
+        </>
       )}
     </div>
   );
