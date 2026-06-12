@@ -113,6 +113,7 @@ export interface EnemySnapshot {
   health: number;
   maxHealth: number;
   stats: { strength: number; intelligence: number; agility: number; vitality: number };
+  actionSpeed?: number;
   actionPoints: number;
   effects: StatusEffect[];
   alive: boolean;
@@ -142,6 +143,13 @@ export interface BattleLog {
   timestamp: number;
   message: string;
   type: 'damage' | 'heal' | 'effect' | 'info';
+  attackerIndex?: number;
+  targetIndex?: number;
+  actionKind?: 'basic' | 'skill' | 'dot';
+  effectKind?: 'slash' | 'projectile' | 'lightning' | 'status_burst';
+  effectStyle?: 'arrow' | 'stab' | 'bolt';
+  effectColor?: string;
+  statusType?: string;
 }
 
 // --- 市场快照 ---
@@ -213,7 +221,7 @@ export interface GameSessionContextValue {
   snapshot: SessionSnapshot | null;
   connectionStatus: ConnectionStatus;
   chatMessages: ChatMessageData[];
-  battleLogs: BattleLogEntry[];
+  activityLogs: BattleLogEntry[];
   // 操作函数
   createRole: (name: string, raceKey: RaceKey, classKey: ClassKey) => void;
   startAfk: (activityKey: ActivityKey, mapKey: string) => void;

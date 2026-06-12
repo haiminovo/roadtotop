@@ -46,7 +46,8 @@ export interface ProjectileEffect {
   tx: number; ty: number;
   progress: number;
   speed: number;
-  style: 'arrow' | 'lightning' | 'heal_bolt' | 'stab';
+  style: 'arrow' | 'stab' | 'bolt';
+  color?: string;
   hitFired: boolean;
   done: boolean;
 }
@@ -56,6 +57,7 @@ export interface LightningEffect {
   sx: number; sy: number;
   tx: number; ty: number;
   segments: { x: number; y: number }[];
+  color: string;
   alpha: number;
   age: number;
   maxAge: number;
@@ -79,4 +81,15 @@ export interface HealAuraEffect {
   done: boolean;
 }
 
-export type Effect = SlashEffect | ProjectileEffect | LightningEffect | ShieldFlashEffect | HealAuraEffect;
+export interface StatusBurstEffect {
+  type: 'status_burst';
+  x: number; y: number;
+  radius: number;
+  maxRadius: number;
+  age: number;
+  maxAge: number;
+  color: string;
+  done: boolean;
+}
+
+export type Effect = SlashEffect | ProjectileEffect | LightningEffect | ShieldFlashEffect | HealAuraEffect | StatusBurstEffect;

@@ -23,7 +23,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export function GameDashboard() {
   const {
-    snapshot, connectionStatus, chatMessages, battleLogs,
+    snapshot, connectionStatus, chatMessages, activityLogs,
     createRole, startAfk, stopAfk, claimOfflineReward,
     equipItem, unequipItem, dropItem, learnSkillBook,
     createMarketListing, cancelMarketListing, buyMarketListing,
@@ -217,7 +217,7 @@ export function GameDashboard() {
           currentChannel={chatChannel}
           onChannelChange={setChatChannel}
           onSend={sendChat}
-          battleLogs={battleLogs}
+          activityLogs={activityLogs}
         />
 
         {/* 移动端底部标签栏 */}

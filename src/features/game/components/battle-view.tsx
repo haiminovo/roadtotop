@@ -15,7 +15,10 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
   effects: { type: string; duration: number }[]; alive: boolean; side: 'player' | 'enemy';
   entityIndex: number;
 }) {
-  const hpPercent = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+  const clampPercent = (value: number) => Math.min(100, Math.max(0, value));
+  const hpPercent = clampPercent(maxHp > 0 ? (hp / maxHp) * 100 : 0);
+  const apPercent = clampPercent(ap);
+  const apLabel = Math.round(apPercent);
   const borderColor = side === 'player' ? '#238636' : '#f8514940';
   const hpColor = side === 'player' ? '#3fb950' : '#f85149';
   const nameColor = side === 'player' ? '#3fb950' : '#f85149';
@@ -45,10 +48,10 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
       <div className="mb-1">
         <div className="flex justify-between text-[10px] mb-0.5">
           <span style={{ color: '#8b949e' }}>ATB</span>
-          <span style={{ color: '#e6edf3' }}>{ap}%</span>
+          <span style={{ color: '#e6edf3' }}>{apLabel}%</span>
         </div>
         <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#21262d' }}>
-          <div className="h-full rounded-full transition-all duration-200" style={{ width: `${ap}%`, background: '#58a6ff' }} />
+          <div className="h-full rounded-full transition-all duration-200" style={{ width: `${apPercent}%`, background: '#58a6ff' }} />
         </div>
       </div>
       <div className="flex gap-0.5 flex-wrap mt-auto" style={{ minHeight: 16 }}>

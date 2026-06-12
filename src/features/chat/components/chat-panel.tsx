@@ -22,14 +22,14 @@ interface ChatPanelProps {
   currentChannel: string;
   onChannelChange: (channel: string) => void;
   onSend: (channelKey: string, content: string) => void;
-  battleLogs?: BattleLog[];
+  activityLogs?: BattleLog[];
 }
 
 const CHANNELS = [
   { key: 'world', name: '综合', color: 'var(--accent-blue)' },
   { key: 'trade', name: '交易', color: 'var(--accent-orange)' },
   { key: 'tavern', name: '酒馆', color: 'var(--accent-green)' },
-  { key: 'battle', name: '战斗', color: 'var(--accent-red)' },
+  { key: 'activity', name: '活动', color: 'var(--accent-red)' },
 ];
 
 const MIN_HEIGHT = 32;
@@ -62,7 +62,7 @@ const LOG_COLORS: Record<string, string> = {
   info: 'text-accent-blue',
 };
 
-export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, battleLogs = [] }: ChatPanelProps) {
+export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, activityLogs = [] }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [chatHeight, setChatHeight] = useState(DEFAULT_HEIGHT);
   const [collapsed, setCollapsed] = useState(false);
@@ -76,7 +76,7 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, b
     if (!collapsed) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, battleLogs, currentChannel, collapsed]);
+  }, [messages, activityLogs, currentChannel, collapsed]);
 
   const handleSend = () => {
     const content = input.trim();
@@ -128,9 +128,9 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, b
     }
   };
 
-  const isBattle = currentChannel === 'battle';
-  const filteredMessages = isBattle ? [] : messages.filter(m => m.channelKey === currentChannel);
-  const recentBattleLogs = battleLogs.slice(-100);
+  const isActivity = currentChannel === 'activity';
+  const filteredMessages = isActivity ? [] : messages.filter(m => m.channelKey === currentChannel);
+  const recentActivityLogs = activityLogs.slice(-100);
   const currentHeight = collapsed ? MIN_HEIGHT : chatHeight;
 
   return (
@@ -163,7 +163,7 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, b
         <div className="ml-auto flex items-center gap-2">
           {!collapsed && (
             <span className="text-text-muted text-xs">
-              {isBattle ? `${recentBattleLogs.length} 条` : `${filteredMessages.length} 条`}
+              {isActivity ? `${recentActivityLogs.length} 条` : `${filteredMessages.length} 条`}
             </span>
           )}
           <button
@@ -180,12 +180,12 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, b
       {!collapsed && (
         <>
           <div className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5 min-h-0">
-            {isBattle ? (
-              // 战斗日志
-              recentBattleLogs.length === 0 ? (
-                <p className="text-text-muted text-xs text-center py-4">暂无战斗记录</p>
+            {isActivity ? (
+              // 活动日志
+              recentActivityLogs.length === 0 ? (
+                <p className="text-text-muted text-xs text-center py-4">暂无活动记录</p>
               ) : (
-                recentBattleLogs.map((log, i) => (
+                recentActivityLogs.map((log, i) => (
                   <div key={i} className={`text-xs leading-5 ${LOG_COLORS[log.type] || 'text-text-secondary'}`}>
                     <span className="text-text-muted">[{formatTimestamp(log.timestamp)}]</span>
                     <span className="ml-1">{log.message}</span>
@@ -211,7 +211,7 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, b
           </div>
 
           {/* 聊天频道显示输入框，战斗频道隐藏 */}
-          {!isBattle && (
+          {!isActivity && (
             <div className="flex items-center gap-2 px-3 py-1.5 border-t border-border-secondary shrink-0">
               <input
                 type="text"

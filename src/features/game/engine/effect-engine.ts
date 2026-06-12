@@ -7,22 +7,36 @@ import type { ClassKey } from '@/lib/game-config';
 import { ParticlePool } from './particle-pool';
 import { createSlash, updateSlash, drawSlash } from './effects/slash';
 import { createProjectile, updateProjectile, drawProjectile } from './effects/projectile';
-import { updateLightning, drawLightning } from './effects/lightning';
+import { createLightning, updateLightning, drawLightning } from './effects/lightning';
 import { updateShieldFlash, drawShieldFlash } from './effects/shield-flash';
 import { updateHealAura, drawHealAura } from './effects/heal-aura';
+import { createStatusBurst, updateStatusBurst, drawStatusBurst } from './effects/status-burst';
 import { createDamageNumber, updateDamageNumber, drawDamageNumber } from './effects/damage-number';
 
 type AttackStyle =
   | { type: 'slash'; color: string }
   | { type: 'projectile'; style: ProjectileEffect['style'] };
 
+type VisualLog = {
+  type: string;
+  message: string;
+  timestamp: number;
+  attackerIndex?: number;
+  targetIndex?: number;
+  actionKind?: 'basic' | 'skill' | 'dot';
+  effectKind?: 'slash' | 'projectile' | 'lightning' | 'status_burst';
+  effectStyle?: ProjectileEffect['style'];
+  effectColor?: string;
+  statusType?: string;
+};
+
 const CLASS_ATTACK_STYLE: Record<string, AttackStyle> = {
-  warrior: { type: 'slash', color: '#ffffff' },
+  warrior: { type: 'projectile', style: 'stab' },
   mage: { type: 'projectile', style: 'stab' },
   ranger: { type: 'projectile', style: 'arrow' },
   rogue: { type: 'projectile', style: 'stab' },
-  priest: { type: 'projectile', style: 'heal_bolt' },
-  farmer: { type: 'slash', color: '#8b6914' },
+  priest: { type: 'projectile', style: 'bolt' },
+  farmer: { type: 'projectile', style: 'stab' },
 };
 
 export class EffectEngine {
@@ -70,7 +84,7 @@ export class EffectEngine {
   }
 
   enqueueFromLog(
-    log: { type: string; message: string; timestamp: number },
+    log: VisualLog,
     classKey: ClassKey,
     getPos: (index: number, towardIndex?: number) => { x: number; y: number } | null,
     getEntityName: (index: number) => string | null,
@@ -103,10 +117,28 @@ export class EffectEngine {
 
     let sx: number, sy: number, tx: number, ty: number;
 
+    if (log.actionKind === 'dot' || log.effectKind === 'status_burst') {
+      const targetIdx = typeof log.targetIndex === 'number' ? log.targetIndex : playerIdx;
+      const tp = getPos(targetIdx);
+      tx = tp?.x ?? this.width * 0.5;
+      ty = tp?.y ?? this.height * 0.5;
+      this.effects.push(createStatusBurst(tx, ty, log.effectColor || '#bc8cff'));
+      if (amount > 0) {
+        this.damageNumbers.push(createDamageNumber(
+          tx, ty - 20,
+          `-${amount}`,
+          log.effectColor || '#bc8cff',
+          false,
+        ));
+      }
+      this.startLoop();
+      return;
+    }
+
     if (playerAttacking) {
       // 玩家 -> 敌人
-      let targetIdx = -1;
-      if (playerTargetMatch) targetIdx = findIdxByName(playerTargetMatch[1]);
+      let targetIdx = typeof log.targetIndex === 'number' ? log.targetIndex : -1;
+      if (targetIdx < 0 && playerTargetMatch) targetIdx = findIdxByName(playerTargetMatch[1]);
       if (targetIdx < 0) targetIdx = enemyIdxs[0] ?? 0;
       const sp = getPos(playerIdx, targetIdx);
       sx = sp?.x ?? this.width * 0.2;
@@ -116,8 +148,8 @@ export class EffectEngine {
       ty = tp?.y ?? this.height * 0.5;
     } else if (enemyAttacking) {
       // 敌人 -> 玩家
-      let srcIdx = -1;
-      if (enemyNameMatch) srcIdx = findIdxByName(enemyNameMatch[1]);
+      let srcIdx = typeof log.attackerIndex === 'number' ? log.attackerIndex : -1;
+      if (srcIdx < 0 && enemyNameMatch) srcIdx = findIdxByName(enemyNameMatch[1]);
       if (srcIdx < 0) srcIdx = enemyIdxs[0] ?? 0;
       const tp = getPos(playerIdx, srcIdx);
       tx = tp?.x ?? this.width * 0.2;
@@ -132,13 +164,9 @@ export class EffectEngine {
     // 生成攻击特效
     if (playerAttacking) {
       const style = CLASS_ATTACK_STYLE[classKey] || CLASS_ATTACK_STYLE.warrior;
-      if (style.type === 'slash') {
-        this.effects.push(createSlash(sx, sy, tx, ty, style.color));
-      } else {
-        this.effects.push(createProjectile(sx, sy, tx, ty, style.style));
-      }
+      this.enqueueAttackEffect(sx, sy, tx, ty, log, style);
     } else {
-      this.effects.push(createProjectile(sx, sy, tx, ty, 'stab'));
+      this.enqueueAttackEffect(sx, sy, tx, ty, log, { type: 'projectile', style: 'stab' });
     }
 
     // 伤害数字
@@ -158,6 +186,29 @@ export class EffectEngine {
     }
 
     this.startLoop();
+  }
+
+  private enqueueAttackEffect(sx: number, sy: number, tx: number, ty: number, log: VisualLog, fallback: AttackStyle) {
+    if (log.effectKind === 'lightning') {
+      this.effects.push(createLightning(sx, sy, tx, ty, log.effectColor));
+      return;
+    }
+
+    if (log.effectKind === 'slash') {
+      this.effects.push(createSlash(sx, sy, tx, ty, log.effectColor || (fallback.type === 'slash' ? fallback.color : '#bc8cff')));
+      return;
+    }
+
+    if (log.effectKind === 'projectile') {
+      this.effects.push(createProjectile(sx, sy, tx, ty, log.effectStyle || (fallback.type === 'projectile' ? fallback.style : 'stab'), log.effectColor));
+      return;
+    }
+
+    if (fallback.type === 'slash') {
+      this.effects.push(createSlash(sx, sy, tx, ty, fallback.color));
+    } else {
+      this.effects.push(createProjectile(sx, sy, tx, ty, fallback.style, log.effectColor));
+    }
   }
 
   private startLoop() {
@@ -191,6 +242,7 @@ export class EffectEngine {
         case 'lightning': return updateLightning(effect);
         case 'shield_flash': return updateShieldFlash(effect);
         case 'heal_aura': return updateHealAura(effect, this.particles);
+        case 'status_burst': return updateStatusBurst(effect);
       }
     });
 
@@ -198,11 +250,16 @@ export class EffectEngine {
 
     // 绘制粒子
     this.particles.forEach(p => {
+      const size = Math.max(0.5, p.size);
       ctx.save();
       ctx.globalAlpha = p.alpha;
       ctx.fillStyle = p.color;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, Math.max(0.5, p.size), 0, Math.PI * 2);
+      ctx.moveTo(p.x, p.y - size);
+      ctx.lineTo(p.x + size, p.y);
+      ctx.lineTo(p.x, p.y + size);
+      ctx.lineTo(p.x - size, p.y);
+      ctx.closePath();
       ctx.fill();
       ctx.restore();
     });
@@ -215,6 +272,7 @@ export class EffectEngine {
         case 'lightning': drawLightning(ctx, effect); break;
         case 'shield_flash': drawShieldFlash(ctx, effect); break;
         case 'heal_aura': drawHealAura(ctx, effect); break;
+        case 'status_burst': drawStatusBurst(ctx, effect); break;
       }
     }
 

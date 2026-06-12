@@ -62,7 +62,7 @@ export function getSkillUsesPerBattle(intelligence: number): number {
 }
 
 export function getActionSpeed(agility: number): number {
-  return BASE_ACTION_SPEED + Math.floor(agility / ACTION_SPEED_PER_5_AGI);
+  return BASE_ACTION_SPEED + Math.floor(agility / 5) * ACTION_SPEED_PER_5_AGI;
 }
 
 // --- 装备槽容量 ---

@@ -4,7 +4,7 @@
 
 import type { LightningEffect } from '../types';
 
-export function createLightning(sx: number, sy: number, tx: number, ty: number): LightningEffect {
+export function createLightning(sx: number, sy: number, tx: number, ty: number, color = '#88ccff'): LightningEffect {
   const segments: { x: number; y: number }[] = [];
   const steps = 8;
   const dx = tx - sx;
@@ -20,7 +20,7 @@ export function createLightning(sx: number, sy: number, tx: number, ty: number):
       y: sy + dy * t + (perpY / len) * offset,
     });
   }
-  return { type: 'lightning', sx, sy, tx, ty, segments, alpha: 1, age: 0, maxAge: 12, done: false };
+  return { type: 'lightning', sx, sy, tx, ty, segments, color, alpha: 1, age: 0, maxAge: 12, done: false };
 }
 
 export function updateLightning(l: LightningEffect): boolean {
@@ -36,8 +36,8 @@ export function drawLightning(ctx: CanvasRenderingContext2D, l: LightningEffect)
   ctx.save();
   ctx.globalAlpha = l.alpha;
   ctx.shadowBlur = 20;
-  ctx.shadowColor = '#88ccff';
-  ctx.strokeStyle = '#aaddff';
+  ctx.shadowColor = l.color;
+  ctx.strokeStyle = l.color;
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   ctx.beginPath();

@@ -25,8 +25,9 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('booting');
   const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
-  const [battleLogs, setBattleLogs] = useState<BattleLogEntry[]>([]);
+  const [activityLogs, setActivityLogs] = useState<BattleLogEntry[]>([]);
   const prevBattleRef = useRef<string>('');
+  const prevEncountersRef = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const guestTokenRef = useRef<string>('');
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -75,16 +76,35 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
             if (newSnapshot.afk?.battle?.logs) {
               const logs = newSnapshot.afk.battle.logs;
               const firstAlive = newSnapshot.afk.battle.enemies.find(e => e.alive);
-              const battleKey = `${newSnapshot.afk.battle.totalEnemies}_${newSnapshot.afk.battle.defeatedCount}_${firstAlive?.health || 0}`;
+              const battleKey = `${newSnapshot.afk.battle.totalEnemies}_${newSnapshot.afk.battle.defeatedCount}_${firstAlive?.health || 0}_${newSnapshot.afk.battle.result}`;
               if (battleKey !== prevBattleRef.current) {
                 // 新战斗或状态变化，追加新日志
-                setBattleLogs(prev => {
-                  const existingTimestamps = new Set(prev.map(l => l.timestamp));
-                  const newLogs = logs.filter(l => !existingTimestamps.has(l.timestamp));
+                setActivityLogs(prev => {
+                  const existingKeys = new Set(prev.map(l => `${l.timestamp}_${l.type}_${l.message}`));
+                  const newLogs = logs.filter(l => !existingKeys.has(`${l.timestamp}_${l.type}_${l.message}`));
                   const combined = [...prev, ...newLogs];
                   return combined.slice(-100);
                 });
                 prevBattleRef.current = battleKey;
+              }
+            }
+            // 收集活动遭遇记录（采集/钓鱼等）
+            if (newSnapshot.afk?.recentEncounters) {
+              const encounters = newSnapshot.afk.recentEncounters;
+              if (encounters.length !== prevEncountersRef.current) {
+                setActivityLogs(prev => {
+                  const existingKeys = new Set(prev.map(l => `${l.timestamp}_${l.type}_${l.message}`));
+                  const newLogs = encounters
+                    .map(enc => ({
+                      timestamp: enc.timestamp,
+                      message: `${enc.title} - ${enc.description}`,
+                      type: 'info' as const,
+                    }))
+                    .filter(l => !existingKeys.has(`${l.timestamp}_${l.type}_${l.message}`));
+                  const combined = [...prev, ...newLogs];
+                  return combined.slice(-100);
+                });
+                prevEncountersRef.current = encounters.length;
               }
             }
             break;
@@ -202,7 +222,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     snapshot,
     connectionStatus,
     chatMessages,
-    battleLogs,
+    activityLogs,
     createRole,
     startAfk,
     stopAfk,
