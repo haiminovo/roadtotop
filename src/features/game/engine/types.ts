@@ -46,7 +46,7 @@ export interface ProjectileEffect {
   tx: number; ty: number;
   progress: number;
   speed: number;
-  style: 'arrow' | 'fireball' | 'lightning' | 'heal_bolt' | 'stab';
+  style: 'arrow' | 'lightning' | 'heal_bolt' | 'stab';
   hitFired: boolean;
   done: boolean;
 }

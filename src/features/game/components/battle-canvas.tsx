@@ -54,6 +54,11 @@ export function BattleCanvas({ battle, classKey, containerRef }: BattleCanvasPro
     return () => {
       observer.disconnect();
       engineRef.current?.destroy();
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      engineRef.current = null;
     };
   }, [containerRef]);
 
@@ -66,30 +71,43 @@ export function BattleCanvas({ battle, classKey, containerRef }: BattleCanvasPro
     // 检测是否是新战斗
     const battleKey = `${battle.totalEnemies}_${battle.result}`;
     if (battleKey !== lastBattleKeyRef.current) {
+      engine.reset();
       lastLogCountRef.current = 0;
       lastBattleKeyRef.current = battleKey;
+    }
+
+    if (battle.logs.length < lastLogCountRef.current) {
+      engine.reset();
+      lastLogCountRef.current = 0;
     }
 
     const newLogs = battle.logs.slice(lastLogCountRef.current);
     lastLogCountRef.current = battle.logs.length;
     if (newLogs.length === 0) return;
 
-    // 获取实体卡片中心位置（相对于容器）
+    // 获取实体头像中心位置（相对于容器），飞弹以头像作为打击点。
     const getPos = (index: number): { x: number; y: number } | null => {
       const el = container.querySelector(`[data-entity-index="${index}"]`);
       if (!el) return null;
-      const rect = el.getBoundingClientRect();
+      const anchor = el.querySelector('[data-entity-avatar]') ?? el;
+      const rect = anchor.getBoundingClientRect();
       const cRect = container.getBoundingClientRect();
+
       return {
         x: rect.left - cRect.left + rect.width / 2,
         y: rect.top - cRect.top + rect.height / 2,
       };
     };
 
+    const getEntityName = (index: number): string | null => {
+      const el = container.querySelector(`[data-entity-index="${index}"] [data-entity-name]`);
+      return el?.textContent ?? null;
+    };
+
     const enemyIdxs = battle.enemies.map((_, i) => i);
 
     for (const log of newLogs) {
-      engine.enqueueFromLog(log, classKey, getPos, -1, enemyIdxs);
+      engine.enqueueFromLog(log, classKey, getPos, getEntityName, -1, enemyIdxs);
     }
   }, [battle, classKey, containerRef]);
 

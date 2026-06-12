@@ -23,7 +23,20 @@ export class ParticlePool {
     return null;
   }
 
-  release(p: Particle) { p.active = false; this.activeCount--; }
+  release(p: Particle) {
+    if (!p.active) return;
+    p.active = false;
+    this.activeCount = Math.max(0, this.activeCount - 1);
+  }
+
+  clear() {
+    for (const p of this.pool) {
+      p.active = false;
+      p.life = 0;
+      p.alpha = 0;
+    }
+    this.activeCount = 0;
+  }
 
   forEach(fn: (p: Particle) => void) {
     for (const p of this.pool) { if (p.active) fn(p); }

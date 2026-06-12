@@ -7,90 +7,81 @@ import type { ParticlePool } from '../particle-pool';
 
 function easeOutQuad(t: number) { return t * (2 - t); }
 
+function getArcHeight(proj: ProjectileEffect) {
+  const dx = proj.tx - proj.sx;
+  const dy = proj.ty - proj.sy;
+  const distance = Math.hypot(dx, dy);
+  return Math.min(72, Math.max(28, distance * 0.22));
+}
+
+function getProjectilePoint(proj: ProjectileEffect, progress: number) {
+  const t = easeOutQuad(progress);
+  const arc = Math.sin(Math.PI * progress) * getArcHeight(proj);
+  return {
+    x: proj.sx + (proj.tx - proj.sx) * t,
+    y: proj.sy + (proj.ty - proj.sy) * t - arc,
+  };
+}
+
+function getProjectileAngle(proj: ProjectileEffect) {
+  const nextProgress = Math.min(1, proj.progress + 0.02);
+  const from = getProjectilePoint(proj, proj.progress);
+  const to = getProjectilePoint(proj, nextProgress);
+  return Math.atan2(to.y - from.y, to.x - from.x);
+}
+
 export function createProjectile(sx: number, sy: number, tx: number, ty: number, style: ProjectileEffect['style']): ProjectileEffect {
-  return { type: 'projectile', sx, sy, tx, ty, progress: 0, speed: 0.03, style, hitFired: false, done: false };
+  return { type: 'projectile', sx, sy, tx, ty, progress: 0, speed: 0.026, style, hitFired: false, done: false };
 }
 
 export function updateProjectile(proj: ProjectileEffect, particles: ParticlePool, onHit: () => void): boolean {
   if (proj.done) return false;
   proj.progress = Math.min(1, proj.progress + proj.speed);
-  const t = easeOutQuad(proj.progress);
-  const x = proj.sx + (proj.tx - proj.sx) * t;
-  const y = proj.sy + (proj.ty - proj.sy) * t;
-
-  // 拖尾粒子
-  if (proj.style === 'fireball') {
-    for (let i = 0; i < 3; i++) {
-      const p = particles.acquire();
-      if (p) {
-        p.x = x + (Math.random() - 0.5) * 8;
-        p.y = y + (Math.random() - 0.5) * 8;
-        p.vx = (Math.random() - 0.5) * 1.5;
-        p.vy = (Math.random() - 0.5) * 1.5 - 0.5;
-        p.life = 12 + Math.random() * 8; p.maxLife = p.life;
-        p.size = 3 + Math.random() * 4;
-        p.color = Math.random() < 0.5 ? '#ff6600' : '#ffaa00';
-        p.gravity = -0.03; p.drag = 0.96; p.shrink = 0.94;
-      }
-    }
-  } else if (proj.style === 'heal_bolt') {
-    for (let i = 0; i < 2; i++) {
-      const p = particles.acquire();
-      if (p) {
-        p.x = x + (Math.random() - 0.5) * 6;
-        p.y = y + (Math.random() - 0.5) * 6;
-        p.vx = (Math.random() - 0.5) * 1;
-        p.vy = (Math.random() - 0.5) * 1;
-        p.life = 10 + Math.random() * 6; p.maxLife = p.life;
-        p.size = 2 + Math.random() * 3;
-        p.color = Math.random() < 0.5 ? '#3fb950' : '#56d364';
-        p.gravity = 0; p.drag = 0.97; p.shrink = 0.95;
-      }
-    }
-  }
+  void particles;
 
   if (proj.progress >= 1 && !proj.hitFired) {
     proj.hitFired = true;
     onHit();
-    // 命中爆裂粒子
-    for (let i = 0; i < 8; i++) {
-      const p = particles.acquire();
-      if (p) {
-        p.x = proj.tx; p.y = proj.ty;
-        p.vx = (Math.random() - 0.5) * 4;
-        p.vy = (Math.random() - 0.5) * 4;
-        p.life = 15 + Math.random() * 10; p.maxLife = p.life;
-        p.size = 3 + Math.random() * 4;
-        p.color = proj.style === 'fireball' ? '#ff6600' : proj.style === 'heal_bolt' ? '#3fb950' : '#cccccc';
-        p.gravity = 0.05; p.drag = 0.95; p.shrink = 0.93;
-      }
-    }
     proj.done = true;
   }
   return !proj.done;
 }
 
+function drawGlowTrail(ctx: CanvasRenderingContext2D, proj: ProjectileEffect, color: string) {
+  const trailLength = 5;
+  for (let i = trailLength; i >= 1; i--) {
+    const progress = Math.max(0, proj.progress - i * 0.025);
+    const { x, y } = getProjectilePoint(proj, progress);
+    const alpha = (1 - i / (trailLength + 1)) * 0.45;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1.5, 5 - i * 0.7), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawStabProjectile(ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) {
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = '#bc8cff';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#bc8cff';
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(10, 0);
+  ctx.stroke();
+}
+
 export function drawProjectile(ctx: CanvasRenderingContext2D, proj: ProjectileEffect) {
   if (proj.done) return;
-  const t = easeOutQuad(proj.progress);
-  const x = proj.sx + (proj.tx - proj.sx) * t;
-  const y = proj.sy + (proj.ty - proj.sy) * t;
-  const angle = Math.atan2(proj.ty - proj.sy, proj.tx - proj.sx);
+  const { x, y } = getProjectilePoint(proj, proj.progress);
+  const angle = getProjectileAngle(proj);
 
   ctx.save();
-  if (proj.style === 'fireball') {
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#ff6600';
-    ctx.fillStyle = '#ffaa00';
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (proj.style === 'arrow') {
+  if (proj.style === 'arrow') {
     ctx.translate(x, y);
     ctx.rotate(angle);
     ctx.fillStyle = '#cccccc';
@@ -107,23 +98,15 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, proj: ProjectileEf
     ctx.lineTo(-12, 0);
     ctx.stroke();
   } else if (proj.style === 'heal_bolt') {
-    ctx.shadowBlur = 10;
+    drawGlowTrail(ctx, proj, '#56d364');
+    ctx.shadowBlur = 8;
     ctx.shadowColor = '#3fb950';
     ctx.fillStyle = '#56d364';
     ctx.beginPath();
     ctx.arc(x, y, 5, 0, Math.PI * 2);
     ctx.fill();
   } else if (proj.style === 'stab') {
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.strokeStyle = '#bc8cff';
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = '#bc8cff';
-    ctx.beginPath();
-    ctx.moveTo(-10, 0);
-    ctx.lineTo(10, 0);
-    ctx.stroke();
+    drawStabProjectile(ctx, x, y, angle);
   }
   ctx.restore();
 }

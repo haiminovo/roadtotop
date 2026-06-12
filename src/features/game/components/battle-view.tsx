@@ -28,7 +28,7 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
       height: 140,
     }}>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <div className="w-7 h-7 rounded flex items-center justify-center text-sm shrink-0" style={{ background: side === 'player' ? '#238636' : '#f8514920' }}>
+        <div data-entity-avatar className="w-7 h-7 rounded flex items-center justify-center text-sm shrink-0" style={{ background: side === 'player' ? '#238636' : '#f8514920' }}>
           {alive ? icon : '💀'}
         </div>
         <div className="text-xs font-bold truncate" data-entity-name={name} style={{ color: alive ? nameColor : '#6e7681' }}>{name}</div>

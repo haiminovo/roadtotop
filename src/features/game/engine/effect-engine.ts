@@ -2,19 +2,23 @@
 // 特效引擎 - 管理所有战斗特效的更新和绘制
 // ============================================================
 
-import type { Effect, DamageNumber } from './types';
+import type { Effect, DamageNumber, ProjectileEffect } from './types';
 import type { ClassKey } from '@/lib/game-config';
 import { ParticlePool } from './particle-pool';
 import { createSlash, updateSlash, drawSlash } from './effects/slash';
 import { createProjectile, updateProjectile, drawProjectile } from './effects/projectile';
-import { createLightning, updateLightning, drawLightning } from './effects/lightning';
-import { createShieldFlash, updateShieldFlash, drawShieldFlash } from './effects/shield-flash';
-import { createHealAura, updateHealAura, drawHealAura } from './effects/heal-aura';
+import { updateLightning, drawLightning } from './effects/lightning';
+import { updateShieldFlash, drawShieldFlash } from './effects/shield-flash';
+import { updateHealAura, drawHealAura } from './effects/heal-aura';
 import { createDamageNumber, updateDamageNumber, drawDamageNumber } from './effects/damage-number';
 
-const CLASS_ATTACK_STYLE: Record<string, { type: string; style?: string; color?: string }> = {
+type AttackStyle =
+  | { type: 'slash'; color: string }
+  | { type: 'projectile'; style: ProjectileEffect['style'] };
+
+const CLASS_ATTACK_STYLE: Record<string, AttackStyle> = {
   warrior: { type: 'slash', color: '#ffffff' },
-  mage: { type: 'projectile', style: 'fireball' },
+  mage: { type: 'projectile', style: 'stab' },
   ranger: { type: 'projectile', style: 'arrow' },
   rogue: { type: 'projectile', style: 'stab' },
   priest: { type: 'projectile', style: 'heal_bolt' },
@@ -30,6 +34,9 @@ export class EffectEngine {
   private particles = new ParticlePool(300);
   private rafId = 0;
   private running = false;
+  private disposed = false;
+  private loopToken = 0;
+  private damageTimers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(ctx: CanvasRenderingContext2D, width: number, height: number) {
     this.ctx = ctx;
@@ -40,15 +47,37 @@ export class EffectEngine {
   resize(width: number, height: number) {
     this.width = width;
     this.height = height;
+    this.clear();
+  }
+
+  clear() {
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.ctx.restore();
+  }
+
+  reset() {
+    cancelAnimationFrame(this.rafId);
+    for (const timer of this.damageTimers) clearTimeout(timer);
+    this.damageTimers = [];
+    this.running = false;
+    this.loopToken++;
+    this.effects = [];
+    this.damageNumbers = [];
+    this.particles.clear();
+    this.clear();
   }
 
   enqueueFromLog(
     log: { type: string; message: string; timestamp: number },
     classKey: ClassKey,
-    getPos: (index: number) => { x: number; y: number } | null,
+    getPos: (index: number, towardIndex?: number) => { x: number; y: number } | null,
+    getEntityName: (index: number) => string | null,
     playerIdx: number,
     enemyIdxs: number[],
   ) {
+    if (this.disposed) return;
     const msg = log.message;
 
     // 判断攻击方向
@@ -67,8 +96,7 @@ export class EffectEngine {
     // 通过名字找敌人 index
     function findIdxByName(name: string): number {
       for (const idx of enemyIdxs) {
-        const el = document.querySelector(`[data-entity-index="${idx}"] [data-entity-name]`);
-        if (el?.textContent === name) return idx;
+        if (getEntityName(idx) === name) return idx;
       }
       return -1;
     }
@@ -77,24 +105,24 @@ export class EffectEngine {
 
     if (playerAttacking) {
       // 玩家 -> 敌人
-      const sp = getPos(playerIdx);
-      sx = sp?.x ?? this.width * 0.2;
-      sy = sp?.y ?? this.height * 0.5;
       let targetIdx = -1;
       if (playerTargetMatch) targetIdx = findIdxByName(playerTargetMatch[1]);
       if (targetIdx < 0) targetIdx = enemyIdxs[0] ?? 0;
-      const tp = getPos(targetIdx);
+      const sp = getPos(playerIdx, targetIdx);
+      sx = sp?.x ?? this.width * 0.2;
+      sy = sp?.y ?? this.height * 0.5;
+      const tp = getPos(targetIdx, playerIdx);
       tx = tp?.x ?? this.width * 0.8;
       ty = tp?.y ?? this.height * 0.5;
     } else if (enemyAttacking) {
       // 敌人 -> 玩家
-      const tp = getPos(playerIdx);
-      tx = tp?.x ?? this.width * 0.2;
-      ty = tp?.y ?? this.height * 0.5;
       let srcIdx = -1;
       if (enemyNameMatch) srcIdx = findIdxByName(enemyNameMatch[1]);
       if (srcIdx < 0) srcIdx = enemyIdxs[0] ?? 0;
-      const sp = getPos(srcIdx);
+      const tp = getPos(playerIdx, srcIdx);
+      tx = tp?.x ?? this.width * 0.2;
+      ty = tp?.y ?? this.height * 0.5;
+      const sp = getPos(srcIdx, playerIdx);
       sx = sp?.x ?? this.width * 0.8;
       sy = sp?.y ?? this.height * 0.5;
     } else {
@@ -107,45 +135,52 @@ export class EffectEngine {
       if (style.type === 'slash') {
         this.effects.push(createSlash(sx, sy, tx, ty, style.color));
       } else {
-        this.effects.push(createProjectile(sx, sy, tx, ty, (style.style || 'arrow') as any));
+        this.effects.push(createProjectile(sx, sy, tx, ty, style.style));
       }
     } else {
-      this.effects.push(createSlash(sx, sy, tx, ty, '#f85149'));
+      this.effects.push(createProjectile(sx, sy, tx, ty, 'stab'));
     }
 
     // 伤害数字
     if (amount > 0) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        this.damageTimers = this.damageTimers.filter(t => t !== timer);
+        if (this.disposed) return;
         this.damageNumbers.push(createDamageNumber(
           tx, ty - 20,
           isCrit ? `暴击! -${amount}` : `-${amount}`,
           isCrit ? '#ffa500' : '#f85149',
           isCrit,
         ));
+        this.startLoop();
       }, 250);
+      this.damageTimers.push(timer);
     }
 
     this.startLoop();
   }
 
   private startLoop() {
-    if (this.running) return;
+    if (this.disposed || this.running) return;
     this.running = true;
+    const token = ++this.loopToken;
     const loop = () => {
+      if (this.disposed || token !== this.loopToken) return;
       this.tick();
       if (this.effects.length > 0 || this.damageNumbers.length > 0 || this.particles.activeCount > 0) {
         this.rafId = requestAnimationFrame(loop);
       } else {
         this.running = false;
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.clear();
       }
     };
     this.rafId = requestAnimationFrame(loop);
   }
 
   private tick() {
+    if (this.disposed) return;
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, this.width, this.height);
+    this.clear();
 
     this.particles.update(1);
 
@@ -190,9 +225,7 @@ export class EffectEngine {
   }
 
   destroy() {
-    cancelAnimationFrame(this.rafId);
-    this.running = false;
-    this.effects = [];
-    this.damageNumbers = [];
+    this.disposed = true;
+    this.reset();
   }
 }
