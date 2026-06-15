@@ -26,6 +26,7 @@ export function GameDashboard() {
     snapshot, connectionStatus, chatMessages, activityLogs,
     createRole, startAfk, stopAfk, claimOfflineReward,
     equipItem, unequipItem, dropItem, repairEquipment, learnSkillBook,
+    configureSkillLoadout,
     createMarketListing, cancelMarketListing, buyMarketListing,
     challengePvp, sendChat, clearChannel,
   } = useGameSession();
@@ -176,6 +177,7 @@ export function GameDashboard() {
             <RolePanel
               snapshot={snapshot}
               onUnequip={unequipItem}
+              onConfigureSkillLoadout={configureSkillLoadout}
             />
           )}
           {activeTab === 'backpack' && (

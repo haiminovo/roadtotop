@@ -5,7 +5,7 @@
 import type {
   RaceKey, ClassKey, BodySlotType, ItemRarity, GameItemType,
   ActivityKey, AfkStatus, EncounterTier, RaceConfig, ClassConfig,
-  MapConfig,
+  MapConfig, StatBlock,
 } from '@/lib/game-config';
 
 export type { ActivityKey, BodySlotType, RaceKey, ClassKey };
@@ -24,6 +24,7 @@ export interface SessionSnapshot {
     levels: { level: number; requiredExp: number }[];
     maps: MapConfig[];
     races: RaceConfig[];
+    skills: SkillInfo[];
   };
   role: RoleSnapshot;
   backpack: BackpackEntry[];
@@ -43,7 +44,10 @@ export interface RoleSnapshot {
   requiredExp: number;
   gold: number;
   aetherCrystal: number;
-  stats: { strength: number; intelligence: number; agility: number; vitality: number };
+  stats: StatBlock;
+  baseStats: StatBlock;
+  levelBonusStats: StatBlock;
+  equipmentStats: StatBlock;
   secondaryStats: { maxHealth: number; actionSpeed: number; skillSlots: number; skillUsesPerBattle: number };
   bodySlotCapacities: Record<BodySlotType, number>;
   bodySlots: Record<BodySlotType, BodySlotItem[]>;
@@ -135,6 +139,7 @@ export interface EnemySnapshot {
   effects: StatusEffect[];
   alive: boolean;
   skills: SkillInfo[];
+  skillStates?: Record<string, { used: number; cooldownLeft: number }>;
 }
 
 export interface BattleSnapshot {

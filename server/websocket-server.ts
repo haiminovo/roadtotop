@@ -106,6 +106,19 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
             levels: [],
             maps: config.mapConfigs,
             races: config.raceConfigs,
+            skills: config.skillTemplates.map(skill => ({
+              key: skill.key,
+              name: skill.name,
+              category: skill.category,
+              description: skill.description,
+              maxUses: skill.maxUses,
+              cooldown: skill.cooldown,
+              effects: skill.effects.map(effect => ({
+                type: effect.type,
+                chance: effect.chance,
+                duration: effect.duration,
+              })),
+            })),
           },
         });
       }

@@ -24,6 +24,7 @@ interface BattleViewProps {
 
 function SkillTooltip({ skill, skillState }: { skill: SkillInfo; skillState?: { used: number; cooldownLeft: number } }) {
   const cooldownLeft = skillState?.cooldownLeft ?? 0;
+  const used = skillState?.used ?? 0;
   return (
     <div className="rounded-lg p-2.5 shadow-lg text-xs" style={{ background: '#1c2128', border: '1px solid #30363d', minWidth: 180 }}>
       <div className="flex items-center gap-1.5 mb-1">
@@ -32,6 +33,7 @@ function SkillTooltip({ skill, skillState }: { skill: SkillInfo; skillState?: { 
       </div>
       <p className="text-text-muted mb-1.5 leading-relaxed">{skill.description}</p>
       <div className="flex gap-2 text-text-muted">
+        <span>次数 {used}/{skill.maxUses}</span>
         <span>冷却 {skill.cooldown} 回合</span>
         {cooldownLeft > 0 && <span className="text-accent-orange">还需 {cooldownLeft} 回合</span>}
         {cooldownLeft === 0 && <span className="text-accent-green">可用</span>}
@@ -178,7 +180,7 @@ export function BattleView({ battle, classKey }: BattleViewProps) {
               hp={enemy.health} maxHp={enemy.maxHealth}
               ap={enemy.actionPoints} effects={enemy.effects}
               alive={enemy.alive} side="enemy" entityIndex={i}
-              skills={enemy.skills || []}
+              skills={enemy.skills || []} skillStates={enemy.skillStates}
             />
           ))}
         </div>

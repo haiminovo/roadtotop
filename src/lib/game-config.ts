@@ -11,6 +11,8 @@ export type GameItemType = 'equipment' | 'skill_book' | 'material';
 export type EncounterTier = 'common' | 'rare' | 'legendary';
 export type ActivityKey = 'combat' | 'gathering' | 'fishing';
 export type AfkStatus = 'idle' | 'afk' | 'battle';
+export type StatKey = 'strength' | 'intelligence' | 'agility' | 'vitality';
+export type StatBlock = Record<StatKey, number>;
 
 // --- 常量 ---
 export const MAX_OFFLINE_SECONDS = 86400; // 24小时
@@ -54,15 +56,35 @@ export function getMaxHealth(level: number, vitality: number): number {
 }
 
 export function getSkillSlots(intelligence: number): number {
-  return BASE_SKILL_SLOTS + Math.floor(intelligence / SKILL_SLOTS_PER_5_INT);
+  return BASE_SKILL_SLOTS + Math.floor(intelligence / 5) * SKILL_SLOTS_PER_5_INT;
 }
 
 export function getSkillUsesPerBattle(intelligence: number): number {
-  return BASE_SKILL_USES + Math.floor(intelligence / SKILL_USES_PER_5_INT);
+  return BASE_SKILL_USES + Math.floor(intelligence / 5) * SKILL_USES_PER_5_INT;
 }
 
 export function getActionSpeed(agility: number): number {
   return BASE_ACTION_SPEED + Math.floor(agility / 5) * ACTION_SPEED_PER_5_AGI;
+}
+
+export const CLASS_LEVEL_GROWTH: Record<ClassKey, StatBlock> = {
+  warrior: { strength: 1.2, intelligence: 0.2, agility: 0.4, vitality: 1.0 },
+  mage: { strength: 0.2, intelligence: 1.4, agility: 0.3, vitality: 0.5 },
+  farmer: { strength: 0.7, intelligence: 0.5, agility: 0.5, vitality: 0.9 },
+  ranger: { strength: 0.8, intelligence: 0.4, agility: 1.1, vitality: 0.6 },
+  priest: { strength: 0.3, intelligence: 1.1, agility: 0.3, vitality: 0.9 },
+  rogue: { strength: 0.9, intelligence: 0.3, agility: 1.3, vitality: 0.4 },
+};
+
+export function getClassLevelGrowthStats(classKey: ClassKey, level: number): StatBlock {
+  const growth = CLASS_LEVEL_GROWTH[classKey] || CLASS_LEVEL_GROWTH.warrior;
+  const levelsGained = Math.max(0, level - 1);
+  return {
+    strength: Math.floor(growth.strength * levelsGained),
+    intelligence: Math.floor(growth.intelligence * levelsGained),
+    agility: Math.floor(growth.agility * levelsGained),
+    vitality: Math.floor(growth.vitality * levelsGained),
+  };
 }
 
 // --- 装备槽容量 ---
@@ -102,14 +124,14 @@ export interface RaceConfig {
   key: RaceKey;
   name: string;
   description: string;
-  statBonus: { strength: number; intelligence: number; agility: number; vitality: number };
+  statBonus: StatBlock;
 }
 
 export interface ClassConfig {
   key: ClassKey;
   name: string;
   description: string;
-  baseStats: { strength: number; intelligence: number; agility: number; vitality: number };
+  baseStats: StatBlock;
 }
 
 export interface MapConfig {

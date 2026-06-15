@@ -6,13 +6,14 @@ import { query, withTransaction } from './db.js';
 import { getGameConfig } from './dynamic-game-config.js';
 import type { DynamicGameConfig, ItemCatalogEntry, SystemBalance } from '../src/lib/server/admin-config';
 import type {
-  RaceConfig, ClassConfig, MapConfig, SkillTemplate,
+  RaceConfig, ClassConfig, MapConfig, SkillTemplate, ClassKey, StatBlock,
   EnemyTemplate, EventRule, EventAction,
 } from '../src/lib/game-config';
 import {
   getMaxHealth, getLevelFromExp, getExpRequiredForLevel,
   getSkillSlots, getSkillUsesPerBattle,
   getBodySlotCapacities, AFK_TASK_SECONDS, MAX_OFFLINE_SECONDS,
+  getClassLevelGrowthStats,
 } from '../src/lib/game-config';
 
 // --- 类型 ---
@@ -40,8 +41,10 @@ interface BackpackRow {
 interface EnemyInstance {
   key: string; name: string; health: number; maxHealth: number;
   stats: { strength: number; intelligence: number; agility: number; vitality: number };
+  level: number;
   actionSpeed: number;
   actionPoints: number; effects: StatusEffect[];
+  skillStates: Record<string, { used: number; cooldownLeft: number }>;
   alive: boolean;
 }
 
@@ -120,6 +123,94 @@ function toNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function toSkillInfo(skill: SkillTemplate) {
+  return {
+    key: skill.key,
+    name: skill.name,
+    category: skill.category,
+    description: skill.description,
+    maxUses: skill.maxUses,
+    cooldown: skill.cooldown,
+    effects: skill.effects.map(e => ({ type: e.type, chance: e.chance, duration: e.duration })),
+  };
+}
+
+function getRoleSkillState(role: RoleRow) {
+  return parseJson<{ equippedSkills: string[]; learnedSkills: string[] }>(
+    role.skill_state,
+    { equippedSkills: [], learnedSkills: [] },
+  );
+}
+
+function getEquippedPlayerSkills(role: RoleRow, config: DynamicGameConfig): SkillTemplate[] {
+  const skillState = getRoleSkillState(role);
+  return skillState.equippedSkills
+    .map(key => config.skillTemplates.find(skill => skill.key === key))
+    .filter((skill): skill is SkillTemplate => Boolean(skill));
+}
+
+function emptyStats(): StatBlock {
+  return { strength: 0, intelligence: 0, agility: 0, vitality: 0 };
+}
+
+function getBaseRoleStats(role: RoleRow): StatBlock {
+  return {
+    strength: role.strength,
+    intelligence: role.intelligence,
+    agility: role.agility,
+    vitality: role.vitality,
+  };
+}
+
+function addStats(...stats: StatBlock[]): StatBlock {
+  return stats.reduce((total, stat) => ({
+    strength: total.strength + stat.strength,
+    intelligence: total.intelligence + stat.intelligence,
+    agility: total.agility + stat.agility,
+    vitality: total.vitality + stat.vitality,
+  }), emptyStats());
+}
+
+function normalizeStats(value: unknown): StatBlock {
+  const parsed = parseJson<Partial<Record<keyof StatBlock, unknown>>>(value, {});
+  return {
+    strength: toNumber(parsed.strength),
+    intelligence: toNumber(parsed.intelligence),
+    agility: toNumber(parsed.agility),
+    vitality: toNumber(parsed.vitality),
+  };
+}
+
+function getLevelBonusStats(role: RoleRow, level: number): StatBlock {
+  return getClassLevelGrowthStats(role.class_key as ClassKey, level);
+}
+
+function getEquipmentStatsFromRows(rows: Array<{ equipped?: boolean; stat_json?: unknown }>): StatBlock {
+  return rows.reduce((total, row) => {
+    if (!row.equipped) return total;
+    return addStats(total, normalizeStats(row.stat_json));
+  }, emptyStats());
+}
+
+async function getEquipmentStatsForRole(roleId: number): Promise<StatBlock> {
+  const result = await query(
+    `SELECT i.stat_json
+     FROM backpack b JOIN item i ON b.item_id=i.item_id
+     WHERE b.role_id=$1 AND b.equipped=true AND i.item_type='equipment'`,
+    [roleId],
+  );
+  return result.rows.reduce((total, row) => addStats(total, normalizeStats(row.stat_json)), emptyStats());
+}
+
+async function getEffectiveRoleStats(role: RoleRow): Promise<StatBlock> {
+  const { level } = getLevelFromExp(role.exp);
+  return addStats(
+    getBaseRoleStats(role),
+    getLevelBonusStats(role, level),
+    await getEquipmentStatsForRole(role.role_id),
+  );
+}
+
 // --- 创建角色 ---
 export async function createRole(userId: number, name: string, raceKey: string, classKey: string) {
   const config = await getGameConfig();
@@ -160,7 +251,6 @@ export async function getSessionSnapshot(userId: number) {
   const role = roleResult.rows[0] as RoleRow;
 
   const { level, currentExp, requiredExp } = getLevelFromExp(role.exp);
-  const maxHp = getMaxHealth(level, role.vitality);
   const skillState = parseJson<{ equippedSkills: string[]; learnedSkills: string[] }>(role.skill_state, { equippedSkills: [], learnedSkills: [] });
 
   // 背包
@@ -170,6 +260,11 @@ export async function getSessionSnapshot(userId: number) {
      FROM backpack b JOIN item i ON b.item_id = i.item_id WHERE b.role_id=$1 ORDER BY b.backpack_id`,
     [role.role_id]
   );
+  const baseStats = getBaseRoleStats(role);
+  const levelBonusStats = getLevelBonusStats(role, level);
+  const equipmentStats = getEquipmentStatsFromRows(backpackResult.rows);
+  const effectiveStats = addStats(baseStats, levelBonusStats, equipmentStats);
+  const maxHp = getMaxHealth(level, effectiveStats.vitality);
 
   // 挂机状态
   const afkResult = await query('SELECT * FROM afk WHERE role_id=$1', [role.role_id]);
@@ -270,19 +365,23 @@ export async function getSessionSnapshot(userId: number) {
       })),
       maps: config.mapConfigs,
       races: config.raceConfigs,
+      skills: config.skillTemplates.map(toSkillInfo),
     },
     role: {
       roleId: role.role_id, name: role.name, raceKey: role.race_key, classKey: role.class_key,
       level, exp: role.exp, currentExp, requiredExp,
       gold: role.gold, aetherCrystal: role.aether_crystal,
-      stats: { strength: role.strength, intelligence: role.intelligence, agility: role.agility, vitality: role.vitality },
+      stats: effectiveStats,
+      baseStats,
+      levelBonusStats,
+      equipmentStats,
       secondaryStats: {
-        maxHealth: maxHp, actionSpeed: calculateActionGainPerTick(role.agility, config),
-        skillSlots: getSkillSlots(role.intelligence), skillUsesPerBattle: getSkillUsesPerBattle(role.intelligence),
+        maxHealth: maxHp, actionSpeed: calculateActionGainPerTick(effectiveStats.agility, config),
+        skillSlots: getSkillSlots(effectiveStats.intelligence), skillUsesPerBattle: getSkillUsesPerBattle(effectiveStats.intelligence),
       },
       bodySlotCapacities, bodySlots,
       equippedSkills: skillState.equippedSkills, learnedSkills: skillState.learnedSkills,
-      skillBooks, currentHealth: role.current_health, avatarSeed: role.avatar_seed,
+      skillBooks, currentHealth: Math.min(role.current_health, maxHp), avatarSeed: role.avatar_seed,
       pvpRating: role.pvp_rating, pvpWins: role.pvp_wins, pvpLosses: role.pvp_losses,
     },
     backpack,
@@ -351,27 +450,19 @@ function buildAfkSnapshot(afk: AfkRow | undefined, config: DynamicGameConfig, ro
 }
 
 function buildBattleSnapshot(bs: BattleState, role: RoleRow, config: DynamicGameConfig) {
-  // 解析玩家装备的技能（无装备技能时默认展示普攻）
-  const skillState = parseJson<{ equippedSkills: string[] }>(role.skill_state, { equippedSkills: [] });
-  const equippedKeys = skillState.equippedSkills.length > 0 ? skillState.equippedSkills : ['slash'];
-  const playerSkills = equippedKeys
-    .map((key: string) => config.skillTemplates.find(s => s.key === key))
-    .filter((s): s is SkillTemplate => Boolean(s))
-    .map((s: SkillTemplate) => ({ key: s.key, name: s.name, category: s.category, description: s.description, maxUses: s.maxUses, cooldown: s.cooldown, effects: s.effects.map(e => ({ type: e.type, chance: e.chance, duration: e.duration })) }));
+  const playerSkills = getEquippedPlayerSkills(role, config).map(toSkillInfo);
 
   return {
     enemies: bs.enemies.map(e => {
       // 解析敌人技能
       const template = config.enemyTemplates.find(t => t.key === e.key);
-      const skills = (template?.fixedSkillKeys || [])
-        .map(key => config.skillTemplates.find(s => s.key === key))
-        .filter((s): s is SkillTemplate => Boolean(s))
-        .map(s => ({ key: s.key, name: s.name, category: s.category, description: s.description, maxUses: s.maxUses, cooldown: s.cooldown, effects: s.effects.map(eff => ({ type: eff.type, chance: eff.chance, duration: eff.duration })) }));
+      const skills = getEnemyCombatSkills(template, config).map(toSkillInfo);
       return {
         key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
         stats: e.stats, actionSpeed: e.actionSpeed,
         actionPoints: Math.min(100, e.actionPoints),
         effects: e.effects, alive: e.alive, skills,
+        skillStates: e.skillStates || {},
       };
     }),
     totalEnemies: bs.totalEnemies, defeatedCount: bs.defeatedCount,
@@ -436,6 +527,7 @@ export async function claimOfflineReward(userId: number) {
 export async function settleAfkState(userId: number): Promise<{ gold: number; aether: number; exp: number }> {
   const config = await getGameConfig();
   const role = await getRoleByUserId(userId);
+  const effectiveStats = await getEffectiveRoleStats(role);
   const afkResult = await query('SELECT * FROM afk WHERE role_id=$1', [role.role_id]);
   if (afkResult.rows.length === 0) return { gold: 0, aether: 0, exp: 0 };
   const afk = afkResult.rows[0] as AfkRow;
@@ -468,7 +560,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
   for (let t = 0; t < grantedSeconds; t++) {
     // 如果在战斗中
     if (battleState && battleState.result === 'ongoing') {
-      battleState = simulateBattleTick(battleState, role, config);
+      battleState = simulateBattleTick(battleState, role, config, effectiveStats);
       if (battleState.result === 'win') {
         const durabilityLoss = 0.1;
         const brokenItems = await damageEquippedEquipment(role.role_id, durabilityLoss);
@@ -561,7 +653,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           const enemies = config.enemyTemplates.filter(e => e.mapKey === afk.map_key);
           if (enemies.length > 0) {
             const enemy = pickRandom(enemies);
-            battleState = createBattleState(enemy, role, config);
+            battleState = createBattleState(enemy, role, config, effectiveStats);
           }
         }
         for (const item of rewards.grantedItems) {
@@ -722,10 +814,10 @@ async function damageEquippedEquipment(roleId: number, durabilityLoss: number): 
 }
 
 // --- 创建战斗状态（1-4个敌人同时对战） ---
-function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicGameConfig): BattleState {
+function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicGameConfig, playerStats: StatBlock): BattleState {
   const roleLevel = getLevelFromExp(role.exp).level;
   const enemyLevel = roleLevel;
-  const maxHp = getMaxHealth(roleLevel, role.vitality);
+  const maxHp = getMaxHealth(roleLevel, playerStats.vitality);
   const roll = Math.random();
   const enemyCount = roll < 0.6 ? 1 : roll < 0.8 ? 2 : roll < 0.95 ? 3 : 4;
   const scaleFactor = 0.3 + roleLevel * 0.01; // 敌人属性缩放因子
@@ -748,17 +840,21 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
     };
     const hp = varyInt(Math.floor(template.baseHealth * (1 + enemyLevel * 0.15)));
     const actionSpeed = varyInt(calculateActionGainPerTick(stats.agility, config), 0.9, 1.15);
+    const skillStates = Object.fromEntries(
+      getEnemyCombatSkills(template, config).map(skill => [skill.key, { used: 0, cooldownLeft: 0 }]),
+    );
     enemies.push({
       key: template.key, name: template.name, health: hp, maxHealth: hp,
       stats,
+      level: enemyLevel,
       actionSpeed,
-      actionPoints: 0, effects: [], alive: true,
+      actionPoints: 0, effects: [], skillStates, alive: true,
     });
   }
 
   const state: BattleState = {
     enemies, totalEnemies: enemyCount, defeatedCount: 0,
-    playerHealth: role.current_health || maxHp, playerMaxHealth: maxHp,
+    playerHealth: Math.min(role.current_health || maxHp, maxHp), playerMaxHealth: maxHp,
     playerActionPoints: 0, playerEffects: [],
     logs: [{ timestamp: Date.now(), message: `遭遇了 ${enemyCount} 个敌人！${enemies.map(e => e.name).join('、')} 同时出现！`, type: 'info' }],
     playerSkillStates: {}, result: 'ongoing',
@@ -794,6 +890,19 @@ const ENEMY_ATTACK_NAMES: Record<string, string[]> = {
 };
 
 const MAX_ACTIONS_PER_ACTOR_PER_TICK = 10;
+const ENEMY_BASIC_SKILL_KEYS = new Set(['slash']);
+
+function getEnemyCombatSkills(template: EnemyTemplate | undefined, config: DynamicGameConfig): SkillTemplate[] {
+  return (template?.fixedSkillKeys || [])
+    .filter(key => !ENEMY_BASIC_SKILL_KEYS.has(key))
+    .map(key => config.skillTemplates.find(skill => skill.key === key))
+    .filter((skill): skill is SkillTemplate => Boolean(skill));
+}
+
+function getEnemySkillPower(skill: SkillTemplate | undefined, enemyLevel: number): number {
+  if (!skill) return 0;
+  return skill.baseDamage + skill.levelGrowth * enemyLevel;
+}
 
 function getEnemyBasicEffect(enemyKey: string): Pick<BattleLog, 'effectKind' | 'effectStyle' | 'effectColor'> {
   if (enemyKey.includes('slime')) return { effectKind: 'projectile', effectStyle: 'bolt', effectColor: '#56d364' };
@@ -809,11 +918,16 @@ function getSkillEffectVisual(skill?: SkillTemplate): Pick<BattleLog, 'effectKin
   if (!skill) return { effectKind: 'projectile', effectStyle: 'stab', effectColor: '#bc8cff' };
   const effectTypes = skill.effects.map(e => e.type);
   if (skill.category === 'guard') return { effectKind: 'status_burst', effectColor: '#58a6ff' };
-  if (skill.category === 'spell' || effectTypes.some(t => t.includes('灼烧') || t.includes('火'))) {
-    return { effectKind: 'lightning', effectColor: '#ff9f43' };
-  }
-  if (effectTypes.some(t => t.includes('中毒') || t.includes('毒'))) {
+  if (skill.key === 'poison_blade' || effectTypes.some(t => t.includes('中毒') || t.includes('毒'))) {
     return { effectKind: 'projectile', effectStyle: 'bolt', effectColor: '#56d364' };
+  }
+  if (
+    skill.category === 'spell' ||
+    skill.key === 'fireball' ||
+    skill.key === 'lightning' ||
+    effectTypes.some(t => t === 'damage_over_time' || t.includes('灼烧') || t.includes('火'))
+  ) {
+    return { effectKind: 'lightning', effectColor: skill.key === 'lightning' ? '#88ccff' : '#ff9f43' };
   }
   return { effectKind: 'projectile', effectStyle: 'stab', effectColor: '#bc8cff' };
 }
@@ -832,6 +946,73 @@ function getDotEffectColor(type: string): string {
   return '#bc8cff';
 }
 
+function ensureSkillStates(skillStates: Record<string, { used: number; cooldownLeft: number }>, skills: SkillTemplate[]) {
+  for (const skill of skills) {
+    skillStates[skill.key] ??= { used: 0, cooldownLeft: 0 };
+  }
+}
+
+function tickSkillCooldowns(skillStates: Record<string, { used: number; cooldownLeft: number }>) {
+  for (const skillState of Object.values(skillStates)) {
+    if (skillState.cooldownLeft > 0) skillState.cooldownLeft--;
+  }
+}
+
+function isSkillUsable(skillStates: Record<string, { used: number; cooldownLeft: number }>, skill: SkillTemplate): boolean {
+  const skillState = skillStates[skill.key] ?? { used: 0, cooldownLeft: 0 };
+  return skillState.used < skill.maxUses && skillState.cooldownLeft <= 0;
+}
+
+function chooseCombatSkill(
+  skillStates: Record<string, { used: number; cooldownLeft: number }>,
+  skills: SkillTemplate[],
+  hpRatio: number,
+): SkillTemplate | undefined {
+  const usable = skills.filter(skill => isSkillUsable(skillStates, skill));
+  if (usable.length === 0) return undefined;
+
+  const heal = usable.find(skill => skill.baseDamage < 0);
+  if (heal && hpRatio <= 0.7) return heal;
+
+  const guard = usable.find(skill => skill.category === 'guard');
+  if (guard && hpRatio <= 0.45) return guard;
+
+  const damageSkills = usable.filter(skill => skill.baseDamage > 0);
+  if (damageSkills.length > 0 && Math.random() < 0.7) return pickRandom(damageSkills);
+
+  return undefined;
+}
+
+function consumeSkillUse(skillStates: Record<string, { used: number; cooldownLeft: number }>, skill: SkillTemplate) {
+  const skillState = skillStates[skill.key] ?? { used: 0, cooldownLeft: 0 };
+  skillStates[skill.key] = {
+    used: skillState.used + 1,
+    cooldownLeft: skill.cooldown,
+  };
+}
+
+function translateStatusEffect(skill: SkillTemplate, effectType: string): string {
+  if (effectType === 'damage_over_time') return skill.key === 'poison_blade' ? '中毒' : '灼烧';
+  if (effectType === 'stun') return '眩晕';
+  if (effectType === 'defense_up') return '防御提升';
+  if (effectType === 'attack_up') return '攻击提升';
+  return effectType;
+}
+
+function getEffectValue(effectType: string, value?: number): number | undefined {
+  if (effectType === '防御提升') return value ?? 0.5;
+  if (effectType === '攻击提升') return value ?? 0.3;
+  if (effectType === '中毒') return value ?? 4;
+  if (effectType === '灼烧') return value ?? 3;
+  return value;
+}
+
+function getActiveEffectMultiplier(effects: StatusEffect[], type: string): number {
+  const effect = effects.find(eff => eff.type === type);
+  if (!effect) return 0;
+  return Math.max(0, effect.value ?? 0);
+}
+
 function getPlayerAttackName(isCrit: boolean): string {
   void isCrit;
   const name = PLAYER_ATTACK_NAMES[Math.floor(Math.random() * PLAYER_ATTACK_NAMES.length)];
@@ -846,12 +1027,12 @@ function getEnemyAttackName(enemyKey: string, isCrit: boolean): string {
 }
 
 // --- 模拟战斗 tick（最快单位每 tick 获得一整条行动条，其它单位按速度比例推进） ---
-function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGameConfig): BattleState {
+function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGameConfig, playerStats: StatBlock): BattleState {
   const aliveEnemies = getAliveEnemies(state);
   if (aliveEnemies.length === 0) { state.result = 'win'; return state; }
 
   const actionThreshold = config.systemBalance.maxActionPoints || 100;
-  const playerSpeed = calculateActionGainPerTick(role.agility, config);
+  const playerSpeed = calculateActionGainPerTick(playerStats.agility, config);
   const enemySpeeds = new Map<EnemyInstance, number>();
   for (const enemy of aliveEnemies) {
     enemySpeeds.set(enemy, enemy.actionSpeed || calculateActionGainPerTick(enemy.stats.agility, config));
@@ -867,22 +1048,165 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
     enemy.actionPoints += actionThreshold * (enemySpeed / fastestSpeed);
   }
 
-  // 玩家行动（随机攻击一个存活敌人）
+  const playerSkills = getEquippedPlayerSkills(role, config);
+  ensureSkillStates(state.playerSkillStates, playerSkills);
+
+  // 玩家行动（优先按已装备技能自动释放，否则普攻）
   let playerActionsThisTick = 0;
   while (state.playerActionPoints >= actionThreshold && playerActionsThisTick < MAX_ACTIONS_PER_ACTOR_PER_TICK) {
     const currentAliveEnemies = getAliveEnemies(state);
     if (currentAliveEnemies.length === 0) break;
     state.playerActionPoints -= actionThreshold;
     playerActionsThisTick++;
+
+    if (state.playerEffects.some(eff => eff.type === '眩晕')) {
+      state.logs.push({ timestamp: Date.now(), message: `你被眩晕了，跳过本次行动`, type: 'effect' });
+      continue;
+    }
+
+    tickSkillCooldowns(state.playerSkillStates);
+
+    const playerHpRatio = state.playerMaxHealth > 0 ? state.playerHealth / state.playerMaxHealth : 1;
+    const selectedSkill = chooseCombatSkill(state.playerSkillStates, playerSkills, playerHpRatio);
+    if (selectedSkill) {
+      consumeSkillUse(state.playerSkillStates, selectedSkill);
+      const visual = getSkillEffectVisual(selectedSkill);
+      const skillPower = selectedSkill.baseDamage + selectedSkill.levelGrowth * getLevelFromExp(role.exp).level;
+
+      if (selectedSkill.baseDamage < 0) {
+        const healAmount = Math.max(1, Math.floor(Math.abs(skillPower) + playerStats.intelligence * 0.6));
+        state.playerHealth = Math.min(state.playerMaxHealth, state.playerHealth + healAmount);
+        state.logs.push({
+          timestamp: Date.now(),
+          message: `你使用技能 ${selectedSkill.name}！恢复 ${healAmount} 点生命`,
+          type: 'heal',
+          attackerIndex: -1,
+          targetIndex: -1,
+          actionKind: 'skill',
+          effectKind: 'status_burst',
+          effectColor: '#3fb950',
+        });
+        continue;
+      }
+
+      const selfEffects = selectedSkill.effects
+        .map(effect => translateStatusEffect(selectedSkill, effect.type))
+        .filter(type => type === '防御提升' || type === '攻击提升');
+
+      if (selectedSkill.category === 'guard' || (selectedSkill.baseDamage <= 0 && selfEffects.length > 0)) {
+        for (const effect of selectedSkill.effects) {
+          if (Math.random() > (effect.chance ?? 1)) continue;
+          const effectType = translateStatusEffect(selectedSkill, effect.type);
+          if (effectType !== '防御提升' && effectType !== '攻击提升') continue;
+          state.playerEffects.push({
+            type: effectType,
+            value: getEffectValue(effectType, effect.value),
+            duration: effect.duration ?? 2,
+            source: 'player',
+          });
+          state.logs.push({
+            timestamp: Date.now(),
+            message: `你使用技能 ${selectedSkill.name}！获得 ${effectType} 效果`,
+            type: 'effect',
+            attackerIndex: -1,
+            targetIndex: -1,
+            actionKind: 'skill',
+            effectKind: 'status_burst',
+            effectColor: effectType === '防御提升' ? '#58a6ff' : '#f2cc60',
+            statusType: effectType,
+          });
+        }
+        continue;
+      }
+
+      const target = pickRandom(currentAliveEnemies);
+      const critChance = Math.min(0.35, playerStats.agility * 0.006);
+      const isCrit = Math.random() < critChance;
+      const critMult = isCrit ? 1.8 : 1;
+      const attackBoost = 1 + getActiveEffectMultiplier(state.playerEffects, '攻击提升');
+      const attributePower = selectedSkill.category === 'spell'
+        ? playerStats.intelligence + Math.floor(playerStats.agility * 0.2)
+        : playerStats.strength + Math.floor(playerStats.agility * 0.35);
+      const enemyDef = Math.floor(target.stats.vitality * 0.4);
+      const variance = randomInt(-3, 6);
+      const damage = Math.max(1, Math.floor((attributePower + skillPower - enemyDef + variance) * critMult * attackBoost));
+
+      target.health = Math.max(0, target.health - damage);
+      state.logs.push({
+        timestamp: Date.now(),
+        message: `你使用技能 ${selectedSkill.name}！对 ${target.name} 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+        type: isCrit ? 'effect' : 'damage',
+        attackerIndex: -1,
+        targetIndex: state.enemies.indexOf(target),
+        actionKind: 'skill',
+        ...visual,
+      });
+
+      for (const effect of selectedSkill.effects) {
+        if (Math.random() > (effect.chance ?? 1)) continue;
+        const effectType = translateStatusEffect(selectedSkill, effect.type);
+        if (effectType === '防御提升' || effectType === '攻击提升') {
+          state.playerEffects.push({
+            type: effectType,
+            value: getEffectValue(effectType, effect.value),
+            duration: effect.duration ?? 2,
+            source: 'player',
+          });
+          state.logs.push({
+            timestamp: Date.now(),
+            message: `你获得了 ${effectType} 效果！`,
+            type: 'effect',
+            targetIndex: -1,
+            actionKind: 'dot',
+            effectKind: 'status_burst',
+            effectColor: effectType === '防御提升' ? '#58a6ff' : '#f2cc60',
+            statusType: effectType,
+          });
+          continue;
+        }
+        if (target.effects.length >= 3) continue;
+        target.effects.push({
+          type: effectType,
+          value: getEffectValue(effectType, effect.value),
+          duration: effect.duration ?? 2,
+          source: 'player',
+        });
+        state.logs.push({
+          timestamp: Date.now(),
+          message: `${target.name} 被施加了 ${effectType} 效果！`,
+          type: 'effect',
+          targetIndex: state.enemies.indexOf(target),
+          actionKind: 'dot',
+          effectKind: 'status_burst',
+          effectColor: getDotEffectColor(effectType),
+          statusType: effectType,
+        });
+      }
+
+      if (target.health <= 0) {
+        target.alive = false;
+        state.defeatedCount++;
+        state.logs.push({ timestamp: Date.now(), message: `⚔️ 击败了 ${target.name}！`, type: 'info' });
+
+        if (state.defeatedCount >= state.totalEnemies) {
+          state.result = 'win';
+          state.logs.push({ timestamp: Date.now(), message: `🎉 全部击败！获得了胜利！`, type: 'info' });
+          return state;
+        }
+      }
+      continue;
+    }
+
     const target = pickRandom(currentAliveEnemies);
 
-    const critChance = Math.min(0.3, role.agility * 0.005);
+    const critChance = Math.min(0.3, playerStats.agility * 0.005);
     const isCrit = Math.random() < critChance;
     const critMult = isCrit ? 1.8 : 1;
-    const baseDmg = role.strength + Math.floor(role.agility * 0.3);
+    const attackBoost = 1 + getActiveEffectMultiplier(state.playerEffects, '攻击提升');
+    const baseDmg = playerStats.strength + Math.floor(playerStats.agility * 0.3);
     const enemyDef = Math.floor(target.stats.vitality * 0.4);
     const variance = randomInt(-3, 5);
-    const damage = Math.max(1, Math.floor((baseDmg - enemyDef + variance) * critMult));
+    const damage = Math.max(1, Math.floor((baseDmg - enemyDef + variance) * critMult * attackBoost));
 
     target.health = Math.max(0, target.health - damage);
     const attackName = getPlayerAttackName(isCrit);
@@ -922,64 +1246,177 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
       enemy.actionPoints -= actionThreshold;
       enemyActionsThisTick++;
 
-      const template = config.enemyTemplates.find(t => t.key === enemy.key);
-      const availableSkills = (template?.fixedSkillKeys || [])
-        .map(key => config.skillTemplates.find(skill => skill.key === key))
-        .filter((skill): skill is SkillTemplate => Boolean(skill));
-      const skill = availableSkills.length > 0 && Math.random() < 0.35 ? pickRandom(availableSkills) : undefined;
-      const isSkill = Boolean(skill);
-      const critChance = Math.min(0.2, enemy.stats.agility * 0.004);
-      const isCrit = Math.random() < critChance;
-      const critMult = isCrit ? 1.6 : 1;
-      const skillPower = skill ? skill.baseDamage + skill.levelGrowth * getLevelFromExp(role.exp).level : 0;
-      const baseDmg = enemy.stats.strength + Math.floor(enemy.stats.agility * 0.2) + skillPower;
-      const playerDef = Math.floor(role.vitality * 0.4);
-      const variance = randomInt(-3, 5);
-      const damage = Math.max(1, Math.floor((baseDmg - playerDef + variance) * critMult));
+      if (enemy.effects.some(eff => eff.type === '眩晕')) {
+        state.logs.push({ timestamp: Date.now(), message: `${enemy.name} 被眩晕了，跳过本次行动`, type: 'effect' });
+        continue;
+      }
 
-      state.playerHealth = Math.max(0, state.playerHealth - damage);
-      const attackName = skill ? skill.name : getEnemyAttackName(enemy.key, isCrit);
-      state.logs.push({
-        timestamp: Date.now(),
-        message: skill
-          ? `${enemy.name} 使出技能 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`
-          : `${enemy.name} 普通攻击（${attackName}）！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
-        type: isCrit ? 'effect' : 'damage',
-        attackerIndex: state.enemies.indexOf(enemy),
-        targetIndex: -1,
-        actionKind: isSkill ? 'skill' : 'basic',
-        ...(isSkill ? getSkillEffectVisual(skill) : getEnemyBasicEffect(enemy.key)),
-      });
+      const template = config.enemyTemplates.find(t => t.key === enemy.key);
+      const availableSkills = getEnemyCombatSkills(template, config);
+      enemy.skillStates ??= {};
+      ensureSkillStates(enemy.skillStates, availableSkills);
+      tickSkillCooldowns(enemy.skillStates);
+
+      const enemyHpRatio = enemy.maxHealth > 0 ? enemy.health / enemy.maxHealth : 1;
+      const skill = Math.random() < 0.7 ? chooseCombatSkill(enemy.skillStates, availableSkills, enemyHpRatio) : undefined;
 
       if (skill) {
-        for (const effect of skill.effects) {
-          if (Math.random() > (effect.chance ?? 1)) continue;
-          if (state.playerEffects.length >= 3) break;
-          if (effect.type === '中毒' || effect.type === '灼烧') {
-            state.playerEffects.push({
-              type: effect.type,
-              value: effect.value ?? 2,
+        consumeSkillUse(enemy.skillStates, skill);
+        const skillPower = getEnemySkillPower(skill, enemy.level || getLevelFromExp(role.exp).level);
+
+        if (skill.baseDamage < 0) {
+          const healAmount = Math.max(1, Math.floor(Math.abs(skillPower) + enemy.stats.intelligence * 0.6));
+          enemy.health = Math.min(enemy.maxHealth, enemy.health + healAmount);
+          state.logs.push({
+            timestamp: Date.now(),
+            message: `${enemy.name} 使用技能 ${skill.name}！恢复 ${healAmount} 点生命`,
+            type: 'heal',
+            attackerIndex: state.enemies.indexOf(enemy),
+            targetIndex: state.enemies.indexOf(enemy),
+            actionKind: 'skill',
+            effectKind: 'status_burst',
+            effectColor: '#3fb950',
+          });
+          continue;
+        }
+
+        const selfEffects = skill.effects
+          .map(effect => translateStatusEffect(skill, effect.type))
+          .filter(type => type === '防御提升' || type === '攻击提升');
+
+        if (skill.category === 'guard' || (skill.baseDamage <= 0 && selfEffects.length > 0)) {
+          for (const effect of skill.effects) {
+            if (Math.random() > (effect.chance ?? 1)) continue;
+            const effectType = translateStatusEffect(skill, effect.type);
+            if (effectType !== '防御提升' && effectType !== '攻击提升') continue;
+            enemy.effects.push({
+              type: effectType,
+              value: getEffectValue(effectType, effect.value),
               duration: effect.duration ?? 2,
               source: 'enemy',
             });
             state.logs.push({
               timestamp: Date.now(),
-              message: `你被施加了 ${effect.type} 效果！`,
+              message: `${enemy.name} 使用技能 ${skill.name}！获得 ${effectType} 效果`,
               type: 'effect',
-              targetIndex: -1,
-              actionKind: 'dot',
+              attackerIndex: state.enemies.indexOf(enemy),
+              targetIndex: state.enemies.indexOf(enemy),
+              actionKind: 'skill',
               effectKind: 'status_burst',
-              effectColor: getDotEffectColor(effect.type),
-              statusType: effect.type,
+              effectColor: effectType === '防御提升' ? '#58a6ff' : '#f2cc60',
+              statusType: effectType,
             });
           }
+          continue;
         }
+
+        const critChance = Math.min(0.35, enemy.stats.agility * 0.006);
+        const isCrit = Math.random() < critChance;
+        const critMult = isCrit ? 1.8 : 1;
+        const enemyAttackBoost = 1 + getActiveEffectMultiplier(enemy.effects, '攻击提升');
+        const attributePower = skill.category === 'spell'
+          ? enemy.stats.intelligence + Math.floor(enemy.stats.agility * 0.2)
+          : enemy.stats.strength + Math.floor(enemy.stats.agility * 0.35);
+        const playerDef = Math.floor(playerStats.vitality * 0.4);
+        const variance = randomInt(-3, 6);
+        const defenseReduction = Math.min(0.8, getActiveEffectMultiplier(state.playerEffects, '防御提升'));
+        const damage = Math.max(1, Math.floor((attributePower + skillPower - playerDef + variance) * critMult * enemyAttackBoost * (1 - defenseReduction)));
+
+        state.playerHealth = Math.max(0, state.playerHealth - damage);
+        state.logs.push({
+          timestamp: Date.now(),
+          message: `${enemy.name} 使用技能 ${skill.name}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+          type: isCrit ? 'effect' : 'damage',
+          attackerIndex: state.enemies.indexOf(enemy),
+          targetIndex: -1,
+          actionKind: 'skill',
+          ...getSkillEffectVisual(skill),
+        });
+
+        for (const effect of skill.effects) {
+          if (Math.random() > (effect.chance ?? 1)) continue;
+          const effectType = translateStatusEffect(skill, effect.type);
+          if (effectType === '防御提升' || effectType === '攻击提升') {
+            enemy.effects.push({
+              type: effectType,
+              value: getEffectValue(effectType, effect.value),
+              duration: effect.duration ?? 2,
+              source: 'enemy',
+            });
+            state.logs.push({
+              timestamp: Date.now(),
+              message: `${enemy.name} 获得了 ${effectType} 效果！`,
+              type: 'effect',
+              targetIndex: state.enemies.indexOf(enemy),
+              actionKind: 'dot',
+              effectKind: 'status_burst',
+              effectColor: effectType === '防御提升' ? '#58a6ff' : '#f2cc60',
+              statusType: effectType,
+            });
+            continue;
+          }
+          if (state.playerEffects.length >= 3) break;
+          state.playerEffects.push({
+            type: effectType,
+            value: getEffectValue(effectType, effect.value),
+            duration: effect.duration ?? 2,
+            source: 'enemy',
+          });
+          state.logs.push({
+            timestamp: Date.now(),
+            message: `你被施加了 ${effectType} 效果！`,
+            type: 'effect',
+            targetIndex: -1,
+            actionKind: 'dot',
+            effectKind: 'status_burst',
+            effectColor: getDotEffectColor(effectType),
+            statusType: effectType,
+          });
+        }
+
+        if (state.playerHealth <= 0) {
+          state.result = 'lose';
+          state.logs.push({ timestamp: Date.now(), message: `💀 你被 ${enemy.name} 击败了...`, type: 'info' });
+          return state;
+        }
+        continue;
       }
 
+      const critChance = Math.min(0.3, enemy.stats.agility * 0.005);
+      const isCrit = Math.random() < critChance;
+      const critMult = isCrit ? 1.8 : 1;
+      const enemyAttackBoost = 1 + getActiveEffectMultiplier(enemy.effects, '攻击提升');
+      const baseDmg = enemy.stats.strength + Math.floor(enemy.stats.agility * 0.3);
+      const playerDef = Math.floor(playerStats.vitality * 0.4);
+      const variance = randomInt(-3, 5);
+      const defenseReduction = Math.min(0.8, getActiveEffectMultiplier(state.playerEffects, '防御提升'));
+      const damage = Math.max(1, Math.floor((baseDmg - playerDef + variance) * critMult * enemyAttackBoost * (1 - defenseReduction)));
+
+      state.playerHealth = Math.max(0, state.playerHealth - damage);
+      const attackName = getEnemyAttackName(enemy.key, isCrit);
+      state.logs.push({
+        timestamp: Date.now(),
+        message: `${enemy.name} 普通攻击（${attackName}）！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+        type: isCrit ? 'effect' : 'damage',
+        attackerIndex: state.enemies.indexOf(enemy),
+        targetIndex: -1,
+        actionKind: 'basic',
+        ...getEnemyBasicEffect(enemy.key),
+      });
+
       // 敌人随机触发效果
-      if (!skill && Math.random() < 0.1 && state.playerEffects.length < 3) {
+      if (Math.random() < 0.1 && state.playerEffects.length < 3) {
         state.playerEffects.push({ type: '中毒', value: 3, duration: 2, source: 'enemy' });
-        state.logs.push({ timestamp: Date.now(), message: `你中毒了！每回合受到持续伤害`, type: 'effect' });
+        state.logs.push({
+          timestamp: Date.now(),
+          message: `你中毒了！每回合受到持续伤害`,
+          type: 'effect',
+          targetIndex: -1,
+          actionKind: 'dot',
+          effectKind: 'status_burst',
+          effectColor: getDotEffectColor('中毒'),
+          statusType: '中毒',
+        });
       }
 
       if (state.playerHealth <= 0) {
@@ -1159,11 +1596,19 @@ export async function learnSkillBook(userId: number, backpackId: number) {
   );
   if (bpResult.rows.length === 0) throw new Error('物品不存在或不是技能书');
 
-  const skillKey = bpResult.rows[0].skill_key;
-  const skillState = parseJson<{ equippedSkills: string[]; learnedSkills: string[] }>(role.skill_state, { equippedSkills: [], learnedSkills: [] });
+  const skillKey = bpResult.rows[0].skill_key as string | null;
+  if (!skillKey) throw new Error('技能书缺少技能配置，请检查物品 skill_key');
+  const config = await getGameConfig();
+  if (!config.skillTemplates.some(skill => skill.key === skillKey)) throw new Error('技能配置不存在');
+
+  const skillState = getRoleSkillState(role);
   if (skillState.learnedSkills.includes(skillKey)) throw new Error('已学会该技能');
 
   skillState.learnedSkills.push(skillKey);
+  const effectiveStats = await getEffectiveRoleStats(role);
+  if (skillState.equippedSkills.length < getSkillSlots(effectiveStats.intelligence)) {
+    skillState.equippedSkills.push(skillKey);
+  }
   await withTransaction(async (txQuery) => {
     await txQuery('UPDATE role SET skill_state=$1::jsonb, updated_at=NOW() WHERE role_id=$2', [JSON.stringify(skillState), role.role_id]);
     await txQuery('DELETE FROM backpack WHERE backpack_id=$1', [backpackId]);
@@ -1173,9 +1618,11 @@ export async function learnSkillBook(userId: number, backpackId: number) {
 // --- 配置技能栏 ---
 export async function configureSkillLoadout(userId: number, skillKeys: string[]) {
   const role = await getRoleByUserId(userId);
-  const skillState = parseJson<{ equippedSkills: string[]; learnedSkills: string[] }>(role.skill_state, { equippedSkills: [], learnedSkills: [] });
-  const maxSlots = getSkillSlots(role.intelligence);
-  const validKeys = skillKeys.filter(k => skillState.learnedSkills.includes(k)).slice(0, maxSlots);
+  const skillState = getRoleSkillState(role);
+  const effectiveStats = await getEffectiveRoleStats(role);
+  const maxSlots = getSkillSlots(effectiveStats.intelligence);
+  const uniqueKeys = Array.from(new Set(Array.isArray(skillKeys) ? skillKeys : []));
+  const validKeys = uniqueKeys.filter(k => skillState.learnedSkills.includes(k)).slice(0, maxSlots);
   skillState.equippedSkills = validKeys;
   await query('UPDATE role SET skill_state=$1::jsonb, updated_at=NOW() WHERE role_id=$2', [JSON.stringify(skillState), role.role_id]);
 }
@@ -1283,8 +1730,10 @@ export async function challengePvp(userId: number, targetRoleId: number) {
   if (defender.role_id === challenger.role_id) throw new Error('不能挑战自己');
 
   // 模拟 PVP 战斗（简化版：基于属性比较 + 随机因素）
-  const challengerPower = challenger.strength + challenger.agility + challenger.vitality + challenger.intelligence + randomInt(-10, 10);
-  const defenderPower = defender.strength + defender.agility + defender.vitality + defender.intelligence + randomInt(-10, 10);
+  const challengerStats = await getEffectiveRoleStats(challenger);
+  const defenderStats = await getEffectiveRoleStats(defender);
+  const challengerPower = challengerStats.strength + challengerStats.agility + challengerStats.vitality + challengerStats.intelligence + randomInt(-10, 10);
+  const defenderPower = defenderStats.strength + defenderStats.agility + defenderStats.vitality + defenderStats.intelligence + randomInt(-10, 10);
 
   const challengerWins = challengerPower >= defenderPower;
   const winnerId = challengerWins ? challenger.role_id : defender.role_id;

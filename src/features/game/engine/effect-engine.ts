@@ -94,9 +94,17 @@ export class EffectEngine {
     if (this.disposed) return;
     const msg = log.message;
 
-    // 判断攻击方向
-    const playerAttacking = msg.startsWith('你对') || msg.match(/^(挥剑|斩击|劈砍|刺击|旋风|致命|蓄力|连续|精准|火球|闪电|毒刃|背刺|治愈|包扎|战吼|盾击)/);
-    const enemyAttacking = msg.includes('对你造成') || (msg.includes('使出') && !playerAttacking);
+    // 判断攻击方向：优先使用服务端下发的索引，文案只作为旧日志兜底。
+    const playerAttacking =
+      log.attackerIndex === playerIdx ||
+      msg.startsWith('普通攻击') ||
+      msg.startsWith('你使用技能') ||
+      msg.startsWith('你对') ||
+      Boolean(msg.match(/^(挥剑|斩击|劈砍|刺击|旋风|致命|蓄力|连续|精准|火球|闪电|毒刃|背刺|治愈|包扎|战吼|盾击)/));
+    const enemyAttacking =
+      (typeof log.attackerIndex === 'number' && enemyIdxs.includes(log.attackerIndex)) ||
+      msg.includes('对你造成') ||
+      (msg.includes('使出') && !playerAttacking);
 
     // 提取目标名字
     const playerTargetMatch = msg.match(/对\s*(\S+)\s*造成/);
