@@ -112,6 +112,17 @@ export interface RecentEncounter {
   timestamp: number;
 }
 
+// --- 技能信息（轻量展示用） ---
+export interface SkillInfo {
+  key: string;
+  name: string;
+  category: 'attack' | 'spell' | 'guard';
+  description: string;
+  maxUses: number;
+  cooldown: number;
+  effects: { type: string; chance?: number; duration?: number }[];
+}
+
 // --- 战斗快照 ---
 export interface EnemySnapshot {
   key: string;
@@ -123,6 +134,7 @@ export interface EnemySnapshot {
   actionPoints: number;
   effects: StatusEffect[];
   alive: boolean;
+  skills: SkillInfo[];
 }
 
 export interface BattleSnapshot {
@@ -135,6 +147,7 @@ export interface BattleSnapshot {
   playerEffects: StatusEffect[];
   logs: BattleLog[];
   playerSkillStates: Record<string, { used: number; cooldownLeft: number }>;
+  playerSkills: SkillInfo[];
   result: 'ongoing' | 'win' | 'lose';
 }
 
@@ -237,7 +250,7 @@ export interface GameSessionContextValue {
   startAfk: (activityKey: ActivityKey, mapKey: string) => void;
   stopAfk: () => void;
   claimOfflineReward: () => void;
-  equipItem: (backpackId: number, slot: BodySlotType) => void;
+  equipItem: (backpackId: number, slot: BodySlotType, replaceBackpackId?: number) => void;
   unequipItem: (backpackId: number) => void;
   dropItem: (backpackId: number) => void;
   repairEquipment: (backpackId: number) => void;

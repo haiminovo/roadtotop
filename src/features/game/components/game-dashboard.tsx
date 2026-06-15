@@ -181,7 +181,7 @@ export function GameDashboard() {
           {activeTab === 'backpack' && (
             <BackpackPanel
               snapshot={snapshot}
-              onEquip={(id, slot) => equipItem(id, slot)}
+              onEquip={(id, slot, replaceId) => equipItem(id, slot, replaceId)}
               onDrop={dropItem}
               onRepair={repairEquipment}
               onLearnSkillBook={learnSkillBook}

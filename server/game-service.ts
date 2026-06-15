@@ -345,25 +345,41 @@ function buildAfkSnapshot(afk: AfkRow | undefined, config: DynamicGameConfig, ro
     } : { gold: 0, aether: 0, exp: 0 },
     encounterRates: { common: 0.3, rare: 0.1, legendary: 0.01 },
     recentEncounters: parseJson(afk.recent_encounters, []),
-    battle: battleState ? buildBattleSnapshot(battleState, role) : null,
+    battle: battleState ? buildBattleSnapshot(battleState, role, config) : null,
     accruedSeconds: afk.accrued_seconds,
   };
 }
 
-function buildBattleSnapshot(bs: BattleState, role: RoleRow) {
-  // ATB 已经是 0-100 范围（actionThreshold=100），直接 clamp 即可
+function buildBattleSnapshot(bs: BattleState, role: RoleRow, config: DynamicGameConfig) {
+  // 解析玩家装备的技能（无装备技能时默认展示普攻）
+  const skillState = parseJson<{ equippedSkills: string[] }>(role.skill_state, { equippedSkills: [] });
+  const equippedKeys = skillState.equippedSkills.length > 0 ? skillState.equippedSkills : ['slash'];
+  const playerSkills = equippedKeys
+    .map((key: string) => config.skillTemplates.find(s => s.key === key))
+    .filter((s): s is SkillTemplate => Boolean(s))
+    .map((s: SkillTemplate) => ({ key: s.key, name: s.name, category: s.category, description: s.description, maxUses: s.maxUses, cooldown: s.cooldown, effects: s.effects.map(e => ({ type: e.type, chance: e.chance, duration: e.duration })) }));
+
   return {
-    enemies: bs.enemies.map(e => ({
-      key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
-      stats: e.stats, actionSpeed: e.actionSpeed,
-      actionPoints: Math.min(100, e.actionPoints),
-      effects: e.effects, alive: e.alive,
-    })),
+    enemies: bs.enemies.map(e => {
+      // 解析敌人技能
+      const template = config.enemyTemplates.find(t => t.key === e.key);
+      const skills = (template?.fixedSkillKeys || [])
+        .map(key => config.skillTemplates.find(s => s.key === key))
+        .filter((s): s is SkillTemplate => Boolean(s))
+        .map(s => ({ key: s.key, name: s.name, category: s.category, description: s.description, maxUses: s.maxUses, cooldown: s.cooldown, effects: s.effects.map(eff => ({ type: eff.type, chance: eff.chance, duration: eff.duration })) }));
+      return {
+        key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
+        stats: e.stats, actionSpeed: e.actionSpeed,
+        actionPoints: Math.min(100, e.actionPoints),
+        effects: e.effects, alive: e.alive, skills,
+      };
+    }),
     totalEnemies: bs.totalEnemies, defeatedCount: bs.defeatedCount,
     playerHealth: bs.playerHealth, playerMaxHealth: bs.playerMaxHealth,
     playerActionPoints: Math.min(100, bs.playerActionPoints),
     playerEffects: bs.playerEffects,
     logs: bs.logs.slice(-30), playerSkillStates: bs.playerSkillStates, result: bs.result,
+    playerSkills,
   };
 }
 
@@ -455,8 +471,11 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
       battleState = simulateBattleTick(battleState, role, config);
       if (battleState.result === 'win') {
         const durabilityLoss = 0.1;
-        await damageEquippedEquipment(role.role_id, durabilityLoss);
+        const brokenItems = await damageEquippedEquipment(role.role_id, durabilityLoss);
         battleState.logs.push({ timestamp: Date.now(), message: `🛠 装备耐久 -${durabilityLoss}`, type: 'info' });
+        for (const name of brokenItems) {
+          battleState.logs.push({ timestamp: Date.now(), message: `⚠️ ${name} 耐久耗尽，已自动卸下放回背包`, type: 'info' });
+        }
         let battleGold = 0;
         let battleExp = 0;
         let battleAether = 0;
@@ -507,8 +526,11 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
         battleState = null;
       } else if (battleState.result === 'lose') {
         const durabilityLoss = randomInt(1, 3);
-        await damageEquippedEquipment(role.role_id, durabilityLoss);
+        const brokenItems = await damageEquippedEquipment(role.role_id, durabilityLoss);
         battleState.logs.push({ timestamp: Date.now(), message: `🛠 战败导致装备耐久 -${durabilityLoss}`, type: 'info' });
+        for (const name of brokenItems) {
+          battleState.logs.push({ timestamp: Date.now(), message: `⚠️ ${name} 耐久耗尽，已自动卸下放回背包`, type: 'info' });
+        }
         finishedBattleForSnapshot = battleState;
         battleState = null;
       }
@@ -668,8 +690,8 @@ async function addItemToBackpack(
   }
 }
 
-async function damageEquippedEquipment(roleId: number, durabilityLoss: number) {
-  if (durabilityLoss <= 0) return;
+async function damageEquippedEquipment(roleId: number, durabilityLoss: number): Promise<string[]> {
+  if (durabilityLoss <= 0) return [];
   await query(
     `UPDATE backpack b
      SET current_durability = GREATEST(0, current_durability - $1)
@@ -680,6 +702,23 @@ async function damageEquippedEquipment(roleId: number, durabilityLoss: number) {
        AND i.item_type = 'equipment'`,
     [durabilityLoss, roleId],
   );
+  // 查找耐久归零的装备，自动卸下并保留在背包中等待修理
+  const broken = await query(
+    `SELECT b.backpack_id, i.name FROM backpack b
+     JOIN item i ON b.item_id = i.item_id
+     WHERE b.role_id = $1 AND b.equipped = true
+       AND i.item_type = 'equipment' AND b.current_durability <= 0`,
+    [roleId],
+  );
+  const brokenNames: string[] = [];
+  for (const row of broken.rows) {
+    await query(
+      `UPDATE backpack SET equipped=false, equipped_slot_groups='[]'::jsonb WHERE backpack_id=$1`,
+      [row.backpack_id],
+    );
+    brokenNames.push(row.name);
+  }
+  return brokenNames;
 }
 
 // --- 创建战斗状态（1-4个敌人同时对战） ---
@@ -740,18 +779,18 @@ function getEnemyStatusText(state: BattleState): string {
 
 // --- 战斗动作名称 ---
 const PLAYER_ATTACK_NAMES = [
-  '挥剑斩击', '猛力劈砍', '精准刺击', '旋风斩', '破甲一击', '连续攻击', '致命一击', '蓄力重击',
+  '挥击', '劈砍', '刺击', '横扫', '重击', '连击', '精准打击', '蓄力打击',
 ];
 const ENEMY_ATTACK_NAMES: Record<string, string[]> = {
-  default: ['扑咬', '利爪撕裂', '猛烈撞击', '怒吼攻击', '尾扫'],
-  slime: ['酸液喷射', '弹跳撞击', '粘液缠绕'],
-  wolf: ['獠牙撕咬', '狼嚎冲锋', '利爪连击'],
-  goblin: ['匕首偷袭', '投掷石块', '狡猾一击'],
-  bear: ['熊掌重击', '咆哮冲锋', '猛扑'],
-  skeleton: ['骨剑斩击', '亡灵诅咒', '骷髅冲锋'],
-  fire_elemental: ['烈焰喷射', '火焰爆发', '灼烧之触'],
-  dragon_whelp: ['龙息', '利爪撕裂', '尾锤扫击'],
-  void_walker: ['虚空射线', '暗影侵蚀', '空间撕裂'],
+  default: ['扑咬', '撕咬', '撞击', '挥击', '尾扫'],
+  slime: ['酸液喷吐', '弹跳撞击', '粘液拍打'],
+  wolf: ['獠牙撕咬', '利爪抓挠', '猛扑'],
+  goblin: ['匕首刺击', '投掷石块', '偷袭'],
+  bear: ['熊掌拍击', '撞击', '猛扑'],
+  skeleton: ['骨剑挥砍', '骨爪抓挠', '盾撞'],
+  fire_elemental: ['火苗喷吐', '焰爪拍击', '灼热触碰'],
+  dragon_whelp: ['幼龙啃咬', '利爪撕裂', '尾锤扫击'],
+  void_walker: ['虚空触碰', '暗影抓挠', '空间震击'],
 };
 
 const MAX_ACTIONS_PER_ACTOR_PER_TICK = 10;
@@ -794,14 +833,16 @@ function getDotEffectColor(type: string): string {
 }
 
 function getPlayerAttackName(isCrit: boolean): string {
+  void isCrit;
   const name = PLAYER_ATTACK_NAMES[Math.floor(Math.random() * PLAYER_ATTACK_NAMES.length)];
-  return isCrit ? `【暴击】${name}` : name;
+  return name;
 }
 
 function getEnemyAttackName(enemyKey: string, isCrit: boolean): string {
+  void isCrit;
   const names = ENEMY_ATTACK_NAMES[enemyKey] || ENEMY_ATTACK_NAMES.default;
   const name = names[Math.floor(Math.random() * names.length)];
-  return isCrit ? `【暴击】${name}` : name;
+  return name;
 }
 
 // --- 模拟战斗 tick（最快单位每 tick 获得一整条行动条，其它单位按速度比例推进） ---
@@ -847,7 +888,7 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
     const attackName = getPlayerAttackName(isCrit);
     state.logs.push({
       timestamp: Date.now(),
-      message: `${attackName}！对 ${target.name} 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+      message: `普通攻击（${attackName}）！对 ${target.name} 造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
       type: isCrit ? 'effect' : 'damage',
       attackerIndex: -1,
       targetIndex: state.enemies.indexOf(target),
@@ -900,7 +941,9 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
       const attackName = skill ? skill.name : getEnemyAttackName(enemy.key, isCrit);
       state.logs.push({
         timestamp: Date.now(),
-        message: `${enemy.name} 使出 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
+        message: skill
+          ? `${enemy.name} 使出技能 ${attackName}！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`
+          : `${enemy.name} 普通攻击（${attackName}）！对你造成 ${damage} 点伤害${isCrit ? '（暴击！）' : ''}`,
         type: isCrit ? 'effect' : 'damage',
         attackerIndex: state.enemies.indexOf(enemy),
         targetIndex: -1,
@@ -1017,7 +1060,7 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
 }
 
 // --- 装备操作 ---
-export async function equipItem(userId: number, backpackId: number, slot: string) {
+export async function equipItem(userId: number, backpackId: number, slot: string, replaceBackpackId?: number) {
   const role = await getRoleByUserId(userId);
   const bpResult = await query(
     `SELECT b.*, i.slot as item_slot, i.slot_usage FROM backpack b JOIN item i ON b.item_id=i.item_id
@@ -1027,6 +1070,7 @@ export async function equipItem(userId: number, backpackId: number, slot: string
   const bp = bpResult.rows[0];
   if (bp.equipped) throw new Error('物品已装备');
   if (bp.item_slot !== slot) throw new Error('物品不能装备到该槽位');
+  if (toNumber(bp.current_durability, 100) <= 0) throw new Error('装备耐久耗尽，请先修理');
 
   // 检查槽位容量
   const capacities = getBodySlotCapacities(role.race_key as never);
@@ -1034,11 +1078,30 @@ export async function equipItem(userId: number, backpackId: number, slot: string
     `SELECT COUNT(*) as cnt FROM backpack WHERE role_id=$1 AND equipped=true AND item_id IN (SELECT item_id FROM item WHERE slot=$2)`,
     [role.role_id, slot]
   );
-  if (equippedCount.rows[0].cnt >= capacities[slot as keyof typeof capacities]) {
+  const capacity = capacities[slot as keyof typeof capacities];
+  const isFull = equippedCount.rows[0].cnt >= capacity;
+  if (isFull && !replaceBackpackId) {
     throw new Error('该槽位已满');
   }
 
-  await query('UPDATE backpack SET equipped=true WHERE backpack_id=$1', [backpackId]);
+  await withTransaction(async (txQuery) => {
+    if (isFull && replaceBackpackId) {
+      const replacementResult = await txQuery(
+        `SELECT b.backpack_id, i.slot
+         FROM backpack b JOIN item i ON b.item_id=i.item_id
+         WHERE b.backpack_id=$1 AND b.role_id=$2 AND b.equipped=true`,
+        [replaceBackpackId, role.role_id],
+      );
+      if (replacementResult.rows.length === 0) throw new Error('要替换的装备不存在');
+      if (replacementResult.rows[0].slot !== slot) throw new Error('要替换的装备不在该槽位');
+      await txQuery(
+        `UPDATE backpack SET equipped=false, equipped_slot_groups='[]'::jsonb WHERE backpack_id=$1`,
+        [replaceBackpackId],
+      );
+    }
+
+    await txQuery('UPDATE backpack SET equipped=true WHERE backpack_id=$1 AND role_id=$2', [backpackId, role.role_id]);
+  });
 }
 
 export async function unequipItem(userId: number, backpackId: number) {
@@ -1065,14 +1128,18 @@ export async function repairEquipment(userId: number, backpackId: number) {
   if (bpResult.rows.length === 0) throw new Error('物品不存在');
   const bp = bpResult.rows[0];
   if (bp.item_type !== 'equipment') throw new Error('只有装备可以修理');
-  if (bp.current_durability >= bp.max_durability) throw new Error('装备已经是满耐久');
+  const currentDurability = toNumber(bp.current_durability);
+  const maxDurability = toNumber(bp.max_durability, 100);
+  if (currentDurability >= maxDurability) throw new Error('装备已经是满耐久');
 
-  const lostDurability = bp.max_durability - bp.current_durability;
-  const repairCost = Math.max(1, Math.ceil(bp.sell_price * lostDurability / bp.max_durability * 0.35));
+  const lostDurability = maxDurability - currentDurability;
+  const repairCost = Math.max(0, Math.ceil(toNumber(bp.sell_price) * lostDurability / maxDurability * 0.35));
   if (role.gold < repairCost) throw new Error(`金币不足，需要 ${repairCost} 金币`);
 
   await withTransaction(async (txQuery) => {
-    await txQuery('UPDATE role SET gold=gold-$1, updated_at=NOW() WHERE role_id=$2', [repairCost, role.role_id]);
+    if (repairCost > 0) {
+      await txQuery('UPDATE role SET gold=gold-$1, updated_at=NOW() WHERE role_id=$2', [repairCost, role.role_id]);
+    }
     await txQuery(
       `UPDATE backpack
        SET current_durability=max_durability, repair_count=repair_count+1
@@ -1127,7 +1194,9 @@ export async function createMarketListing(userId: number, backpackId: number, pr
   if (bpResult.rows.length === 0) throw new Error('物品不存在或已装备');
   const bp = bpResult.rows[0];
   const isEquipment = bp.item_type === 'equipment';
-  if (isEquipment && bp.current_durability < bp.max_durability) {
+  const currentDurability = toNumber(bp.current_durability);
+  const maxDurability = toNumber(bp.max_durability, 100);
+  if (isEquipment && currentDurability < maxDurability) {
     throw new Error('只有满耐久装备可以出售');
   }
 
@@ -1144,8 +1213,8 @@ export async function createMarketListing(userId: number, backpackId: number, pr
       ) VALUES ($1,$2,$3,1,$4,$5,$6,$7)`,
       [
         role.role_id, bp.item_id, bp.item_type, safePrice,
-        isEquipment ? bp.current_durability : null,
-        isEquipment ? bp.max_durability : null,
+        isEquipment ? currentDurability : null,
+        isEquipment ? maxDurability : null,
         isEquipment ? bp.repair_count : null,
       ]
     );

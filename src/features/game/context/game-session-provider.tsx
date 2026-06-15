@@ -116,7 +116,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
             setChatMessages((msg.payload as { messages: ChatMessageData[] }).messages);
             break;
           case 'game:error':
-            console.error('[Game Error]', (msg.payload as { message: string })?.message);
+            console.warn('[Game Error]', (msg.payload as { message: string })?.message);
             break;
         }
       };
@@ -178,8 +178,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     send('game:afk:claim');
   }, [send]);
 
-  const equipItem = useCallback((backpackId: number, slot: BodySlotType) => {
-    send('game:backpack:equip', { backpackId, slot });
+  const equipItem = useCallback((backpackId: number, slot: BodySlotType, replaceBackpackId?: number) => {
+    send('game:backpack:equip', { backpackId, slot, replaceBackpackId });
   }, [send]);
 
   const unequipItem = useCallback((backpackId: number) => {

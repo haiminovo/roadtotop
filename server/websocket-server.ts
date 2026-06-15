@@ -165,7 +165,12 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
 
     case 'game:backpack:equip': {
       if (!client.userId) { sendError(client.ws, '未登录'); return; }
-      await equipItem(client.userId, payload?.backpackId as number, payload?.slot as string);
+      await equipItem(
+        client.userId,
+        payload?.backpackId as number,
+        payload?.slot as string,
+        payload?.replaceBackpackId as number | undefined,
+      );
       const snapshot = await getSessionSnapshot(client.userId);
       send(client.ws, 'game:state:update', snapshot);
       break;

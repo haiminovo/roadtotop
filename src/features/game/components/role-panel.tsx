@@ -16,10 +16,23 @@ const SLOT_NAMES: Record<BodySlotType, string> = {
   head: '头部', hand: '手部', torso: '躯干', legs: '腿部', feet: '脚部', neck: '颈部', accessory: '饰品',
 };
 
+const STAT_LABELS: Record<string, string> = {
+  strength: '力量',
+  intelligence: '智力',
+  agility: '敏捷',
+  vitality: '体力',
+  maxHealth: '生命',
+  actionSpeed: '行动速度',
+};
+
 function formatDurability(value: number | string) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '-';
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function formatStats(stats: Record<string, number>) {
+  return Object.entries(stats).map(([key, value]) => `${STAT_LABELS[key] || key}+${value}`).join(' ');
 }
 
 export function RolePanel({ snapshot, onUnequip }: RolePanelProps) {
@@ -64,6 +77,9 @@ export function RolePanel({ snapshot, onUnequip }: RolePanelProps) {
                       >
                         <Icon size={12} />
                         <span style={{ color: RARITY_COLORS[item.rarity] }}>{item.name}</span>
+                        {formatStats(item.statJson) && (
+                          <span className="text-text-muted">{formatStats(item.statJson)}</span>
+                        )}
                         <span className="text-text-muted">
                           {formatDurability(item.currentDurability)}/{formatDurability(item.maxDurability)}
                         </span>
