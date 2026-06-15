@@ -218,6 +218,14 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     send('game:chat:send', { channelKey, content });
   }, [send]);
 
+  const clearChannel = useCallback((channelKey: string) => {
+    if (channelKey === 'activity') {
+      setActivityLogs([]);
+    } else {
+      setChatMessages(prev => prev.filter(m => m.channelKey !== channelKey));
+    }
+  }, []);
+
   const value: GameSessionContextValue = {
     snapshot,
     connectionStatus,
@@ -237,6 +245,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     buyMarketListing,
     challengePvp,
     sendChat,
+    clearChannel,
   };
 
   return (

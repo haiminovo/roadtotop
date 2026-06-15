@@ -27,7 +27,7 @@ export function GameDashboard() {
     createRole, startAfk, stopAfk, claimOfflineReward,
     equipItem, unequipItem, dropItem, learnSkillBook,
     createMarketListing, cancelMarketListing, buyMarketListing,
-    challengePvp, sendChat,
+    challengePvp, sendChat, clearChannel,
   } = useGameSession();
 
   const [activeTab, setActiveTab] = useState<TabKey>('afk');
@@ -217,6 +217,7 @@ export function GameDashboard() {
           currentChannel={chatChannel}
           onChannelChange={setChatChannel}
           onSend={sendChat}
+          onClear={clearChannel}
           activityLogs={activityLogs}
         />
 

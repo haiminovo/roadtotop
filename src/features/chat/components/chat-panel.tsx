@@ -22,6 +22,7 @@ interface ChatPanelProps {
   currentChannel: string;
   onChannelChange: (channel: string) => void;
   onSend: (channelKey: string, content: string) => void;
+  onClear: (channelKey: string) => void;
   activityLogs?: BattleLog[];
 }
 
@@ -62,7 +63,7 @@ const LOG_COLORS: Record<string, string> = {
   info: 'text-accent-blue',
 };
 
-export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, activityLogs = [] }: ChatPanelProps) {
+export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, onClear, activityLogs = [] }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [chatHeight, setChatHeight] = useState(DEFAULT_HEIGHT);
   const [collapsed, setCollapsed] = useState(false);
@@ -162,9 +163,18 @@ export function ChatPanel({ messages, currentChannel, onChannelChange, onSend, a
         ))}
         <div className="ml-auto flex items-center gap-2">
           {!collapsed && (
-            <span className="text-text-muted text-xs">
-              {isActivity ? `${recentActivityLogs.length} 条` : `${filteredMessages.length} 条`}
-            </span>
+            <>
+              <span className="text-text-muted text-xs">
+                {isActivity ? `${recentActivityLogs.length} 条` : `${filteredMessages.length} 条`}
+              </span>
+              <button
+                onClick={() => onClear(currentChannel)}
+                className="text-text-muted hover:text-accent-red text-xs px-1 leading-none"
+                title="清空记录"
+              >
+                清空
+              </button>
+            </>
           )}
           <button
             onClick={toggleCollapse}

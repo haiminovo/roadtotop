@@ -237,6 +237,7 @@ export interface GameSessionContextValue {
   buyMarketListing: (listingId: number) => void;
   challengePvp: (targetRoleId: number) => void;
   sendChat: (channelKey: string, content: string) => void;
+  clearChannel: (channelKey: string) => void;
 }
 
 export type ConnectionStatus = 'booting' | 'ready' | 'saving' | 'error';

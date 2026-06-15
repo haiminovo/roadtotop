@@ -450,7 +450,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           (!r.trigger.mapKey || r.trigger.mapKey === afk.map_key)
         );
         for (const rule of killEvents) {
-          const rewards = evaluateEventActions(rule.actions, config);
+          const rewards = evaluateEventActions(rule.actions, config, rule.encounter);
           battleGold += rewards.gold;
           battleAether += rewards.aether;
           battleExp += rewards.exp;
@@ -461,6 +461,10 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
           for (const item of rewards.grantedItems) {
             await addDropItem(role.role_id, item.itemId);
             itemNames.push(item.name);
+          }
+          // 记录遭遇
+          if (rewards.encounter) {
+            recentEncounters.push({ ...rewards.encounter, timestamp: Date.now() });
           }
         }
         const rewardParts = [
@@ -499,7 +503,7 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
         (!r.trigger.activityKey || r.trigger.activityKey === afk.activity_key)
       );
       for (const rule of tickEvents) {
-        const rewards = evaluateEventActions(rule.actions, config);
+        const rewards = evaluateEventActions(rule.actions, config, rule.encounter);
         pendingGold += rewards.gold;
         pendingAether += rewards.aether;
         pendingExp += rewards.exp;
@@ -512,6 +516,10 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
         }
         for (const item of rewards.grantedItems) {
           await addDropItem(role.role_id, item.itemId);
+        }
+        // 记录遭遇
+        if (rewards.encounter) {
+          recentEncounters.push({ ...rewards.encounter, timestamp: Date.now() });
         }
       }
     }
@@ -541,14 +549,15 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
 }
 
 // --- 评估事件动作 ---
-function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig) {
+function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig, encounterInfo?: { tier: string; title: string; description: string }) {
   let gold = 0, aether = 0, exp = 0;
   let startBattle = false;
-  const encounter: { tier: string; title: string; description: string } | null = null;
   const grantedItems: { itemId: number; name: string }[] = [];
+  let triggered = false;
 
   for (const action of actions) {
     if (randomFloat() > action.chance) continue;
+    triggered = true;
 
     switch (action.type) {
       case 'grant_gold':
@@ -560,22 +569,31 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig)
       case 'grant_exp':
         exp += randomInt(action.min || 0, action.max || 0);
         break;
-      case 'grant_item':
+      case 'grant_item': {
         if (action.itemId) {
           grantedItems.push({ itemId: action.itemId, name: action.itemName || '未知物品' });
+        } else if (action.itemType || action.rarity) {
+          // 按 itemType 和 rarity 从物品目录中随机选取
+          const candidates = config.itemCatalog.filter(item =>
+            (!action.itemType || item.itemType === action.itemType) &&
+            (!action.rarity || item.rarity === action.rarity)
+          );
+          if (candidates.length > 0) {
+            const picked = pickRandom(candidates);
+            grantedItems.push({ itemId: picked.itemId, name: picked.name });
+          }
         }
         break;
+      }
       case 'start_battle':
         startBattle = true;
         break;
     }
   }
 
-  // 如果有 encounter 信息
-  const firstAction = actions[0];
-  if (firstAction && (gold > 0 || aether > 0 || exp > 0 || startBattle)) {
-    // 这里需要从父级 EventRule 获取 encounter 信息
-  }
+  // 只有在实际获得了奖励时才返回 encounter（避免出现无意义的空文案）
+  const hasReward = gold > 0 || aether > 0 || exp > 0 || grantedItems.length > 0 || startBattle;
+  const encounter = (hasReward && encounterInfo) ? encounterInfo : null;
 
   return { gold, aether, exp, startBattle, encounter, grantedItems };
 }
@@ -933,7 +951,7 @@ export async function equipItem(userId: number, backpackId: number, slot: string
     throw new Error('该槽位已满');
   }
 
-  await query('UPDATE backpack SET equipped=true, updated_at=NOW() WHERE backpack_id=$1', [backpackId]);
+  await query('UPDATE backpack SET equipped=true WHERE backpack_id=$1', [backpackId]);
 }
 
 export async function unequipItem(userId: number, backpackId: number) {

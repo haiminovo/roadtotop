@@ -94,23 +94,7 @@ export function AfkPanel({ snapshot, onStart, onStop, onClaim }: AfkPanelProps) 
       {/* 战斗视图 */}
       {afk.battle && <BattleView battle={afk.battle} classKey={snapshot.role.classKey} />}
 
-      {/* 最近遭遇 */}
-      {afk.recentEncounters.length > 0 && (
-        <SectionCard title="最近遭遇">
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {afk.recentEncounters.slice().reverse().map((enc, i) => (
-              <div key={i} className="text-xs flex items-center gap-1">
-                <StatusChip
-                  status={enc.tier === 'legendary' ? '传说' : enc.tier === 'rare' ? '稀有' : '普通'}
-                  variant={enc.tier === 'legendary' ? 'warning' : enc.tier === 'rare' ? 'success' : 'default'}
-                />
-                <span className="text-text-primary">{enc.title}</span>
-                <span className="text-text-muted">- {enc.description}</span>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      )}
+
 
       {/* 选择活动（空闲时显示） */}
       {afk.status === 'idle' && (
