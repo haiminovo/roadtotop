@@ -6,7 +6,6 @@ import { SectionCard } from './ui/section-card';
 import { CompactStat } from './ui/compact-stat';
 import { RARITY_COLORS } from '@/lib/game-config';
 import { getIcon } from '@/lib/ui/icons';
-import { GiMuscleUp, GiBrain, GiRunningNinja, GiHeartOrgan } from 'react-icons/gi';
 
 interface RolePanelProps {
   snapshot: SessionSnapshot;
@@ -16,6 +15,12 @@ interface RolePanelProps {
 const SLOT_NAMES: Record<BodySlotType, string> = {
   head: '头部', hand: '手部', torso: '躯干', legs: '腿部', feet: '脚部', neck: '颈部', accessory: '饰品',
 };
+
+function formatDurability(value: number | string) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
 
 export function RolePanel({ snapshot, onUnequip }: RolePanelProps) {
   const { role } = snapshot;
@@ -59,6 +64,9 @@ export function RolePanel({ snapshot, onUnequip }: RolePanelProps) {
                       >
                         <Icon size={12} />
                         <span style={{ color: RARITY_COLORS[item.rarity] }}>{item.name}</span>
+                        <span className="text-text-muted">
+                          {formatDurability(item.currentDurability)}/{formatDurability(item.maxDurability)}
+                        </span>
                       </button>
                     );
                   })}

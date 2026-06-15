@@ -72,8 +72,13 @@ CREATE TABLE IF NOT EXISTS backpack (
   quantity             INTEGER NOT NULL DEFAULT 1,
   equipped             BOOLEAN NOT NULL DEFAULT FALSE,
   equipped_slot_groups JSONB NOT NULL DEFAULT '[]'::jsonb,
+  current_durability   NUMERIC(8,2) NOT NULL DEFAULT 100,
+  max_durability       NUMERIC(8,2) NOT NULL DEFAULT 100,
+  repair_count         INTEGER NOT NULL DEFAULT 0,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(role_id, item_id)
+  CHECK (quantity >= 1),
+  CHECK (current_durability >= 0),
+  CHECK (max_durability >= 1)
 );
 
 CREATE INDEX idx_backpack_role_id ON backpack(role_id);
@@ -111,7 +116,11 @@ CREATE TABLE IF NOT EXISTS market_listing (
   seller_role_id      INTEGER NOT NULL REFERENCES role(role_id),
   item_id             INTEGER NOT NULL REFERENCES item(item_id),
   category_key        VARCHAR(32) NOT NULL,
+  quantity            INTEGER NOT NULL DEFAULT 1,
   price               INTEGER NOT NULL,
+  current_durability  NUMERIC(8,2),
+  max_durability      NUMERIC(8,2),
+  repair_count        INTEGER,
   status              VARCHAR(16) NOT NULL DEFAULT 'active', -- active | sold | cancelled
   buyer_role_id       INTEGER REFERENCES role(role_id),
   sold_price          INTEGER,

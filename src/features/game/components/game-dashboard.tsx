@@ -25,7 +25,7 @@ export function GameDashboard() {
   const {
     snapshot, connectionStatus, chatMessages, activityLogs,
     createRole, startAfk, stopAfk, claimOfflineReward,
-    equipItem, unequipItem, dropItem, learnSkillBook,
+    equipItem, unequipItem, dropItem, repairEquipment, learnSkillBook,
     createMarketListing, cancelMarketListing, buyMarketListing,
     challengePvp, sendChat, clearChannel,
   } = useGameSession();
@@ -182,8 +182,8 @@ export function GameDashboard() {
             <BackpackPanel
               snapshot={snapshot}
               onEquip={(id, slot) => equipItem(id, slot)}
-              onUnequip={unequipItem}
               onDrop={dropItem}
+              onRepair={repairEquipment}
               onLearnSkillBook={learnSkillBook}
             />
           )}

@@ -64,6 +64,9 @@ export interface BodySlotItem {
   rarity: ItemRarity;
   iconKey?: string;
   statJson: Record<string, number>;
+  currentDurability: number;
+  maxDurability: number;
+  repairCount: number;
 }
 
 // --- 背包条目 ---
@@ -79,6 +82,9 @@ export interface BackpackEntry {
   quantity: number;
   equipped: boolean;
   equippedSlotGroups: number[][];
+  currentDurability: number;
+  maxDurability: number;
+  repairCount: number;
   sellPrice: number;
   description: string;
   statJson: Record<string, number>;
@@ -166,9 +172,13 @@ export interface MarketListing {
   itemId: number;
   itemName: string;
   itemRarity: ItemRarity;
+  itemType: GameItemType;
   iconKey?: string;
   categoryKey: string;
+  quantity: number;
   price: number;
+  currentDurability?: number | null;
+  maxDurability?: number | null;
   status: string;
   createdAt: string;
 }
@@ -230,6 +240,7 @@ export interface GameSessionContextValue {
   equipItem: (backpackId: number, slot: BodySlotType) => void;
   unequipItem: (backpackId: number) => void;
   dropItem: (backpackId: number) => void;
+  repairEquipment: (backpackId: number) => void;
   learnSkillBook: (backpackId: number) => void;
   configureSkillLoadout: (skillKeys: string[]) => void;
   createMarketListing: (backpackId: number, price: number) => void;

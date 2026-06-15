@@ -27,7 +27,7 @@ ON CONFLICT DO NOTHING;
 
 UPDATE game_config SET value = (
   SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-  FROM jsonb_array(value) elem
+  FROM jsonb_array_elements(value) elem
   WHERE elem->>'key' NOT IN (
     'gathering_bonus', 'fishing_treasure',
     'gathering_herbs', 'gathering_mushroom', 'gathering_mineral',
@@ -153,7 +153,7 @@ rules(rule_obj) AS (VALUES
       'encounter',jsonb_build_object('tier','common','title','遇到老龟','description','一只老龟慢悠悠地游过，对你点了点头，似乎在祝福你'),
       'actions',jsonb_build_array(
         jsonb_build_object('type','grant_exp','chance',1.0,'min',3,'max',6)
-      ))
+      )))
   ),
   (
     (SELECT jsonb_build_object(
@@ -161,7 +161,7 @@ rules(rule_obj) AS (VALUES
       'encounter',jsonb_build_object('tier','common','title','一只旧靴子','description','费了好大力气拉上来……是一只破旧的靴子。嗯，至少能卖两个铜板？'),
       'actions',jsonb_build_array(
         jsonb_build_object('type','grant_gold','chance',1.0,'min',1,'max',2)
-      ))
+      )))
   ),
   (
     (SELECT jsonb_build_object(
@@ -170,7 +170,7 @@ rules(rule_obj) AS (VALUES
       'actions',jsonb_build_array(
         jsonb_build_object('type','grant_gold','chance',1.0,'min',5,'max',15),
         jsonb_build_object('type','grant_exp','chance',1.0,'min',2,'max',4)
-      ))
+      )))
   ),
   (
     (SELECT jsonb_build_object(

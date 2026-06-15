@@ -3,7 +3,7 @@
 // ============================================================
 
 import { Pool, QueryResult } from 'pg';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import dotenv from 'dotenv';
 
@@ -62,18 +62,23 @@ export async function withTransaction<T>(fn: (query: typeof import('./db').query
 
 export async function ensureDatabaseInitialized(): Promise<void> {
   if (initialized) return;
-  const migrationPath = join(process.cwd(), 'migrations', '001_initial_schema.sql');
+  const migrationsDir = join(process.cwd(), 'migrations');
   try {
-    const sql = readFileSync(migrationPath, 'utf-8');
-    // 使用 IF NOT EXISTS 所以重复执行不会报错
-    const statements = sql.split(';').filter(s => s.trim());
-    for (const stmt of statements) {
-      try {
-        await query(stmt);
-      } catch (err: any) {
-        // 忽略 "already exists" 错误
-        if (!err.message?.includes('already exists')) {
-          throw err;
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort();
+    for (const file of migrationFiles) {
+      const sql = readFileSync(join(migrationsDir, file), 'utf-8');
+      const statements = sql.split(';').filter(s => s.trim());
+      for (const stmt of statements) {
+        try {
+          await query(stmt);
+        } catch (err: unknown) {
+          // 忽略幂等迁移中的已存在错误
+          const message = err instanceof Error ? err.message : '';
+          if (!message.includes('already exists')) {
+            throw err;
+          }
         }
       }
     }

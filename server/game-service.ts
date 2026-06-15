@@ -34,6 +34,7 @@ interface AfkRow {
 interface BackpackRow {
   backpack_id: number; role_id: number; item_id: number; quantity: number;
   equipped: boolean; equipped_slot_groups: unknown;
+  current_durability: number; max_durability: number; repair_count: number;
 }
 
 interface EnemyInstance {
@@ -74,6 +75,8 @@ interface BattleLog {
   statusType?: string;
 }
 
+type QueryRunner = typeof query;
+
 // --- 工具函数 ---
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -110,6 +113,11 @@ function calculateActionGainPerTick(agility: number, config: DynamicGameConfig):
   const perFiveAgility = config.systemBalance.actionSpeedPer5Agi || 1;
   const agilitySteps = Math.floor(Math.max(0, agility) / 5);
   return Math.max(1, Math.floor(base + agilitySteps * perFiveAgility));
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 // --- 创建角色 ---
@@ -169,14 +177,14 @@ export async function getSessionSnapshot(userId: number) {
 
   // 市场
   const marketResult = await query(
-    `SELECT ml.*, i.name as item_name, i.rarity as item_rarity, i.icon_key,
+    `SELECT ml.*, i.name as item_name, i.rarity as item_rarity, i.item_type, i.icon_key,
             r.name as seller_name
      FROM market_listing ml JOIN item i ON ml.item_id = i.item_id
      JOIN role r ON ml.seller_role_id = r.role_id
      WHERE ml.status='active' ORDER BY ml.created_at DESC LIMIT 50`
   );
   const myListings = await query(
-    `SELECT ml.*, i.name as item_name, i.rarity as item_rarity, i.icon_key
+    `SELECT ml.*, i.name as item_name, i.rarity as item_rarity, i.item_type, i.icon_key
      FROM market_listing ml JOIN item i ON ml.item_id = i.item_id
      WHERE ml.seller_role_id=$1 AND ml.status='active' ORDER BY ml.created_at DESC`,
     [role.role_id]
@@ -215,6 +223,9 @@ export async function getSessionSnapshot(userId: number) {
         backpackId: row.backpack_id, itemId: row.item_id,
         name: row.name, rarity: row.rarity, iconKey: row.icon_key,
         statJson: parseJson(row.stat_json, {}),
+        currentDurability: toNumber(row.current_durability),
+        maxDurability: toNumber(row.max_durability, 100),
+        repairCount: row.repair_count,
       });
     }
   }
@@ -239,6 +250,9 @@ export async function getSessionSnapshot(userId: number) {
     iconKey: row.icon_key, slot: row.slot, slotUsage: row.slot_usage,
     quantity: row.quantity, equipped: row.equipped,
     equippedSlotGroups: parseJson<number[][]>(row.equipped_slot_groups, []),
+    currentDurability: toNumber(row.current_durability),
+    maxDurability: toNumber(row.max_durability, 100),
+    repairCount: row.repair_count,
     sellPrice: row.sell_price, description: row.description,
     statJson: parseJson<Record<string, number>>(row.stat_json, {}),
     levelRequirement: row.level_requirement, skillKey: row.skill_key,
@@ -278,13 +292,17 @@ export async function getSessionSnapshot(userId: number) {
       listings: marketResult.rows.map(r => ({
         listingId: r.listing_id, sellerRoleId: r.seller_role_id, sellerName: r.seller_name,
         itemId: r.item_id, itemName: r.item_name, itemRarity: r.item_rarity,
-        iconKey: r.icon_key, categoryKey: r.category_key, price: r.price,
+        itemType: r.item_type, iconKey: r.icon_key, categoryKey: r.category_key, quantity: r.quantity,
+        price: r.price, currentDurability: r.current_durability == null ? null : toNumber(r.current_durability),
+        maxDurability: r.max_durability == null ? null : toNumber(r.max_durability, 100),
         status: r.status, createdAt: r.created_at,
       })),
       myListings: myListings.rows.map(r => ({
         listingId: r.listing_id, sellerRoleId: r.seller_role_id, sellerName: '',
         itemId: r.item_id, itemName: r.item_name, itemRarity: r.item_rarity,
-        iconKey: r.icon_key, categoryKey: r.category_key, price: r.price,
+        itemType: r.item_type, iconKey: r.icon_key, categoryKey: r.category_key, quantity: r.quantity,
+        price: r.price, currentDurability: r.current_durability == null ? null : toNumber(r.current_durability),
+        maxDurability: r.max_durability == null ? null : toNumber(r.max_durability, 100),
         status: r.status, createdAt: r.created_at,
       })),
     },
@@ -432,6 +450,9 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
     if (battleState && battleState.result === 'ongoing') {
       battleState = simulateBattleTick(battleState, role, config);
       if (battleState.result === 'win') {
+        const durabilityLoss = 0.1;
+        await damageEquippedEquipment(role.role_id, durabilityLoss);
+        battleState.logs.push({ timestamp: Date.now(), message: `🛠 装备耐久 -${durabilityLoss}`, type: 'info' });
         let battleGold = 0;
         let battleExp = 0;
         let battleAether = 0;
@@ -481,6 +502,9 @@ export async function settleAfkState(userId: number): Promise<{ gold: number; ae
         finishedBattleForSnapshot = battleState;
         battleState = null;
       } else if (battleState.result === 'lose') {
+        const durabilityLoss = randomInt(1, 3);
+        await damageEquippedEquipment(role.role_id, durabilityLoss);
+        battleState.logs.push({ timestamp: Date.now(), message: `🛠 战败导致装备耐久 -${durabilityLoss}`, type: 'info' });
         finishedBattleForSnapshot = battleState;
         battleState = null;
       }
@@ -553,11 +577,9 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig,
   let gold = 0, aether = 0, exp = 0;
   let startBattle = false;
   const grantedItems: { itemId: number; name: string }[] = [];
-  let triggered = false;
 
   for (const action of actions) {
     if (randomFloat() > action.chance) continue;
-    triggered = true;
 
     switch (action.type) {
       case 'grant_gold':
@@ -598,16 +620,62 @@ function evaluateEventActions(actions: EventAction[], config: DynamicGameConfig,
   return { gold, aether, exp, startBattle, encounter, grantedItems };
 }
 
-// --- 添加掉落物品到背包 ---
+// --- 添加物品到背包：装备永远新增独立实例，非装备按 item_id 堆叠 ---
 async function addDropItem(roleId: number, itemId: number) {
-  const existing = await query(
-    'SELECT backpack_id FROM backpack WHERE role_id=$1 AND item_id=$2', [roleId, itemId]
+  await addItemToBackpack(roleId, itemId);
+}
+
+async function addItemToBackpack(
+  roleId: number,
+  itemId: number,
+  runner: QueryRunner = query,
+  options: { quantity?: number; currentDurability?: number | null; maxDurability?: number | null; repairCount?: number | null } = {},
+) {
+  const itemResult = await runner('SELECT item_type FROM item WHERE item_id=$1', [itemId]);
+  if (itemResult.rows.length === 0) throw new Error('物品不存在');
+
+  const quantity = Math.max(1, Math.floor(options.quantity ?? 1));
+  const itemType = itemResult.rows[0].item_type as string;
+
+  if (itemType === 'equipment') {
+    const maxDurability = Math.max(1, Number(options.maxDurability ?? 100));
+    const currentDurability = Math.min(maxDurability, Math.max(0, Number(options.currentDurability ?? maxDurability)));
+    const repairCount = Math.max(0, Math.floor(options.repairCount ?? 0));
+
+    for (let i = 0; i < quantity; i++) {
+      await runner(
+        `INSERT INTO backpack (
+          role_id, item_id, quantity, current_durability, max_durability, repair_count
+        ) VALUES ($1,$2,1,$3,$4,$5)`,
+        [roleId, itemId, currentDurability, maxDurability, repairCount],
+      );
+    }
+    return;
+  }
+
+  const existing = await runner(
+    `SELECT backpack_id FROM backpack WHERE role_id=$1 AND item_id=$2 ORDER BY backpack_id LIMIT 1`,
+    [roleId, itemId],
   );
   if (existing.rows.length > 0) {
-    await query('UPDATE backpack SET quantity=quantity+1 WHERE backpack_id=$1', [existing.rows[0].backpack_id]);
+    await runner('UPDATE backpack SET quantity=quantity+$1 WHERE backpack_id=$2', [quantity, existing.rows[0].backpack_id]);
   } else {
-    await query('INSERT INTO backpack (role_id, item_id, quantity) VALUES ($1, $2, 1)', [roleId, itemId]);
+    await runner('INSERT INTO backpack (role_id, item_id, quantity) VALUES ($1, $2, $3)', [roleId, itemId, quantity]);
   }
+}
+
+async function damageEquippedEquipment(roleId: number, durabilityLoss: number) {
+  if (durabilityLoss <= 0) return;
+  await query(
+    `UPDATE backpack b
+     SET current_durability = GREATEST(0, current_durability - $1)
+     FROM item i
+     WHERE b.item_id = i.item_id
+       AND b.role_id = $2
+       AND b.equipped = true
+       AND i.item_type = 'equipment'`,
+    [durabilityLoss, roleId],
+  );
 }
 
 // --- 创建战斗状态（1-4个敌人同时对战） ---
@@ -967,6 +1035,34 @@ export async function dropItem(userId: number, backpackId: number) {
   await query('DELETE FROM backpack WHERE backpack_id=$1 AND role_id=$2 AND equipped=false', [backpackId, role.role_id]);
 }
 
+export async function repairEquipment(userId: number, backpackId: number) {
+  const role = await getRoleByUserId(userId);
+  const bpResult = await query(
+    `SELECT b.*, i.item_type, i.sell_price, i.name
+     FROM backpack b JOIN item i ON b.item_id=i.item_id
+     WHERE b.backpack_id=$1 AND b.role_id=$2`,
+    [backpackId, role.role_id],
+  );
+  if (bpResult.rows.length === 0) throw new Error('物品不存在');
+  const bp = bpResult.rows[0];
+  if (bp.item_type !== 'equipment') throw new Error('只有装备可以修理');
+  if (bp.current_durability >= bp.max_durability) throw new Error('装备已经是满耐久');
+
+  const lostDurability = bp.max_durability - bp.current_durability;
+  const repairCost = Math.max(1, Math.ceil(bp.sell_price * lostDurability / bp.max_durability * 0.35));
+  if (role.gold < repairCost) throw new Error(`金币不足，需要 ${repairCost} 金币`);
+
+  await withTransaction(async (txQuery) => {
+    await txQuery('UPDATE role SET gold=gold-$1, updated_at=NOW() WHERE role_id=$2', [repairCost, role.role_id]);
+    await txQuery(
+      `UPDATE backpack
+       SET current_durability=max_durability, repair_count=repair_count+1
+       WHERE backpack_id=$1 AND role_id=$2`,
+      [backpackId, role.role_id],
+    );
+  });
+}
+
 // --- 学习技能书 ---
 export async function learnSkillBook(userId: number, backpackId: number) {
   const role = await getRoleByUserId(userId);
@@ -1001,6 +1097,9 @@ export async function configureSkillLoadout(userId: number, skillKeys: string[])
 // --- 交易市场 ---
 export async function createMarketListing(userId: number, backpackId: number, price: number) {
   const role = await getRoleByUserId(userId);
+  const safePrice = Math.floor(Number(price));
+  if (!Number.isFinite(safePrice) || safePrice <= 0) throw new Error('价格无效');
+
   const bpResult = await query(
     `SELECT b.*, i.item_type, i.slot, i.name FROM backpack b JOIN item i ON b.item_id=i.item_id
      WHERE b.backpack_id=$1 AND b.role_id=$2 AND b.equipped=false`,
@@ -1008,12 +1107,28 @@ export async function createMarketListing(userId: number, backpackId: number, pr
   );
   if (bpResult.rows.length === 0) throw new Error('物品不存在或已装备');
   const bp = bpResult.rows[0];
+  const isEquipment = bp.item_type === 'equipment';
+  if (isEquipment && bp.current_durability < bp.max_durability) {
+    throw new Error('只有满耐久装备可以出售');
+  }
 
   await withTransaction(async (txQuery) => {
-    await txQuery('DELETE FROM backpack WHERE backpack_id=$1', [backpackId]);
+    if (isEquipment || bp.quantity <= 1) {
+      await txQuery('DELETE FROM backpack WHERE backpack_id=$1', [backpackId]);
+    } else {
+      await txQuery('UPDATE backpack SET quantity=quantity-1 WHERE backpack_id=$1', [backpackId]);
+    }
     await txQuery(
-      `INSERT INTO market_listing (seller_role_id, item_id, category_key, price) VALUES ($1,$2,$3,$4)`,
-      [role.role_id, bp.item_id, bp.item_type, price]
+      `INSERT INTO market_listing (
+        seller_role_id, item_id, category_key, quantity, price,
+        current_durability, max_durability, repair_count
+      ) VALUES ($1,$2,$3,1,$4,$5,$6,$7)`,
+      [
+        role.role_id, bp.item_id, bp.item_type, safePrice,
+        isEquipment ? bp.current_durability : null,
+        isEquipment ? bp.max_durability : null,
+        isEquipment ? bp.repair_count : null,
+      ]
     );
   });
 }
@@ -1021,7 +1136,8 @@ export async function createMarketListing(userId: number, backpackId: number, pr
 export async function cancelMarketListing(userId: number, listingId: number) {
   const role = await getRoleByUserId(userId);
   const listingResult = await query(
-    'SELECT * FROM market_listing WHERE listing_id=$1 AND seller_role_id=$2 AND status=$3',
+    `SELECT ml.*, i.item_type FROM market_listing ml JOIN item i ON ml.item_id=i.item_id
+     WHERE ml.listing_id=$1 AND ml.seller_role_id=$2 AND ml.status=$3`,
     [listingId, role.role_id, 'active']
   );
   if (listingResult.rows.length === 0) throw new Error('订单不存在');
@@ -1029,22 +1145,19 @@ export async function cancelMarketListing(userId: number, listingId: number) {
 
   await withTransaction(async (txQuery) => {
     await txQuery('UPDATE market_listing SET status=$1, updated_at=NOW() WHERE listing_id=$2', ['cancelled', listingId]);
-    // 归还物品到背包
-    const existing = await txQuery(
-      'SELECT backpack_id FROM backpack WHERE role_id=$1 AND item_id=$2', [role.role_id, listing.item_id]
-    );
-    if (existing.rows.length > 0) {
-      await txQuery('UPDATE backpack SET quantity=quantity+1 WHERE backpack_id=$1', [existing.rows[0].backpack_id]);
-    } else {
-      await txQuery('INSERT INTO backpack (role_id, item_id, quantity) VALUES ($1,$2,1)', [role.role_id, listing.item_id]);
-    }
+    await addItemToBackpack(role.role_id, listing.item_id, txQuery, {
+      quantity: listing.quantity,
+      currentDurability: listing.current_durability,
+      maxDurability: listing.max_durability,
+      repairCount: listing.repair_count,
+    });
   });
 }
 
 export async function buyMarketListing(userId: number, listingId: number) {
   const role = await getRoleByUserId(userId);
   const listingResult = await query(
-    `SELECT ml.*, i.name as item_name FROM market_listing ml JOIN item i ON ml.item_id=i.item_id
+    `SELECT ml.*, i.name as item_name, i.item_type FROM market_listing ml JOIN item i ON ml.item_id=i.item_id
      WHERE ml.listing_id=$1 AND ml.status='active'`, [listingId]
   );
   if (listingResult.rows.length === 0) throw new Error('订单不存在');
@@ -1063,15 +1176,12 @@ export async function buyMarketListing(userId: number, listingId: number) {
        seller_receive_amount=$4, updated_at=NOW() WHERE listing_id=$5`,
       [role.role_id, listing.price, fee, sellerReceives, listingId]
     );
-    // 物品加入买家背包
-    const existing = await txQuery(
-      'SELECT backpack_id FROM backpack WHERE role_id=$1 AND item_id=$2', [role.role_id, listing.item_id]
-    );
-    if (existing.rows.length > 0) {
-      await txQuery('UPDATE backpack SET quantity=quantity+1 WHERE backpack_id=$1', [existing.rows[0].backpack_id]);
-    } else {
-      await txQuery('INSERT INTO backpack (role_id, item_id, quantity) VALUES ($1,$2,1)', [role.role_id, listing.item_id]);
-    }
+    await addItemToBackpack(role.role_id, listing.item_id, txQuery, {
+      quantity: listing.quantity,
+      currentDurability: listing.current_durability,
+      maxDurability: listing.max_durability,
+      repairCount: listing.repair_count,
+    });
   });
 }
 

@@ -194,6 +194,10 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     send('game:backpack:learn-skill-book', { backpackId });
   }, [send]);
 
+  const repairEquipment = useCallback((backpackId: number) => {
+    send('game:backpack:repair', { backpackId });
+  }, [send]);
+
   const configureSkillLoadout = useCallback((skillKeys: string[]) => {
     send('game:skill:configure-loadout', { skillKeys });
   }, [send]);
@@ -238,6 +242,7 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     equipItem,
     unequipItem,
     dropItem,
+    repairEquipment,
     learnSkillBook,
     configureSkillLoadout,
     createMarketListing,

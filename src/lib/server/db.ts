@@ -1,5 +1,5 @@
 import { Pool, QueryResult } from 'pg';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 let pool: Pool | null = null;
@@ -56,16 +56,22 @@ export async function withTransaction<T>(fn: (query: typeof import('./db').query
 
 export async function ensureDatabaseInitialized(): Promise<void> {
   if (initialized) return;
-  const migrationPath = join(process.cwd(), 'migrations', '001_initial_schema.sql');
+  const migrationsDir = join(process.cwd(), 'migrations');
   try {
-    const sql = readFileSync(migrationPath, 'utf-8');
-    const statements = sql.split(';').filter(s => s.trim());
-    for (const stmt of statements) {
-      try {
-        await query(stmt);
-      } catch (err: any) {
-        if (!err.message?.includes('already exists')) {
-          throw err;
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter(file => file.endsWith('.sql'))
+      .sort();
+    for (const file of migrationFiles) {
+      const sql = readFileSync(join(migrationsDir, file), 'utf-8');
+      const statements = sql.split(';').filter(s => s.trim());
+      for (const stmt of statements) {
+        try {
+          await query(stmt);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : '';
+          if (!message.includes('already exists')) {
+            throw err;
+          }
         }
       }
     }
