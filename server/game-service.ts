@@ -351,14 +351,18 @@ function buildAfkSnapshot(afk: AfkRow | undefined, config: DynamicGameConfig, ro
 }
 
 function buildBattleSnapshot(bs: BattleState, role: RoleRow) {
+  // ATB 已经是 0-100 范围（actionThreshold=100），直接 clamp 即可
   return {
     enemies: bs.enemies.map(e => ({
       key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
-      stats: e.stats, actionSpeed: e.actionSpeed, actionPoints: e.actionPoints, effects: e.effects, alive: e.alive,
+      stats: e.stats, actionSpeed: e.actionSpeed,
+      actionPoints: Math.min(100, e.actionPoints),
+      effects: e.effects, alive: e.alive,
     })),
     totalEnemies: bs.totalEnemies, defeatedCount: bs.defeatedCount,
     playerHealth: bs.playerHealth, playerMaxHealth: bs.playerMaxHealth,
-    playerActionPoints: bs.playerActionPoints, playerEffects: bs.playerEffects,
+    playerActionPoints: Math.min(100, bs.playerActionPoints),
+    playerEffects: bs.playerEffects,
     logs: bs.logs.slice(-30), playerSkillStates: bs.playerSkillStates, result: bs.result,
   };
 }
@@ -683,7 +687,8 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
   const roleLevel = getLevelFromExp(role.exp).level;
   const enemyLevel = roleLevel;
   const maxHp = getMaxHealth(roleLevel, role.vitality);
-  const enemyCount = randomInt(1, 4);
+  const roll = Math.random();
+  const enemyCount = roll < 0.6 ? 1 : roll < 0.8 ? 2 : roll < 0.95 ? 3 : 4;
   const scaleFactor = 0.3 + roleLevel * 0.01; // 敌人属性缩放因子
 
   const mapEnemies = config.enemyTemplates.filter(e => e.mapKey === enemy.mapKey);
@@ -812,9 +817,10 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
   }
   const fastestSpeed = Math.max(1, playerSpeed, ...enemySpeeds.values());
 
-  state.playerActionPoints += actionThreshold * (playerSpeed / fastestSpeed);
+  // 记录本 tick 前的 ATB，用于判断谁是最快者
+  const playerRatio = playerSpeed / fastestSpeed;
+  state.playerActionPoints += actionThreshold * playerRatio;
 
-  // 所有存活敌人按最快者百分比增长行动条
   for (const enemy of aliveEnemies) {
     const enemySpeed = enemySpeeds.get(enemy) || calculateActionGainPerTick(enemy.stats.agility, config);
     enemy.actionPoints += actionThreshold * (enemySpeed / fastestSpeed);
@@ -992,6 +998,19 @@ function simulateBattleTick(state: BattleState, role: RoleRow, config: DynamicGa
   if (getAliveEnemies(state).length === 0) {
     state.result = 'win';
     state.logs.push({ timestamp: Date.now(), message: `🎉 全部击败！获得了胜利！`, type: 'info' });
+  }
+
+  // 最快者的 ATB 始终拉满（它每 tick 都会行动）
+  // 如果玩家是最快者
+  if (playerRatio >= 1) {
+    state.playerActionPoints = actionThreshold;
+  }
+  // 如果某个敌人是最快者
+  for (const enemy of getAliveEnemies(state)) {
+    const enemySpeed = enemySpeeds.get(enemy) || calculateActionGainPerTick(enemy.stats.agility, config);
+    if (enemySpeed / fastestSpeed >= 1) {
+      enemy.actionPoints = actionThreshold;
+    }
   }
 
   return state;
