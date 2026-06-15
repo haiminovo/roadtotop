@@ -245,11 +245,22 @@ export interface BattleLogEntry {
   type: string;
 }
 
+export interface PvpChallengeResult {
+  challengerWins: boolean;
+  ratingChange: number;
+  challengerNewRating: number;
+  defenderNewRating: number;
+  defenderName: string;
+  goldReward: number;
+}
+
 export interface GameSessionContextValue {
   snapshot: SessionSnapshot | null;
   connectionStatus: ConnectionStatus;
   chatMessages: ChatMessageData[];
   activityLogs: BattleLogEntry[];
+  pvpResult: PvpChallengeResult | null;
+  gameError: string | null;
   // 操作函数
   createRole: (name: string, raceKey: RaceKey, classKey: ClassKey) => void;
   startAfk: (activityKey: ActivityKey, mapKey: string) => void;
@@ -267,6 +278,8 @@ export interface GameSessionContextValue {
   challengePvp: (targetRoleId: number) => void;
   sendChat: (channelKey: string, content: string) => void;
   clearChannel: (channelKey: string) => void;
+  dismissPvpResult: () => void;
+  sellItem: (backpackId: number) => void;
 }
 
 export type ConnectionStatus = 'booting' | 'ready' | 'saving' | 'error';

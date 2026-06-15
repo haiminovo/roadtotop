@@ -12,6 +12,7 @@ interface BackpackPanelProps {
   onEquip: (backpackId: number, slot: BodySlotType, replaceBackpackId?: number) => void;
   onDrop: (backpackId: number) => void;
   onRepair: (backpackId: number) => void;
+  onSell: (backpackId: number) => void;
   onLearnSkillBook: (backpackId: number) => void;
 }
 
@@ -64,7 +65,7 @@ function EquipmentCard({ item, selected, onClick }: {
   );
 }
 
-export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onLearnSkillBook }: BackpackPanelProps) {
+export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onSell, onLearnSkillBook }: BackpackPanelProps) {
   const items = snapshot.backpack.filter(b => !b.equipped);
   const [pendingEquip, setPendingEquip] = React.useState<{ item: BackpackEntry; slot: BodySlotType } | null>(null);
   const [selectedReplaceId, setSelectedReplaceId] = React.useState<number | null>(null);
@@ -139,6 +140,9 @@ export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onLearnSkil
                       学习
                     </CommandButton>
                   )}
+                  <CommandButton size="sm" variant="success" onClick={() => onSell(item.backpackId)}>
+                    出售 💰{item.sellPrice}
+                  </CommandButton>
                   <CommandButton size="sm" variant="danger" onClick={() => onDrop(item.backpackId)}>
                     丢弃
                   </CommandButton>

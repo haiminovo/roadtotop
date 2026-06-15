@@ -508,12 +508,15 @@ export async function stopAfk(userId: number) {
 export async function claimOfflineReward(userId: number) {
   const rewards = await settleAfkState(userId);
   const role = await getRoleByUserId(userId);
-  const newExp = role.exp + rewards.gold + rewards.exp;
-  const { level: newLevel } = getLevelFromExp(role.exp + rewards.exp);
+  const newExp = role.exp + rewards.exp;
+  const { level: newLevel } = getLevelFromExp(newExp);
+  // 升级后更新血量
+  const newMaxHp = getMaxHealth(newLevel, role.vitality);
+  const newHp = Math.min(role.current_health, newMaxHp);
   await withTransaction(async (txQuery) => {
     await txQuery(
-      `UPDATE role SET gold=gold+$1, aether_crystal=aether_crystal+$2, exp=exp+$3, level=$4, updated_at=NOW() WHERE role_id=$5`,
-      [rewards.gold, rewards.aether, rewards.exp, newLevel, role.role_id]
+      `UPDATE role SET gold=gold+$1, aether_crystal=aether_crystal+$2, exp=exp+$3, level=$4, current_health=$5, updated_at=NOW() WHERE role_id=$6`,
+      [rewards.gold, rewards.aether, rewards.exp, newLevel, newHp, role.role_id]
     );
     await txQuery(
       `UPDATE afk SET pending_gold=0, pending_aether=0, pending_exp=0, updated_at=NOW() WHERE role_id=$1`,
@@ -1552,6 +1555,29 @@ export async function unequipItem(userId: number, backpackId: number) {
 export async function dropItem(userId: number, backpackId: number) {
   const role = await getRoleByUserId(userId);
   await query('DELETE FROM backpack WHERE backpack_id=$1 AND role_id=$2 AND equipped=false', [backpackId, role.role_id]);
+}
+
+export async function sellItem(userId: number, backpackId: number) {
+  const role = await getRoleByUserId(userId);
+  const bpResult = await query(
+    `SELECT b.*, i.item_type, i.sell_price, i.name, i.rarity
+     FROM backpack b JOIN item i ON b.item_id=i.item_id
+     WHERE b.backpack_id=$1 AND b.role_id=$2 AND b.equipped=false`,
+    [backpackId, role.role_id],
+  );
+  if (bpResult.rows.length === 0) throw new Error('物品不存在或已装备');
+  const bp = bpResult.rows[0];
+  const sellPrice = Math.max(1, toNumber(bp.sell_price));
+  const quantity = toNumber(bp.quantity, 1);
+
+  await withTransaction(async (txQuery) => {
+    if (quantity > 1) {
+      await txQuery('UPDATE backpack SET quantity=quantity-1 WHERE backpack_id=$1', [backpackId]);
+    } else {
+      await txQuery('DELETE FROM backpack WHERE backpack_id=$1', [backpackId]);
+    }
+    await txQuery('UPDATE role SET gold=gold+$1, updated_at=NOW() WHERE role_id=$2', [sellPrice, role.role_id]);
+  });
 }
 
 export async function repairEquipment(userId: number, backpackId: number) {

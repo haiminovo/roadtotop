@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import type {
-  SessionSnapshot, GameSessionContextValue, ConnectionStatus, ChatMessageData,
+  SessionSnapshot, GameSessionContextValue, ConnectionStatus, ChatMessageData, PvpChallengeResult,
 } from '../types';
 import type { ActivityKey, RaceKey, ClassKey, BodySlotType } from '@/lib/game-config';
 import { parseServerMessage } from '@/../shared/realtime-protocol';
@@ -26,6 +26,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('booting');
   const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
   const [activityLogs, setActivityLogs] = useState<BattleLogEntry[]>([]);
+  const [pvpResult, setPvpResult] = useState<PvpChallengeResult | null>(null);
+  const [gameError, setGameError] = useState<string | null>(null);
   const prevBattleRef = useRef<string>('');
   const prevEncountersRef = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
@@ -115,9 +117,16 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
           case 'game:chat:history':
             setChatMessages((msg.payload as { messages: ChatMessageData[] }).messages);
             break;
-          case 'game:error':
-            console.warn('[Game Error]', (msg.payload as { message: string })?.message);
+          case 'game:pvp:challenge_result':
+            setPvpResult(msg.payload as PvpChallengeResult);
             break;
+          case 'game:error': {
+            const errMsg = (msg.payload as { message: string })?.message || '未知错误';
+            console.warn('[Game Error]', errMsg);
+            setGameError(errMsg);
+            setTimeout(() => setGameError(null), 3000);
+            break;
+          }
         }
       };
 
@@ -230,11 +239,19 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     }
   }, []);
 
+  const dismissPvpResult = useCallback(() => setPvpResult(null), []);
+
+  const sellItem = useCallback((backpackId: number) => {
+    send('game:backpack:sell', { backpackId });
+  }, [send]);
+
   const value: GameSessionContextValue = {
     snapshot,
     connectionStatus,
     chatMessages,
     activityLogs,
+    pvpResult,
+    gameError,
     createRole,
     startAfk,
     stopAfk,
@@ -251,6 +268,8 @@ export function GameSessionProvider({ children }: { children: React.ReactNode })
     challengePvp,
     sendChat,
     clearChannel,
+    dismissPvpResult,
+    sellItem,
   };
 
   return (

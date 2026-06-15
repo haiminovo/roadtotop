@@ -8,7 +8,7 @@ import { ensureDatabaseInitialized, query } from './db.js';
 import { getGameConfig, invalidateConfigCache } from './dynamic-game-config.js';
 import {
   getSessionSnapshot, createRole, startAfk, stopAfk, claimOfflineReward,
-  equipItem, unequipItem, dropItem, repairEquipment, learnSkillBook, configureSkillLoadout,
+  equipItem, unequipItem, dropItem, repairEquipment, sellItem, learnSkillBook, configureSkillLoadout,
   createMarketListing, cancelMarketListing, buyMarketListing, challengePvp,
   settleAfkState,
 } from './game-service.js';
@@ -208,6 +208,14 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
     case 'game:backpack:repair': {
       if (!client.userId) { sendError(client.ws, '未登录'); return; }
       await repairEquipment(client.userId, payload?.backpackId as number);
+      const snapshot = await getSessionSnapshot(client.userId);
+      send(client.ws, 'game:state:update', snapshot);
+      break;
+    }
+
+    case 'game:backpack:sell': {
+      if (!client.userId) { sendError(client.ws, '未登录'); return; }
+      await sellItem(client.userId, payload?.backpackId as number);
       const snapshot = await getSessionSnapshot(client.userId);
       send(client.ws, 'game:state:update', snapshot);
       break;

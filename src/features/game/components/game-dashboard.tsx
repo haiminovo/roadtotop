@@ -23,12 +23,12 @@ const TABS: { key: TabKey; label: string }[] = [
 
 export function GameDashboard() {
   const {
-    snapshot, connectionStatus, chatMessages, activityLogs,
+    snapshot, connectionStatus, chatMessages, activityLogs, pvpResult, gameError,
     createRole, startAfk, stopAfk, claimOfflineReward,
-    equipItem, unequipItem, dropItem, repairEquipment, learnSkillBook,
+    equipItem, unequipItem, dropItem, repairEquipment, sellItem, learnSkillBook,
     configureSkillLoadout,
     createMarketListing, cancelMarketListing, buyMarketListing,
-    challengePvp, sendChat, clearChannel,
+    challengePvp, sendChat, clearChannel, dismissPvpResult,
   } = useGameSession();
 
   const [activeTab, setActiveTab] = useState<TabKey>('afk');
@@ -186,6 +186,7 @@ export function GameDashboard() {
               onEquip={(id, slot, replaceId) => equipItem(id, slot, replaceId)}
               onDrop={dropItem}
               onRepair={repairEquipment}
+              onSell={sellItem}
               onLearnSkillBook={learnSkillBook}
             />
           )}
@@ -209,6 +210,8 @@ export function GameDashboard() {
             <PvpPanel
               snapshot={snapshot}
               onChallenge={challengePvp}
+              pvpResult={pvpResult}
+              onDismissResult={dismissPvpResult}
             />
           )}
         </main>
@@ -245,6 +248,13 @@ export function GameDashboard() {
           snapshot={snapshot}
           onClaim={() => { claimOfflineReward(); setOfflineRewardDismissed(true); }}
         />
+      )}
+
+      {/* 错误提示 */}
+      {gameError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm text-white shadow-lg animate-pulse" style={{ background: '#f85149' }}>
+          ⚠️ {gameError}
+        </div>
       )}
     </div>
   );
