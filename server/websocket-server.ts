@@ -12,7 +12,7 @@ import {
   createMarketListing, cancelMarketListing, buyMarketListing, challengePvp,
   settleAfkState,
 } from './game-service.js';
-import { saveChatMessage, getChannelHistory, getAllChannelHistories } from './chat-service.js';
+import { saveChatMessage, getChannelHistory } from './chat-service.js';
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -145,7 +145,8 @@ async function handleMessage(client: ConnectedClient, msg: { type: string; paylo
         const snapshot = await getSessionSnapshot(client.userId);
         if (snapshot) send(client.ws, 'game:state:update', snapshot);
       } catch (e) {
-        // 轮询错误静默处理
+        console.warn('[Poll Error]', (e as Error).message);
+        sendError(client.ws, (e as Error).message || '状态更新失败');
       }
       break;
     }

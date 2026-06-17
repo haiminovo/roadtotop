@@ -5,19 +5,25 @@
 // --- 客户端 -> 服务端 消息类型 ---
 export type ClientMessageType =
   | 'game:session:start'
+  | 'game:state:poll'
+  | 'game:role:create'
   | 'game:afk:start'
   | 'game:afk:stop'
   | 'game:afk:claim'
   | 'game:backpack:equip'
   | 'game:backpack:unequip'
   | 'game:backpack:drop'
+  | 'game:backpack:repair'
+  | 'game:backpack:sell'
   | 'game:backpack:learn-skill-book'
   | 'game:skill:configure-loadout'
   | 'game:market:create'
   | 'game:market:cancel'
   | 'game:market:buy'
   | 'game:pvp:challenge'
-  | 'game:chat:send';
+  | 'game:chat:send'
+  | 'game:chat:history'
+  | 'game:admin:reload-config';
 
 export interface ClientMessage {
   type: ClientMessageType;

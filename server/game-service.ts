@@ -763,13 +763,25 @@ async function addItemToBackpack(
     const currentDurability = Math.min(maxDurability, Math.max(0, Number(options.currentDurability ?? maxDurability)));
     const repairCount = Math.max(0, Math.floor(options.repairCount ?? 0));
 
-    for (let i = 0; i < quantity; i++) {
-      await runner(
-        `INSERT INTO backpack (
-          role_id, item_id, quantity, current_durability, max_durability, repair_count
-        ) VALUES ($1,$2,1,$3,$4,$5)`,
-        [roleId, itemId, currentDurability, maxDurability, repairCount],
-      );
+    // 检查是否有同 item_id 的未装备空闲装备，有则堆叠
+    const existingEquip = await runner(
+      `SELECT backpack_id FROM backpack
+       WHERE role_id=$1 AND item_id=$2 AND equipped=false
+         AND current_durability=$3 AND max_durability=$4 AND repair_count=$5
+       ORDER BY backpack_id LIMIT 1`,
+      [roleId, itemId, currentDurability, maxDurability, repairCount],
+    );
+    if (existingEquip.rows.length > 0) {
+      await runner('UPDATE backpack SET quantity=quantity+$1 WHERE backpack_id=$2', [quantity, existingEquip.rows[0].backpack_id]);
+    } else {
+      for (let i = 0; i < quantity; i++) {
+        await runner(
+          `INSERT INTO backpack (
+            role_id, item_id, quantity, current_durability, max_durability, repair_count
+          ) VALUES ($1,$2,1,$3,$4,$5)`,
+          [roleId, itemId, currentDurability, maxDurability, repairCount],
+        );
+      }
     }
     return;
   }
@@ -1560,7 +1572,7 @@ export async function dropItem(userId: number, backpackId: number) {
 export async function sellItem(userId: number, backpackId: number) {
   const role = await getRoleByUserId(userId);
   const bpResult = await query(
-    `SELECT b.*, i.item_type, i.sell_price, i.name, i.rarity
+    `SELECT b.backpack_id, b.item_id, b.quantity, b.equipped, i.item_type, i.sell_price, i.name, i.rarity
      FROM backpack b JOIN item i ON b.item_id=i.item_id
      WHERE b.backpack_id=$1 AND b.role_id=$2 AND b.equipped=false`,
     [backpackId, role.role_id],
@@ -1802,6 +1814,8 @@ export async function challengePvp(userId: number, targetRoleId: number) {
     winnerId, challengerWins, ratingChange,
     challengerNewRating: challengerWins ? challenger.pvp_rating + ratingChange : challenger.pvp_rating - ratingChange,
     defenderNewRating: challengerWins ? defender.pvp_rating - ratingChange : defender.pvp_rating + ratingChange,
+    defenderName: defender.name,
+    goldReward: challengerWins ? goldReward : 0,
   };
 }
 

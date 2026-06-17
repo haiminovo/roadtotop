@@ -69,6 +69,7 @@ export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onSell, onL
   const items = snapshot.backpack.filter(b => !b.equipped);
   const [pendingEquip, setPendingEquip] = React.useState<{ item: BackpackEntry; slot: BodySlotType } | null>(null);
   const [selectedReplaceId, setSelectedReplaceId] = React.useState<number | null>(null);
+  const [confirmDropId, setConfirmDropId] = React.useState<number | null>(null);
 
   const handleEquip = (item: BackpackEntry) => {
     if (!item.slot) return;
@@ -92,6 +93,7 @@ export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onSell, onL
   const equippedToReplace = pendingEquip ? snapshot.role.bodySlots[pendingEquip.slot] || [] : [];
 
   return (
+    <>
     <SectionCard title={`背包 (${items.length})`}>
       {items.length === 0 ? (
         <p className="text-text-muted text-sm text-center py-4">背包空空如也...</p>
@@ -143,7 +145,7 @@ export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onSell, onL
                   <CommandButton size="sm" variant="success" onClick={() => onSell(item.backpackId)}>
                     出售 💰{item.sellPrice}
                   </CommandButton>
-                  <CommandButton size="sm" variant="danger" onClick={() => onDrop(item.backpackId)}>
+                  <CommandButton size="sm" variant="danger" onClick={() => setConfirmDropId(item.backpackId)}>
                     丢弃
                   </CommandButton>
                 </div>
@@ -196,5 +198,20 @@ export function BackpackPanel({ snapshot, onEquip, onDrop, onRepair, onSell, onL
         </div>
       )}
     </SectionCard>
+
+      {/* 丢弃确认 */}
+      {confirmDropId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setConfirmDropId(null)}>
+          <div className="bg-bg-secondary border border-border-primary rounded-lg p-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="text-sm text-text-primary mb-1">确定要丢弃这个物品吗？</div>
+            <div className="text-xs text-text-muted mb-4">此操作无法撤销</div>
+            <div className="flex gap-2 justify-end">
+              <CommandButton size="sm" variant="neutral" onClick={() => setConfirmDropId(null)}>取消</CommandButton>
+              <CommandButton size="sm" variant="danger" onClick={() => { onDrop(confirmDropId); setConfirmDropId(null); }}>确认丢弃</CommandButton>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { BattleSnapshot } from '@/features/game/types';
 
 interface ChatMessage {
   chatId?: number;
