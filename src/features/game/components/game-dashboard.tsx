@@ -14,7 +14,7 @@ import { ChatPanel } from '@/features/chat/components/chat-panel';
 type TabKey = 'afk' | 'role' | 'backpack' | 'market' | 'pvp';
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'afk', label: '活动' },
+  { key: 'afk', label: '战斗' },
   { key: 'role', label: '角色' },
   { key: 'backpack', label: '背包' },
   { key: 'market', label: '市场' },
@@ -190,14 +190,7 @@ export function GameDashboard() {
               onLearnSkillBook={learnSkillBook}
             />
           )}
-          {activeTab === 'afk' && (
-            <AfkPanel
-              snapshot={snapshot}
-              onStart={(activity, map) => startAfk(activity, map)}
-              onStop={stopAfk}
-              onClaim={claimOfflineReward}
-            />
-          )}
+          {activeTab === 'afk' && <AfkPanel snapshot={snapshot} />}
           {activeTab === 'market' && (
             <MarketPanel
               snapshot={snapshot}
