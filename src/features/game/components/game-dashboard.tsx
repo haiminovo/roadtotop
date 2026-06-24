@@ -140,7 +140,7 @@ export function GameDashboard() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen min-w-[320px]">
       {/* 桌面端侧边导航（全高） */}
       <nav className="hidden lg:flex flex-col w-16 bg-bg-secondary border-r border-border-primary">
         {/* 游戏标题 */}

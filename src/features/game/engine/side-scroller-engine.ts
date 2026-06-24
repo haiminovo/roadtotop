@@ -46,6 +46,7 @@ export interface CombatEntity {
   classKey?: string;
   monsterKey?: string;
   sortOrder: number;
+  invulnerableTime?: number;
 }
 
 export interface DamageNumber {
@@ -119,7 +120,7 @@ function createDefaultConfig(canvasWidth: number, canvasHeight: number): SideScr
   return {
     sceneWidth: canvasWidth,
     sceneHeight: canvasHeight,
-    groundY: canvasHeight - 100,
+    groundY: canvasHeight - 40,
     heroSpawnX: canvasWidth - 150,
     monsterSpawnX: 150,
   };
@@ -301,6 +302,13 @@ export class SideScrollerEngine {
     for (const hero of this.state.heroes) {
       hero.stateTime += dt;
 
+      if (hero.invulnerableTime && hero.invulnerableTime > 0) {
+        hero.invulnerableTime -= dt;
+        if (hero.invulnerableTime <= 0) {
+          hero.invulnerableTime = 0;
+        }
+      }
+
       if (hero.state === 'dying' && hero.stateTime > 0.5) {
         hero.state = 'dead';
         hero.stateTime = 0;
@@ -420,6 +428,10 @@ export class SideScrollerEngine {
   }
 
   private performAttack(attacker: CombatEntity, target: CombatEntity): void {
+    if (target.invulnerableTime && target.invulnerableTime > 0) {
+      return;
+    }
+
     attacker.state = 'attacking';
     attacker.stateTime = 0;
     attacker.attackProgress = 0.01;
@@ -531,6 +543,14 @@ export class SideScrollerEngine {
     hero.targetId = null;
     hero.attackProgress = 0;
     hero.hitFlash = 0;
+    hero.invulnerableTime = 2;
+
+    for (const monster of this.state.monsters) {
+      if (monster.state !== 'dead' && monster.state !== 'dying') {
+        monster.targetId = null;
+        monster.x = Math.max(20, monster.x - 100);
+      }
+    }
   }
 
   private spawnSingleMonster(): void {
@@ -581,15 +601,12 @@ export class SideScrollerEngine {
 
   private render(): void {
     const ctx = this.ctx;
-    const { sceneWidth, sceneHeight, groundY } = this.config;
+    const { sceneWidth, sceneHeight } = this.config;
 
     ctx.clearRect(0, 0, sceneWidth, sceneHeight);
 
     ctx.fillStyle = '#161b22';
     ctx.fillRect(0, 0, sceneWidth, sceneHeight);
-
-    ctx.fillStyle = '#21262d';
-    ctx.fillRect(0, groundY, sceneWidth, sceneHeight - groundY);
 
     const allEntities = [...this.state.heroes, ...this.state.monsters].sort((a, b) =>
       (a.y + a.height) - (b.y + b.height)
@@ -611,19 +628,35 @@ export class SideScrollerEngine {
       const y = effect.y + (effect.targetY - effect.y) * t;
 
       ctx.save();
+
+      const pixelSize = 8;
+      const baseRadius = Math.floor((2 + (1 - t) * 2) * pixelSize);
+
+      const sparklePattern = [
+        [0, -3], [-1, -2], [1, -2], [-2, -1], [0, -1], [2, -1],
+        [-3, 0], [-1, 0], [1, 0], [3, 0],
+        [-2, 1], [0, 1], [2, 1], [-1, 2], [1, 2], [0, 3],
+      ];
+
+      const innerPattern = [
+        [0, -1], [-1, 0], [0, 0], [1, 0], [0, 1],
+      ];
+
+      ctx.globalAlpha = (1 - t) * 0.6;
+      for (const [ox, oy] of sparklePattern) {
+        const px = x + ox * pixelSize - pixelSize / 2;
+        const py = y + oy * pixelSize - pixelSize / 2;
+        ctx.fillStyle = effect.color;
+        ctx.fillRect(px, py, pixelSize, pixelSize);
+      }
+
       ctx.globalAlpha = 1 - t;
-
-      const size = 30 + (1 - t) * 20;
-      ctx.strokeStyle = effect.color;
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(x, y, size, -0.5 + t, 0.5 + t);
-      ctx.stroke();
-
-      ctx.globalAlpha = (1 - t) * 0.3;
-      ctx.lineWidth = 8;
-      ctx.stroke();
+      for (const [ox, oy] of innerPattern) {
+        const px = x + ox * pixelSize - pixelSize / 2;
+        const py = y + oy * pixelSize - pixelSize / 2;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(px, py, pixelSize, pixelSize);
+      }
 
       ctx.restore();
     }

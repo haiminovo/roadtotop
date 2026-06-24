@@ -148,7 +148,7 @@ export function BattleView({ battle, classKey }: BattleViewProps) {
   const totalSlots = 1 + battle.enemies.length;
 
   return (
-    <div ref={containerRef} className="relative rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '2px solid #f8514930' }}>
+    <div ref={containerRef} className="relative rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '2px solid #f8514930', minHeight: 260 }}>
       {/* 标题 */}
       <div className="flex items-center justify-between px-3 py-1.5" style={{ background: '#161b22', borderBottom: '1px solid #30363d' }}>
         <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================
-// 精灵动画系统 - 简化版
+// 精灵动画系统 - 像素风格
 // ============================================================
 
 export interface CombatEntity {
@@ -20,35 +20,290 @@ export interface CombatEntity {
   hp: number;
   maxHp: number;
   stateTime: number;
+  invulnerableTime?: number;
 }
 
-const CLASS_COLORS: Record<string, { main: string; light: string; dark: string }> = {
-  warrior: { main: '#e74c3c', light: '#ff6b5b', dark: '#c0392b' },
-  mage: { main: '#9b59b6', light: '#be8ed6', dark: '#7d3c98' },
-  ranger: { main: '#27ae60', light: '#58d68d', dark: '#1e8449' },
-  rogue: { main: '#f39c12', light: '#f7dc6f', dark: '#d68910' },
-  priest: { main: '#3498db', light: '#85c1e9', dark: '#2980b9' },
-  farmer: { main: '#1abc9c', light: '#76d7c4', dark: '#16a085' },
+// 像素绘制辅助函数
+type PixelPattern = (string | null)[];
+
+const CLASS_COLORS: Record<string, { main: string; light: string; dark: string; skin: string; hair: string }> = {
+  warrior: { main: '#c74b3a', light: '#e86b5a', dark: '#8b2a1a', skin: '#f5c6a0', hair: '#5c3a21' },
+  mage: { main: '#7b5aa6', light: '#9d7bc8', dark: '#4a2a76', skin: '#f5c6a0', hair: '#2a1a3a' },
+  ranger: { main: '#4a8b3a', light: '#6bab5a', dark: '#2a5a1a', skin: '#f5c6a0', hair: '#8b6a3a' },
+  rogue: { main: '#8b7a3a', light: '#ab9a5a', dark: '#5a4a1a', skin: '#f5c6a0', hair: '#2a2a2a' },
+  priest: { main: '#4a7ab8', light: '#6a9ad8', dark: '#2a4a88', skin: '#f5c6a0', hair: '#c9b89a' },
+  farmer: { main: '#5a9a7a', light: '#7aba9a', dark: '#3a6a4a', skin: '#f5c6a0', hair: '#7a5a3a' },
 };
 
-const CLASS_ICONS: Record<string, string> = {
-  warrior: '⚔️',
-  mage: '🔮',
-  ranger: '🏹',
-  rogue: '🗡️',
-  priest: '✨',
-  farmer: '🌾',
+const MONSTER_COLORS: Record<string, { main: string; light: string; dark: string; eye: string }> = {
+  slime: { main: '#4ab86a', light: '#6ad88a', dark: '#2a884a', eye: '#ffffff' },
+  goblin: { main: '#8b9a4a', light: '#abba6a', dark: '#5b6a2a', eye: '#ff4444' },
+  skeleton: { main: '#e8e0d0', light: '#ffffff', dark: '#b8b0a0', eye: '#222222' },
+  wolf: { main: '#7a7a8a', light: '#9a9aaa', dark: '#5a5a6a', eye: '#ffcc44' },
+  bear: { main: '#8b5a3a', light: '#ab7a5a', dark: '#5b3a1a', eye: '#444444' },
+  fire_elemental: { main: '#ff6b3a', light: '#ffab5a', dark: '#cc3a1a', eye: '#ffffff' },
+  dragon_whelp: { main: '#9b5ab8', light: '#bb7ad8', dark: '#6b2a88', eye: '#ffcc44' },
+  void_walker: { main: '#3a3a5a', light: '#5a5a8a', dark: '#1a1a3a', eye: '#aa66ff' },
 };
 
-const MONSTER_CONFIGS: Record<string, { color: string; icon: string }> = {
-  slime: { color: '#27ae60', icon: '🟢' },
-  goblin: { color: '#e67e22', icon: '👺' },
-  skeleton: { color: '#ecf0f1', icon: '💀' },
-  wolf: { color: '#7f8c8d', icon: '🐺' },
-  bear: { color: '#8b4513', icon: '🐻' },
-  fire_elemental: { color: '#e74c3c', icon: '🔥' },
-  dragon_whelp: { color: '#9b59b6', icon: '🐉' },
-  void_walker: { color: '#2c3e50', icon: '👻' },
+// 像素角色图案 - 16x16 网格
+const HERO_PIXELS: Record<string, PixelPattern> = {
+  warrior: [
+    null, null, null, null, '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', null, null, null, null, null, null,
+    null, null, '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', '#5c3a21', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#222222', '#f5c6a0', '#f5c6a0', '#222222', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', null, null, null, null, null, null, null,
+    null, null, '#e86b5a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#e86b5a', null, null, null, null, null,
+    null, null, '#e86b5a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#e86b5a', null, null, null, null, null,
+    null, null, '#f5c6a0', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#8b2a1a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#c74b3a', '#8b2a1a', null, null, null, null, null, null,
+    null, null, null, '#8b2a1a', '#8b2a1a', '#8b2a1a', null, null, '#8b2a1a', '#8b2a1a', '#8b2a1a', null, null, null, null, null,
+    null, null, null, '#8b2a1a', '#8b2a1a', '#8b2a1a', null, null, '#8b2a1a', '#8b2a1a', '#8b2a1a', null, null, null, null, null,
+    null, null, null, '#5a5a5a', '#5a5a5a', '#5a5a5a', null, null, '#5a5a5a', '#5a5a5a', '#5a5a5a', null, null, null, null, null,
+    null, null, null, '#3a3a3a', '#3a3a3a', '#3a3a3a', null, null, '#3a3a3a', '#3a3a3a', '#3a3a3a', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+  mage: [
+    null, null, null, null, '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', null, null, null, null, null, null,
+    null, null, '#7b5aa6', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#2a1a3a', '#7b5aa6', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#222222', '#f5c6a0', '#f5c6a0', '#222222', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', null, null, null, null, null, null, null,
+    null, '#9d7bc8', '#9d7bc8', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#9d7bc8', '#9d7bc8', null, null, null, null,
+    null, '#9d7bc8', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#9d7bc8', null, null, null, null,
+    null, null, '#f5c6a0', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#f5c6a0', null, null, null, null, null,
+    null, null, '#ffcc44', '#4a2a76', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#7b5aa6', '#4a2a76', '#ffcc44', null, null, null, null, null,
+    null, null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, null, null, null,
+    null, null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, null, null, null,
+    null, null, null, '#7b5aa6', '#7b5aa6', '#7b5aa6', null, null, '#7b5aa6', '#7b5aa6', '#7b5aa6', null, null, null, null, null,
+    null, null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, '#4a2a76', '#4a2a76', '#4a2a76', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+  ranger: [
+    null, null, null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, null, null, null, null,
+    null, null, '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', '#8b6a3a', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#222222', '#f5c6a0', '#f5c6a0', '#222222', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', null, null, null, null, null, null, null,
+    null, null, '#8b6a3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#6ab85a', null, null, null, null, null,
+    null, null, '#8b6a3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#6ab85a', null, null, null, null, null,
+    null, null, '#f5c6a0', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#2a5a1a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#4a8b3a', '#2a5a1a', null, null, null, null, null, null,
+    null, null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, null, null, null,
+    null, null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, null, null, null,
+    null, null, null, '#4a8b3a', '#4a8b3a', '#4a8b3a', null, null, '#4a8b3a', '#4a8b3a', '#4a8b3a', null, null, null, null, null,
+    null, null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, '#2a5a1a', '#2a5a1a', '#2a5a1a', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+  rogue: [
+    null, null, null, null, '#222222', '#222222', '#222222', '#222222', '#222222', '#222222', null, null, null, null, null, null,
+    null, null, '#222222', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#2a2a2a', '#222222', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#222222', '#f5c6a0', '#f5c6a0', '#222222', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', null, null, null, null, null, null, null,
+    null, null, '#222222', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#222222', null, null, null, null, null,
+    null, null, '#222222', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#222222', null, null, null, null, null,
+    null, null, '#f5c6a0', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#5a4a1a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#8b7a3a', '#5a4a1a', null, null, null, null, null, null,
+    null, null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, null, null, null,
+    null, null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, null, null, null,
+    null, null, null, '#8b7a3a', '#8b7a3a', '#8b7a3a', null, null, '#8b7a3a', '#8b7a3a', '#8b7a3a', null, null, null, null, null,
+    null, null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, '#5a4a1a', '#5a4a1a', '#5a4a1a', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+  priest: [
+    null, null, null, null, '#fff', '#fff', '#fff', '#fff', '#fff', '#fff', null, null, null, null, null, null,
+    null, null, '#fff', '#c9b89a', '#c9b89a', '#c9b89a', '#c9b89a', '#c9b89a', '#c9b89a', '#c9b89a', '#c9b89a', '#fff', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#2266ff', '#f5c6a0', '#f5c6a0', '#2266ff', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', null, null, null, null, null, null, null,
+    null, '#fff', '#fff', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#fff', '#fff', null, null, null, null,
+    null, '#fff', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#fff', null, null, null, null,
+    null, null, '#f5c6a0', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#f5c6a0', null, null, null, null, null,
+    null, null, '#ffcc44', '#2a4a88', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#4a7ab8', '#2a4a88', '#ffcc44', null, null, null, null, null,
+    null, null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, null, null, null,
+    null, null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, null, null, null,
+    null, null, null, '#4a7ab8', '#4a7ab8', '#4a7ab8', null, null, '#4a7ab8', '#4a7ab8', '#4a7ab8', null, null, null, null, null,
+    null, null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, '#2a4a88', '#2a4a88', '#2a4a88', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+  farmer: [
+    null, null, null, null, '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', null, null, null, null, null, null,
+    null, null, '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', '#7a5a3a', null, null, null, null,
+    null, null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#222222', '#f5c6a0', '#f5c6a0', '#222222', '#f5c6a0', '#f5c6a0', '#f5c6a0', null, null, null, null, null, null,
+    null, null, null, '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#f5c6a0', '#dab090', null, null, null, null, null, null,
+    null, null, null, null, null, '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', null, null, null, null, null, null, null,
+    null, null, '#7aba9a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#7aba9a', null, null, null, null, null,
+    null, null, '#7aba9a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#7aba9a', null, null, null, null, null,
+    null, null, '#f5c6a0', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#f5c6a0', null, null, null, null, null,
+    null, null, null, '#3a6a4a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#5a9a7a', '#3a6a4a', null, null, null, null, null, null,
+    null, null, null, '#6b5a3a', '#6b5a3a', '#6b5a3a', null, null, '#6b5a3a', '#6b5a3a', '#6b5a3a', null, null, null, null, null,
+    null, null, null, '#8b7a5a', '#8b7a5a', '#8b7a5a', null, null, '#8b7a5a', '#8b7a5a', '#8b7a5a', null, null, null, null, null,
+    null, null, null, '#5a9a7a', '#5a9a7a', '#5a9a7a', null, null, '#5a9a7a', '#5a9a7a', '#5a9a7a', null, null, null, null, null,
+    null, null, null, '#3a6a4a', '#3a6a4a', '#3a6a4a', null, null, '#3a6a4a', '#3a6a4a', '#3a6a4a', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', '#222222', null, null, '#222222', '#222222', '#222222', null, null, null, null, null,
+  ],
+};
+
+// 怪物像素图案 - 16x16
+const MONSTER_PIXELS: Record<string, PixelPattern> = {
+  slime: [
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', null, null, null, null, null,
+    null, null, null, '#4ab86a', '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', null, null, null, null,
+    null, null, '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', null, null, null,
+    null, '#4ab86a', '#6ad88a', '#6ad88a', '#ffffff', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#ffffff', '#6ad88a', '#6ad88a', '#4ab86a', null, null, null,
+    null, '#4ab86a', '#6ad88a', '#ffffff', '#222222', '#ffffff', '#6ad88a', '#6ad88a', '#ffffff', '#222222', '#ffffff', '#6ad88a', '#4ab86a', null, null, null,
+    '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', null, null,
+    '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', null, null,
+    '#2a884a', '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', '#2a884a', null, null,
+    null, '#2a884a', '#4ab86a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#6ad88a', '#4ab86a', '#2a884a', null, null, null,
+    null, null, '#2a884a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#4ab86a', '#2a884a', null, null, null, null,
+    null, null, null, '#2a884a', '#2a884a', '#2a884a', '#4ab86a', '#4ab86a', '#2a884a', '#2a884a', '#2a884a', null, null, null, null, null,
+    null, null, null, null, null, null, '#2a884a', '#2a884a', '#2a884a', null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  goblin: [
+    null, null, null, null, null, '#5b6a2a', '#5b6a2a', '#5b6a2a', '#5b6a2a', '#5b6a2a', '#5b6a2a', null, null, null, null, null,
+    null, null, null, '#5b6a2a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#5b6a2a', null, null, null, null,
+    null, null, '#5b6a2a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#5b6a2a', null, null, null,
+    null, '#5b6a2a', '#8b9a4a', '#ff4444', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#ff4444', '#8b9a4a', '#5b6a2a', null, null, null,
+    null, '#5b6a2a', '#8b9a4a', '#ff4444', '#222222', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#222222', '#ff4444', '#8b9a4a', '#5b6a2a', null, null, null,
+    null, null, '#8b9a4a', '#8b9a4a', '#8b9a4a', '#abba6a', '#abba6a', '#abba6a', '#abba6a', '#8b9a4a', '#8b9a4a', '#8b9a4a', null, null, null, null,
+    null, null, null, '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', null, null, null, null, null,
+    null, null, null, '#5b6a2a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#5b6a2a', null, null, null, null, null,
+    null, null, null, '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', null, null, null, null, null,
+    null, null, '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', null, null, '#8b9a4a', '#8b9a4a', '#8b9a4a', '#8b9a4a', null, null, null, null,
+    null, null, '#5b6a2a', '#8b9a4a', '#8b9a4a', null, null, null, null, '#8b9a4a', '#8b9a4a', '#5b6a2a', null, null, null, null,
+    null, null, '#5b6a2a', '#5b6a2a', null, null, null, null, null, null, '#5b6a2a', '#5b6a2a', null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  skeleton: [
+    null, null, null, null, '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', null, null, null, null, null, null,
+    null, null, null, '#e8e0d0', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null, null,
+    null, null, '#e8e0d0', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null,
+    null, '#e8e0d0', '#ffffff', '#222222', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#222222', '#ffffff', '#e8e0d0', null, null, null,
+    null, '#e8e0d0', '#ffffff', '#222222', '#222222', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#222222', '#222222', '#ffffff', '#e8e0d0', null, null, null,
+    null, null, '#e8e0d0', '#ffffff', '#ffffff', '#ffffff', '#222222', '#222222', '#222222', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null,
+    null, null, null, '#e8e0d0', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null, null,
+    null, null, null, null, '#b8b0a0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#b8b0a0', null, null, null, null, null, null,
+    null, null, null, null, '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', null, null, null, null, null, null,
+    null, null, null, '#e8e0d0', '#ffffff', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#ffffff', '#e8e0d0', null, null, null, null, null,
+    null, null, '#e8e0d0', '#ffffff', '#ffffff', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null,
+    null, null, '#e8e0d0', '#ffffff', '#ffffff', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#e8e0d0', '#ffffff', '#ffffff', '#e8e0d0', null, null, null, null,
+    null, null, null, '#e8e0d0', '#e8e0d0', null, null, null, null, '#e8e0d0', '#e8e0d0', null, null, null, null, null,
+    null, null, null, '#b8b0a0', '#b8b0a0', null, null, null, null, '#b8b0a0', '#b8b0a0', null, null, null, null, null,
+    null, null, null, '#e8e0d0', '#e8e0d0', null, null, null, null, '#e8e0d0', '#e8e0d0', null, null, null, null, null,
+    null, null, null, '#222222', '#222222', null, null, null, null, '#222222', '#222222', null, null, null, null, null,
+  ],
+  wolf: [
+    null, null, null, '#5a5a6a', null, null, null, null, null, null, null, '#5a5a6a', null, null, null, null,
+    null, null, '#5a5a6a', '#7a7a8a', '#7a7a8a', null, null, null, null, null, '#7a7a8a', '#7a7a8a', '#5a5a6a', null, null, null,
+    null, '#5a5a6a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#5a5a6a', null, null, null,
+    null, '#5a5a6a', '#7a7a8a', '#ffcc44', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#ffcc44', '#7a7a8a', '#5a5a6a', null, null, null,
+    null, null, '#9a9aaa', '#ffcc44', '#222222', '#9a9aaa', '#9a9aaa', '#9a9aaa', '#9a9aaa', '#222222', '#ffcc44', '#9a9aaa', null, null, null, null,
+    null, null, '#9a9aaa', '#9a9aaa', '#9a9aaa', '#9a9aaa', '#222222', '#222222', '#9a9aaa', '#9a9aaa', '#9a9aaa', '#9a9aaa', null, null, null, null,
+    null, null, null, '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', null, null, null, null, null,
+    null, null, null, '#5a5a6a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#5a5a6a', null, null, null, null, null,
+    null, null, null, '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', null, null, null, null, null,
+    null, null, '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', null, null, '#7a7a8a', '#7a7a8a', '#7a7a8a', '#7a7a8a', null, null, null, null,
+    null, null, '#5a5a6a', '#7a7a8a', '#7a7a8a', null, null, null, null, '#7a7a8a', '#7a7a8a', '#5a5a6a', null, null, null, null,
+    null, null, '#5a5a6a', '#5a5a6a', null, null, null, null, null, null, '#5a5a6a', '#5a5a6a', null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  bear: [
+    null, null, '#5b3a1a', '#5b3a1a', null, null, null, null, null, null, null, '#5b3a1a', '#5b3a1a', null, null, null,
+    null, '#5b3a1a', '#8b5a3a', '#8b5a3a', '#8b5a3a', null, null, null, null, null, '#8b5a3a', '#8b5a3a', '#5b3a1a', null, null, null,
+    null, '#5b3a1a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#5b3a1a', null, null, null,
+    null, null, '#8b5a3a', '#444444', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#444444', '#8b5a3a', null, null, null, null,
+    null, null, '#ab7a5a', '#444444', '#222222', '#ab7a5a', '#ab7a5a', '#ab7a5a', '#ab7a5a', '#222222', '#444444', '#ab7a5a', null, null, null, null,
+    null, null, '#ab7a5a', '#ab7a5a', '#ab7a5a', '#ab7a5a', '#222222', '#222222', '#ab7a5a', '#ab7a5a', '#ab7a5a', '#ab7a5a', null, null, null, null,
+    null, null, null, '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', null, null, null, null, null,
+    null, null, null, '#5b3a1a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#5b3a1a', null, null, null, null, null,
+    null, null, null, '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', null, null, null, null, null,
+    null, null, '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', '#8b5a3a', null, null, null, null,
+    null, null, '#5b3a1a', '#8b5a3a', '#8b5a3a', '#8b5a3a', null, null, '#8b5a3a', '#8b5a3a', '#8b5a3a', '#5b3a1a', null, null, null, null,
+    null, null, '#5b3a1a', '#5b3a1a', '#5b3a1a', null, null, null, null, '#5b3a1a', '#5b3a1a', '#5b3a1a', null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  fire_elemental: [
+    null, null, null, null, null, null, '#ffab5a', '#ffab5a', '#ffab5a', '#ffab5a', null, null, null, null, null, null,
+    null, null, null, null, '#ffab5a', '#ffab5a', '#ffab5a', '#ff6b3a', '#ffab5a', '#ffab5a', '#ffab5a', null, null, null, null, null,
+    null, null, null, '#ffab5a', '#ffab5a', '#ffab5a', '#ffab5a', '#ff6b3a', '#ff6b3a', '#ffab5a', '#ffab5a', '#ffab5a', null, null, null, null,
+    null, null, '#ffab5a', '#ff6b3a', '#ffffff', '#ffab5a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffab5a', '#ffffff', '#ff6b3a', '#ffab5a', null, null, null,
+    null, null, '#ff6b3a', '#ffffff', '#222222', '#ffffff', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffffff', '#222222', '#ffffff', '#ff6b3a', null, null, null,
+    null, '#ffab5a', '#ff6b3a', '#ffab5a', '#ffffff', '#ffab5a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffab5a', '#ffffff', '#ffab5a', '#ff6b3a', '#ffab5a', null, null,
+    null, '#ffab5a', '#ff6b3a', '#ff6b3a', '#ffab5a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffab5a', '#ff6b3a', '#ff6b3a', '#ffab5a', null, null,
+    null, '#ffab5a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffab5a', null, null,
+    '#ffab5a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ffab5a', null, null,
+    '#cc3a1a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#cc3a1a', null, null,
+    null, '#cc3a1a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#cc3a1a', null, null, null,
+    null, null, '#cc3a1a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#cc3a1a', null, null, null, null,
+    null, null, null, '#cc3a1a', '#cc3a1a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#ff6b3a', '#cc3a1a', '#cc3a1a', null, null, null, null, null,
+    null, null, null, null, '#cc3a1a', '#cc3a1a', '#cc3a1a', '#cc3a1a', '#cc3a1a', '#cc3a1a', null, null, null, null, null, null,
+    null, null, null, null, null, '#cc3a1a', '#cc3a1a', '#cc3a1a', '#cc3a1a', null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  dragon_whelp: [
+    null, null, '#6b2a88', null, null, null, null, null, null, null, null, null, '#6b2a88', null, null, null,
+    null, '#6b2a88', '#9b5ab8', '#9b5ab8', null, null, null, null, null, null, null, '#9b5ab8', '#9b5ab8', '#6b2a88', null, null,
+    null, null, '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', null, null, null,
+    null, null, '#9b5ab8', '#ffcc44', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#ffcc44', '#9b5ab8', '#9b5ab8', null, null, null,
+    null, null, '#bb7ad8', '#ffcc44', '#222222', '#bb7ad8', '#bb7ad8', '#bb7ad8', '#bb7ad8', '#222222', '#ffcc44', '#bb7ad8', '#bb7ad8', null, null, null,
+    null, null, '#bb7ad8', '#bb7ad8', '#bb7ad8', '#bb7ad8', '#ffcc44', '#ffcc44', '#bb7ad8', '#bb7ad8', '#bb7ad8', '#bb7ad8', '#bb7ad8', null, null, null,
+    null, null, null, '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', null, null, null, null,
+    null, null, null, '#6b2a88', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#6b2a88', null, null, null, null,
+    null, null, null, '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', null, null, null, null,
+    null, null, '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', '#9b5ab8', null, null, null,
+    null, null, '#6b2a88', '#9b5ab8', '#9b5ab8', '#9b5ab8', null, null, '#9b5ab8', '#9b5ab8', '#9b5ab8', '#6b2a88', null, null, null, null,
+    null, null, '#6b2a88', '#6b2a88', '#6b2a88', null, null, null, null, '#6b2a88', '#6b2a88', '#6b2a88', null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
+  void_walker: [
+    null, null, null, null, null, null, '#aa66ff', '#aa66ff', '#aa66ff', '#aa66ff', null, null, null, null, null, null,
+    null, null, null, null, '#aa66ff', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#aa66ff', null, null, null, null, null,
+    null, null, null, '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', null, null, null, null,
+    null, null, '#5a5a8a', '#aa66ff', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#aa66ff', '#5a5a8a', '#5a5a8a', null, null, null,
+    null, null, '#5a5a8a', '#aa66ff', '#ffffff', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#ffffff', '#aa66ff', '#5a5a8a', null, null, null, null,
+    null, '#5a5a8a', '#5a5a8a', '#5a5a8a', '#ffffff', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', null, null, null,
+    null, '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', null, null,
+    null, '#3a3a5a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#3a3a5a', null, null,
+    '#1a1a3a', '#3a3a5a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#3a3a5a', '#1a1a3a', null,
+    null, '#3a3a5a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#3a3a5a', null, null,
+    null, null, '#3a3a5a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#5a5a8a', '#3a3a5a', null, null, null, null,
+    null, null, '#3a3a5a', '#3a3a5a', '#5a5a8a', '#5a5a8a', null, null, '#5a5a8a', '#5a5a8a', '#3a3a5a', '#3a3a5a', null, null, null, null,
+    null, null, null, '#3a3a5a', '#3a3a5a', null, null, null, null, '#3a3a5a', '#3a3a5a', null, null, null, null, null,
+    null, null, null, '#1a1a3a', '#1a1a3a', null, null, null, null, '#1a1a3a', '#1a1a3a', null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+    null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+  ],
 };
 
 export class SpriteRenderer {
@@ -56,6 +311,31 @@ export class SpriteRenderer {
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
+  }
+
+  private drawPixels(pattern: PixelPattern, x: number, y: number, width: number, height: number, flip: boolean = false) {
+    const ctx = this.ctx;
+    const pixelWidth = width / 16;
+    const pixelHeight = height / 16;
+
+    ctx.save();
+    if (flip) {
+      ctx.translate(x + width, y);
+      ctx.scale(-1, 1);
+      x = 0;
+      y = 0;
+    }
+
+    for (let i = 0; i < pattern.length; i++) {
+      const color = pattern[i];
+      if (color) {
+        const px = x + (i % 16) * pixelWidth;
+        const py = y + Math.floor(i / 16) * pixelHeight;
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(px), Math.floor(py), Math.ceil(pixelWidth), Math.ceil(pixelHeight));
+      }
+    }
+    ctx.restore();
   }
 
   drawEntity(entity: CombatEntity, dt: number): void {
@@ -74,6 +354,8 @@ export class SpriteRenderer {
       scale = 1 - fadeTime * 0.3;
     } else if (entity.hitFlash > 0) {
       alpha *= 0.5 + Math.sin(Date.now() * 0.05) * 0.5;
+    } else if (entity.invulnerableTime && entity.invulnerableTime > 0) {
+      alpha *= 0.4 + Math.sin(Date.now() * 0.02) * 0.3;
     }
 
     if (entity.attackProgress > 0) {
@@ -89,9 +371,13 @@ export class SpriteRenderer {
     ctx.translate(-centerX, -centerY);
 
     if (entity.type === 'hero') {
-      this.drawHero(entity);
+      const classKey = entity.classKey || 'warrior';
+      const pattern = HERO_PIXELS[classKey] || HERO_PIXELS.warrior;
+      this.drawPixels(pattern, entity.x, entity.y, entity.width, entity.height, false);
     } else {
-      this.drawMonster(entity);
+      const monsterKey = entity.monsterKey || 'slime';
+      const pattern = MONSTER_PIXELS[monsterKey] || MONSTER_PIXELS.slime;
+      this.drawPixels(pattern, entity.x, entity.y, entity.width, entity.height, true);
     }
 
     if (entity.attackProgress > 0 && entity.attackProgress < 1 && entity.state !== 'dying' && entity.state !== 'dead') {
@@ -105,62 +391,6 @@ export class SpriteRenderer {
     }
   }
 
-  private drawHero(entity: CombatEntity): void {
-    const ctx = this.ctx;
-    const { x, y, width, height, classKey } = entity;
-
-    const colors = CLASS_COLORS[classKey || 'warrior'] || CLASS_COLORS.warrior;
-
-    this.roundRect(x + 5, y + 10, width - 10, height - 15, 8);
-    ctx.fillStyle = colors.main;
-    ctx.fill();
-
-    ctx.fillStyle = colors.light;
-    ctx.globalAlpha = 0.3;
-    this.roundRect(x + 8, y + 13, (width - 16) / 2, (height - 18) / 2, 6);
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    ctx.strokeStyle = colors.dark;
-    ctx.lineWidth = 2;
-    this.roundRect(x + 5, y + 10, width - 10, height - 15, 8);
-    ctx.stroke();
-
-    const icon = CLASS_ICONS[classKey || 'warrior'] || '⚔️';
-    ctx.font = '24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(icon, x + width / 2, y + height / 2);
-  }
-
-  private drawMonster(entity: CombatEntity): void {
-    const ctx = this.ctx;
-    const { x, y, width, height, monsterKey } = entity;
-
-    const config = MONSTER_CONFIGS[monsterKey || 'slime'] || MONSTER_CONFIGS.slime;
-
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2, y + height / 2 + 5, width / 2 - 5, height / 2 - 10, 0, 0, Math.PI * 2);
-    ctx.fillStyle = config.color;
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(x + width / 3, y + height / 3, width / 5, height / 6, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2, y + height / 2 + 5, width / 2 - 5, height / 2 - 10, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.font = '20px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(config.icon, x + width / 2, y + height / 2 + 5);
-  }
-
   private drawAttackIndicator(entity: CombatEntity): void {
     const ctx = this.ctx;
     const t = entity.attackProgress;
@@ -171,19 +401,32 @@ export class SpriteRenderer {
 
     const startX = entity.x + entity.width / 2;
     const startY = entity.y + entity.height / 2;
-    const length = 60 * t;
 
-    const gradient = ctx.createLinearGradient(startX, startY, startX + direction * length, startY);
-    gradient.addColorStop(0, entity.type === 'hero' ? '#fff' : '#ff6b6b');
-    gradient.addColorStop(1, 'transparent');
+    const pixelSize = 6;
+    const maxLength = 7;
+    const currentLength = Math.floor(maxLength * t);
 
-    ctx.strokeStyle = gradient;
-    ctx.lineWidth = 8 + (1 - t) * 6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(startX, startY);
-    ctx.lineTo(startX + direction * length, startY);
-    ctx.stroke();
+    const colors = entity.type === 'hero'
+      ? ['#ffffff', '#dddddd', '#bbbbbb', '#999999', '#777777', '#555555', '#333333']
+      : ['#ff6b6b', '#ff5555', '#ff4444', '#dd3333', '#bb2222', '#991111', '#770000'];
+
+    for (let i = 0; i < currentLength; i++) {
+      const px = startX + direction * i * pixelSize;
+      const colorIndex = Math.min(i, colors.length - 1);
+      ctx.fillStyle = colors[colorIndex];
+
+      const spread = t > 0.3 ? 1 : 0;
+      const alpha = 1 - (i / maxLength);
+      ctx.globalAlpha = (1 - t) * alpha;
+
+      ctx.fillRect(px - pixelSize / 2, startY - pixelSize / 2, pixelSize, pixelSize);
+
+      if (spread > 0) {
+        ctx.globalAlpha = (1 - t) * alpha * 0.5;
+        ctx.fillRect(px - pixelSize / 2, startY - pixelSize / 2 - pixelSize, pixelSize, pixelSize);
+        ctx.fillRect(px - pixelSize / 2, startY - pixelSize / 2 + pixelSize, pixelSize, pixelSize);
+      }
+    }
 
     ctx.restore();
   }
@@ -216,20 +459,5 @@ export class SpriteRenderer {
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(entity.name, x + width / 2, barY - 4);
-  }
-
-  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
-    const ctx = this.ctx;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
   }
 }

@@ -74,30 +74,34 @@ export function EndlessModePanel({ heroName, classKey }: EndlessModePanelProps):
   }, [initEngine, cleanupEngine]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (!engineRef.current || !canvasRef.current || !containerRef.current) return;
+    if (!canvasRef.current || !containerRef.current) return;
 
-      const canvas = canvasRef.current;
-      const container = containerRef.current;
-      const ctx = canvas.getContext('2d', { alpha: true });
-      if (!ctx) return;
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
 
-      const dpr = window.devicePixelRatio || 1;
-      const rect = container.getBoundingClientRect();
-      const width = rect.width || 800;
-      const height = rect.height || 500;
+    const observer = new ResizeObserver(entries => {
+      if (!engineRef.current) return;
 
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = width + 'px';
-      canvas.style.height = height + 'px';
-      ctx.scale(dpr, dpr);
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const ctx = canvas.getContext('2d', { alpha: true });
+        if (!ctx) return;
 
-      engineRef.current.resize(width, height);
-    };
+        const dpr = window.devicePixelRatio || 1;
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        engineRef.current.resize(width, height);
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
   }, []);
 
   const togglePause = useCallback(() => {
@@ -162,12 +166,6 @@ export function EndlessModePanel({ heroName, classKey }: EndlessModePanelProps):
         )}
       </div>
 
-      <div className="px-4 py-2 bg-[#161b22] border-t border-[#30363d]">
-        <div className="flex items-center justify-between text-[11px] text-[#8b949e]">
-          <span>💡 完全自动战斗！无需任何操作</span>
-          <span>⚔️ 死亡后自动复活，永不停歇！</span>
-        </div>
-      </div>
     </div>
   );
 }
