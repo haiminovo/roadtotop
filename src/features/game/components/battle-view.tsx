@@ -1,9 +1,68 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import type { BattleSnapshot, SkillInfo } from '../types';
 import type { ClassKey } from '@/lib/game-config';
 import { BattleCanvas } from './battle-canvas';
+import { PIXEL_HEROES, PIXEL_MONSTERS } from '../engine/pixel-art';
+
+// 像素艺术头像组件
+function PixelAvatar({
+  type,
+  classKey,
+  monsterKey,
+  size = 48,
+  flip = false,
+  alpha = 1,
+}: {
+  type: 'player' | 'enemy';
+  classKey?: ClassKey;
+  monsterKey?: string;
+  size?: number;
+  flip?: boolean;
+  alpha?: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d', { alpha: true });
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let pixels = type === 'player'
+      ? (classKey && PIXEL_HEROES[classKey] ? PIXEL_HEROES[classKey] : PIXEL_HEROES.warrior)
+      : (monsterKey && PIXEL_MONSTERS[monsterKey] ? PIXEL_MONSTERS[monsterKey] : PIXEL_MONSTERS.slime);
+
+    const pixelWidth = size / 16;
+    const pixelHeight = size / 16;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    if (flip) {
+      ctx.translate(size, 0);
+      ctx.scale(-1, 1);
+    }
+
+    for (let i = 0; i < pixels.length; i++) {
+      const color = pixels[i];
+      if (color) {
+        const px = (i % 16) * pixelWidth;
+        const py = Math.floor(i / 16) * pixelHeight;
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.floor(px), Math.floor(py), Math.ceil(pixelWidth), Math.ceil(pixelHeight));
+      }
+    }
+
+    ctx.restore();
+  }, [type, classKey, monsterKey, size, flip, alpha]);
+
+  return <canvas ref={canvasRef} width={size} height={size} />;
+}
 
 const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {
   attack: { bg: '#f8514920', text: '#f85149' },
@@ -51,12 +110,14 @@ function SkillTooltip({ skill, skillState }: { skill: SkillInfo; skillState?: { 
   );
 }
 
-function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityIndex, skills, skillStates }: {
-  name: string; icon: string; hp: number; maxHp: number; ap: number;
+function EntityCard({ name, hp, maxHp, ap, effects, alive, side, entityIndex, skills, skillStates, classKey, enemyKey }: {
+  name: string; hp: number; maxHp: number; ap: number;
   effects: { type: string; duration: number }[]; alive: boolean; side: 'player' | 'enemy';
   entityIndex: number;
   skills: SkillInfo[];
   skillStates?: Record<string, { used: number; cooldownLeft: number }>;
+  classKey?: ClassKey;
+  enemyKey?: string;
 }) {
   const [hoveredSkill, setHoveredSkill] = useState<string | null>(null);
   const [toggledSkill, setToggledSkill] = useState<string | null>(null);
@@ -78,8 +139,18 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
       height: 140,
     }}>
       <div className="flex items-center gap-1.5 mb-1.5">
-        <div data-entity-avatar className="w-7 h-7 rounded flex items-center justify-center text-sm shrink-0" style={{ background: side === 'player' ? '#238636' : '#f8514920' }}>
-          {alive ? icon : '💀'}
+        <div data-entity-avatar className="w-10 h-10 rounded flex items-center justify-center shrink-0 overflow-hidden" style={{ background: side === 'player' ? '#238636' : '#f8514920' }}>
+          {alive ? (
+            <PixelAvatar
+              type={side}
+              classKey={classKey}
+              monsterKey={enemyKey}
+              size={40}
+              flip={side === 'enemy'}
+            />
+          ) : (
+            <span className="text-lg">💀</span>
+          )}
         </div>
         <div className="text-xs font-bold truncate" data-entity-name={name} style={{ color: alive ? nameColor : '#6e7681' }}>{name}</div>
         {/* 状态效果（右上角） */}
@@ -145,7 +216,6 @@ function EntityCard({ name, icon, hp, maxHp, ap, effects, alive, side, entityInd
 
 export function BattleView({ battle, classKey }: BattleViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const totalSlots = 1 + battle.enemies.length;
 
   return (
     <div ref={containerRef} className="relative rounded-lg overflow-hidden" style={{ background: '#0d1117', border: '2px solid #f8514930', minHeight: 260 }}>
@@ -164,25 +234,49 @@ export function BattleView({ battle, classKey }: BattleViewProps) {
         </span>
       </div>
 
-      {/* 对战区域 */}
+      {/* 对战区域 - 玩家在左，敌人在右排成一列 */}
       <div className="p-3">
-        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${totalSlots}, 1fr)` }}>
-          <EntityCard
-            name="你" icon="🧙"
-            hp={battle.playerHealth} maxHp={battle.playerMaxHealth}
-            ap={battle.playerActionPoints} effects={battle.playerEffects}
-            alive={battle.playerHealth > 0} side="player" entityIndex={-1}
-            skills={battle.playerSkills || []} skillStates={battle.playerSkillStates}
-          />
-          {battle.enemies.map((enemy, i) => (
+        <div className="flex items-start gap-4">
+          {/* 玩家 */}
+          <div className="shrink-0" style={{ width: 200 }}>
             <EntityCard
-              key={i} name={enemy.name} icon="👹"
-              hp={enemy.health} maxHp={enemy.maxHealth}
-              ap={enemy.actionPoints} effects={enemy.effects}
-              alive={enemy.alive} side="enemy" entityIndex={i}
-              skills={enemy.skills || []} skillStates={enemy.skillStates}
+              name="你"
+              hp={battle.playerHealth} maxHp={battle.playerMaxHealth}
+              ap={battle.playerActionPoints} effects={battle.playerEffects}
+              alive={battle.playerHealth > 0} side="player" entityIndex={-1}
+              skills={battle.playerSkills || []} skillStates={battle.playerSkillStates}
+              classKey={classKey}
             />
-          ))}
+          </div>
+
+          {/* VS 分隔符 */}
+          <div className="flex items-center justify-center shrink-0 pt-12">
+            <span className="text-2xl font-bold text-text-muted opacity-30">VS</span>
+          </div>
+
+          {/* 敌人队列 */}
+          <div className="flex-1">
+            <div className="flex flex-col gap-2">
+              {battle.enemies.map((enemy, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  {/* 排队位置指示 */}
+                  <div className="text-text-muted text-xs w-6 text-center opacity-50">
+                    {enemy.alive ? `#${i + 1}` : '💀'}
+                  </div>
+                  <div className="flex-1">
+                    <EntityCard
+                      name={enemy.name}
+                      hp={enemy.health} maxHp={enemy.maxHealth}
+                      ap={enemy.actionPoints} effects={enemy.effects}
+                      alive={enemy.alive} side="enemy" entityIndex={i}
+                      skills={enemy.skills || []} skillStates={enemy.skillStates}
+                      enemyKey={enemy.monsterKey}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

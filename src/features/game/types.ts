@@ -140,6 +140,7 @@ export interface EnemySnapshot {
   alive: boolean;
   skills: SkillInfo[];
   skillStates?: Record<string, { used: number; cooldownLeft: number }>;
+  monsterKey: string;
 }
 
 export interface BattleSnapshot {

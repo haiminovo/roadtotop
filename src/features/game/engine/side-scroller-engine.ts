@@ -4,7 +4,7 @@
 // 横向卷轴战斗引擎 - 无限战斗版
 // ============================================================
 
-import { SpriteRenderer } from './sprite-animation';
+import { SpriteRenderer } from './pixel-art';
 
 export interface Point {
   x: number;

@@ -46,6 +46,7 @@ interface EnemyInstance {
   actionPoints: number; effects: StatusEffect[];
   skillStates: Record<string, { used: number; cooldownLeft: number }>;
   alive: boolean;
+  monsterKey: string;
 }
 
 interface BattleState {
@@ -457,12 +458,14 @@ function buildBattleSnapshot(bs: BattleState, role: RoleRow, config: DynamicGame
       // 解析敌人技能
       const template = config.enemyTemplates.find(t => t.key === e.key);
       const skills = getEnemyCombatSkills(template, config).map(toSkillInfo);
+      const effectiveMonsterKey = e.monsterKey || (template ? getMonsterKeyFromEnemyTemplate(template) : 'slime');
       return {
         key: e.key, name: e.name, health: e.health, maxHealth: e.maxHealth,
         stats: e.stats, actionSpeed: e.actionSpeed,
         actionPoints: Math.min(100, e.actionPoints),
         effects: e.effects, alive: e.alive, skills,
         skillStates: e.skillStates || {},
+        monsterKey: effectiveMonsterKey,
       };
     }),
     totalEnemies: bs.totalEnemies, defeatedCount: bs.defeatedCount,
@@ -828,6 +831,23 @@ async function damageEquippedEquipment(roleId: number, durabilityLoss: number): 
   return brokenNames;
 }
 
+// 敌人模板到像素怪物key的映射（优先使用模板上的配置）
+function getMonsterKeyFromEnemyTemplate(template: EnemyTemplate): string {
+  if (template.monsterKey) return template.monsterKey;
+
+  const key = template.key.toLowerCase();
+  if (key.includes('slime')) return 'slime';
+  if (key.includes('goblin')) return 'goblin';
+  if (key.includes('skeleton')) return 'skeleton';
+  if (key.includes('wolf') || key.includes('wolf')) return 'wolf';
+  if (key.includes('bear')) return 'bear';
+  if (key.includes('fire') || key.includes('elemental')) return 'fire_elemental';
+  if (key.includes('dragon') || key.includes('dragon')) return 'dragon_whelp';
+  if (key.includes('void') || key.includes('shadow')) return 'void_walker';
+  // 默认返回史莱姆
+  return 'slime';
+}
+
 // --- 创建战斗状态（1-4个敌人同时对战） ---
 function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicGameConfig, playerStats: StatBlock): BattleState {
   const roleLevel = getLevelFromExp(role.exp).level;
@@ -864,6 +884,7 @@ function createBattleState(enemy: EnemyTemplate, role: RoleRow, config: DynamicG
       level: enemyLevel,
       actionSpeed,
       actionPoints: 0, effects: [], skillStates, alive: true,
+      monsterKey: getMonsterKeyFromEnemyTemplate(template),
     });
   }
 

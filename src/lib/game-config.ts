@@ -173,6 +173,7 @@ export interface EnemyTemplate {
   skillCaps: { attack: number; spell: number; guard: number };
   goldDrop: number;
   expDrop: number;
+  monsterKey?: string;
 }
 
 export interface EventRule {
